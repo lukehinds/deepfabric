@@ -3,7 +3,7 @@ charset-normalizer==3.4.1
 idna==3.10
 requests==2.32.3
 tqdm==4.67.1
-urllib3==2.3.0
+urllib3==2.4.0
 huggingface-hub==0.30.2
 datasets==3.5.0
 litellm==1.52.1
