@@ -15,7 +15,7 @@ tqdm = "4.67.1"
 urllib3 = "2.4.0"
 huggingface-hub = "0.31.2"
 datasets = "3.6.0"
-litellm = "1.65.4"
+litellm = "1.73.1"
 PyYAML = ">=6.0.1"
 click = ">=8.1.7"
 
