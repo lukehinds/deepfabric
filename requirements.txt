@@ -1,9 +1,0 @@
-certifi==2025.4.26
-charset-normalizer==3.4.2
-idna==3.10
-requests==2.32.3
-tqdm==4.67.1
-urllib3==2.4.0
-huggingface-hub==0.30.2
-datasets==3.6.0
-litellm==1.52.1

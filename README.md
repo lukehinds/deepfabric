@@ -1,19 +1,18 @@
 # Promptwright - Synthetic Dataset Generation Library
 
-[![Tests](https://github.com/StacklokLabs/promptwright/actions/workflows/test.yml/badge.svg)](https://github.com/StacklokLabs/promptwright/actions/workflows/test.yml)
+[![Tests](https://github.com/lukehinds/promptwright/actions/workflows/test.yml/badge.svg)](https://github.com/lukehinds/promptwright/actions/workflows/test.yml)
 [![Python Version](https://img.shields.io/pypi/pyversions/promptwright.svg)](https://pypi.org/project/promptwright/)
 
 ![promptwright-cover](https://github.com/user-attachments/assets/0bace08b-753c-42d3-a084-5a1953101fa2)
 
 
-Promptwright is a Python library from [Stacklok](https://stacklok.com) designed 
-for generating large synthetic  datasets using a either a local LLM and most LLM service
-providers (openAI, Anthropic, OpenRouter etc). The library offers
-a flexible and easy-to-use set of interfaces, enabling users the ability to
-generate prompt led synthetic datasets.
+Promptwright is a Python library designed for generating large synthetic datasets
 
-Promptwright was inspired by the [redotvideo/pluto](https://github.com/redotvideo/pluto),
-in fact it started as fork, but ended up largley being a re-write.
+The library offers a flexible and easy-to-use set of interfaces, enabling users the ability to
+generate prompt led synthetic datasets. This makes it suitable for a wide range of applications,
+from training machine learning models to creating realistic user simulations.
+
+
 
 ## Features
 
@@ -29,7 +28,7 @@ in fact it started as fork, but ended up largley being a re-write.
 ### Prerequisites
 
 - Python 3.11+
-- Poetry (for dependency management)
+- uv (for dependency management)
 - (Optional) Hugging Face account and API token for dataset upload
 
 ### Installation
@@ -47,13 +46,13 @@ pip install promptwright
 To install the prerequisites, you can use the following commands:
 
 ```bash
-# Install Poetry if you haven't already
-curl -sSL https://install.python-poetry.org | python3 -
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install promptwright and its dependencies
-git clone https://github.com/StacklokLabs/promptwright.git
+git clone https://github.com/lukehinds/promptwright.git
 cd promptwright
-poetry install
+uv sync --all-extras
 ```
 
 ### Usage
@@ -330,6 +329,11 @@ summary.
 ## Contributing
 
 If something here could be improved, please open an issue or submit a pull request.
+
+## Inspiration
+
+Promptwright was inspired by the [redotvideo/pluto](https://github.com/redotvideo/pluto),
+in fact it started as fork, but ended up largely being a re-write.
 
 ### License
 
