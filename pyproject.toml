@@ -19,7 +19,6 @@ dependencies = [
     "click>=8.1.7",
 ]
 
-<<<<<<< HEAD
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
@@ -30,21 +29,6 @@ dev = [
     "black>=24.10,<26.0",
     "bandit>=1.7.10",
 ]
-=======
-[tool.poetry.dependencies]
-python = ">=3.11"
-certifi = "2025.4.26"
-charset-normalizer = "3.4.2"
-idna = "3.10"
-requests = "2.32.3"
-tqdm = "4.67.1"
-urllib3 = "2.4.0"
-huggingface-hub = "0.34.4"
-datasets = "3.6.0"
-litellm = "1.65.4"
-PyYAML = ">=6.0.1"
-click = ">=8.1.7"
->>>>>>> 924dc42 (build(deps): bump charset-normalizer from 3.4.1 to 3.4.2)
 
 [project.scripts]
 promptwright = "promptwright.cli:cli"
