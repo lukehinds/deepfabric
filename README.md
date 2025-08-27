@@ -29,7 +29,7 @@ in fact it started as fork, but ended up largley being a re-write.
 ### Prerequisites
 
 - Python 3.11+
-- Poetry (for dependency management)
+- uv (for dependency management)
 - (Optional) Hugging Face account and API token for dataset upload
 
 ### Installation
@@ -47,13 +47,13 @@ pip install promptwright
 To install the prerequisites, you can use the following commands:
 
 ```bash
-# Install Poetry if you haven't already
-curl -sSL https://install.python-poetry.org | python3 -
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install promptwright and its dependencies
 git clone https://github.com/StacklokLabs/promptwright.git
 cd promptwright
-poetry install
+uv sync --all-extras
 ```
 
 ### Usage
