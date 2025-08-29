@@ -1,9 +1,39 @@
 # Promptwright - Synthetic Dataset Generation Library
 
-[![Tests](https://github.com/lukehinds/promptwright/actions/workflows/test.yml/badge.svg)](https://github.com/lukehinds/promptwright/actions/workflows/test.yml)
-[![Python Version](https://img.shields.io/pypi/pyversions/promptwright.svg)](https://pypi.org/project/promptwright/)
+<div align="center">
+  <img src="https://raw.githubusercontent.com/lukehinds/promptwright/main/assets/logo.png" alt="promptwright Logo" width="400"/>
 
-![promptwright-cover](https://github.com/user-attachments/assets/0bace08b-753c-42d3-a084-5a1953101fa2)
+  <!-- CTA Buttons -->
+  <p>
+    <a href="https://github.com/lukehinds/promptwright/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">
+      <img src="https://img.shields.io/badge/Contribute-Good%20First%20Issues-green?style=for-the-badge&logo=github" alt="Good First Issues"/>
+    </a>
+    &nbsp;
+    <a href="https://discord.gg/pPcjYzGvbS">
+      <img src="https://img.shields.io/badge/Chat-Join%20Discord-7289da?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"/>
+    </a>
+  </p>
+
+  <!-- Badges -->
+  <p>
+    <a href="https://opensource.org/licenses/Apache-2.0">
+      <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/>
+    </a>
+    <a href="https://github.com/lukehinds/promptwright/actions/workflows/ci.yml">
+      <img src="https://github.com/lukehinds/promptwright/actions/workflows/ci.yml/badge.svg" alt="CI Status"/>
+    </a>
+    <a href="https://pypi.org/project/promptwright/">
+      <img src="https://img.shields.io/pypi/v/promptwright.svg" alt="PyPI Version"/>
+    </a>
+    <a href="https://pepy.tech/project/promptwright">
+      <img src="https://static.pepy.tech/badge/promptwright" alt="Downloads"/>
+    </a>
+    <a href="https://discord.gg/pPcjYzGvbS">
+      <img src="https://img.shields.io/discord/1384081906773131274?color=7289da&label=Discord&logo=discord&logoColor=white" alt="Discord"/>
+    </a>
+  </p>
+  <br/>
+</div>
 
 
 Promptwright is a Python library designed for generating large synthetic datasets
