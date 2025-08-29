@@ -158,8 +158,8 @@ class DataEngine:
 
             if required_samples > total_paths:
                 raise DataEngineError("insufficient")
-
-            tree_paths = random.sample(tree_paths, required_samples)
+            # Bandit: not a security function
+            tree_paths = random.sample(tree_paths, required_samples)  # nosec
             num_steps = math.ceil(len(tree_paths) / batch_size)
 
         return tree_paths, num_steps
@@ -485,8 +485,8 @@ class DataEngine:
     def build_examples_text(self, num_example_demonstrations: int):
         if self.args.example_data is None or num_example_demonstrations == 0:
             return ""
-
-        examples = random.sample(self.args.example_data.samples, num_example_demonstrations)
+        # Bandit: not a security function
+        examples = random.sample(self.args.example_data.samples, num_example_demonstrations)  # nosec
         examples_text = "Here are output examples:\n\n"
         examples_text += "\n".join(f"Example {i + 1}: \n\n{ex}\n" for i, ex in enumerate(examples))
         return f"\nHere are output examples:\n<examples>\n{examples_text}\n</examples>\n"

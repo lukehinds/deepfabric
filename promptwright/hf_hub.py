@@ -92,7 +92,8 @@ class HFUploader:
         """
         try:
             login(token=self.hf_token)
-            dataset = load_dataset("json", data_files={"train": jsonl_file_path})
+            # Bandit locally produced and sourced
+            dataset = load_dataset("json", data_files={"train": jsonl_file_path})  # nosec
 
             # Use getattr to safely access push_to_hub method
             push_method = getattr(dataset, "push_to_hub", None)
