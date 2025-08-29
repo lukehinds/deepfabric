@@ -181,9 +181,7 @@ class Dataset:
         """
         filtered_samples = []
         for sample in self.samples:
-            filtered_messages = [
-                msg for msg in sample["messages"] if msg["role"] == role
-            ]
+            filtered_messages = [msg for msg in sample["messages"] if msg["role"] == role]
             if filtered_messages:
                 filtered_sample = sample.copy()
                 filtered_sample["messages"] = filtered_messages

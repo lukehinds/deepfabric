@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from promptwright.engine import DataEngine, Dataset, EngineArguments
+from promptwright.exceptions import DataEngineError
 
 
 @pytest.fixture
@@ -18,6 +19,7 @@ def engine_args():
         default_batch_size=5,
         default_num_examples=3,
         request_timeout=30,
+        sys_msg=True,
     )
 
 
@@ -34,8 +36,8 @@ def test_engine_initialization(engine_args):
 
 
 def test_create_data_no_steps(data_engine):
-    with pytest.raises(ValueError, match="num_steps must be specified"):
-        data_engine.create_data()
+    with pytest.raises(DataEngineError, match="positive"):
+        data_engine.create_data(num_steps=0)
 
 
 @patch("promptwright.engine.litellm.batch_completion")
@@ -102,9 +104,7 @@ def test_create_data_with_sys_msg_default(mock_batch_completion, data_engine):
     assert len(dataset.samples) == 1
     assert len(dataset.samples[0]["messages"]) == 3  # noqa: PLR2004
     assert dataset.samples[0]["messages"][0]["role"] == "system"
-    assert (
-        dataset.samples[0]["messages"][0]["content"] == data_engine.args.system_prompt
-    )
+    assert dataset.samples[0]["messages"][0]["content"] == data_engine.args.system_prompt
 
 
 @patch("promptwright.engine.litellm.batch_completion")
@@ -143,6 +143,13 @@ def test_create_data_sys_msg_override(mock_batch_completion):
         instructions="Test instructions",
         system_prompt="Test system prompt",
         model_name="test-model",
+        prompt_template=None,
+        example_data=None,
+        temperature=0.7,
+        max_retries=3,
+        default_batch_size=5,
+        default_num_examples=3,
+        request_timeout=30,
         sys_msg=False,  # Default to False
     )
     engine = DataEngine(args)
@@ -164,9 +171,7 @@ def test_create_data_sys_msg_override(mock_batch_completion):
     topic_tree.tree_paths = ["path1"]
 
     # Override sys_msg=False with True in create_data
-    dataset = engine.create_data(
-        num_steps=1, batch_size=1, topic_tree=topic_tree, sys_msg=True
-    )
+    dataset = engine.create_data(num_steps=1, batch_size=1, topic_tree=topic_tree, sys_msg=True)
 
     # Verify system message is included despite engine default
     assert len(dataset.samples) == 1

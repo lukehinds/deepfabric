@@ -1,10 +1,14 @@
 """Configuration handling for YAML-based promptwright configurations."""
 
-from dataclasses import dataclass
+from typing import Any
 
 import yaml
 
+from pydantic import BaseModel, Field, field_validator
+
+from .constants import DEFAULT_MODEL, DEFAULT_PROVIDER, SYSTEM_PROMPT_PLACEHOLDER
 from .engine import EngineArguments
+from .exceptions import ConfigurationError
 from .topic_tree import TopicTreeArguments
 
 
@@ -13,91 +17,98 @@ def construct_model_string(provider: str, model: str) -> str:
     return f"{provider}/{model}"
 
 
-@dataclass
-class PromptWrightConfig:
+class PromptWrightConfig(BaseModel):
     """Configuration for PromptWright tasks."""
 
-    system_prompt: str
-    topic_tree: dict
-    data_engine: dict
-    dataset: dict
-    huggingface: dict | None = None
+    system_prompt: str = Field(..., min_length=1, description="System prompt for the model")
+    topic_tree: dict[str, Any] = Field(..., description="Topic tree configuration")
+    data_engine: dict[str, Any] = Field(..., description="Data engine configuration")
+    dataset: dict[str, Any] = Field(..., description="Dataset configuration")
+    huggingface: dict[str, Any] | None = Field(None, description="Hugging Face configuration")
+
+    @field_validator("system_prompt")
+    @classmethod
+    def validate_system_prompt(cls, v):
+        if not v or not v.strip():
+            raise ValueError("required")
+        return v.strip()
 
     @classmethod
     def from_yaml(cls, yaml_path: str) -> "PromptWrightConfig":
         """Load configuration from a YAML file."""
-        with open(yaml_path) as f:
-            config_dict = yaml.safe_load(f)
+        try:
+            with open(yaml_path, encoding="utf-8") as f:
+                config_dict = yaml.safe_load(f)
+        except FileNotFoundError as e:
+            raise ConfigurationError(f"not found: {yaml_path}") from e  # noqa: TRY003
+        except yaml.YAMLError as e:
+            raise ConfigurationError(f"invalid YAML: {str(e)}") from e  # noqa: TRY003
+        except Exception as e:
+            raise ConfigurationError(f"read error: {str(e)}") from e  # noqa: TRY003
 
-        return cls(
-            system_prompt=config_dict.get("system_prompt", ""),
-            topic_tree=config_dict.get("topic_tree", {}),
-            data_engine=config_dict.get("data_engine", {}),
-            dataset=config_dict.get("dataset", {}),
-            huggingface=config_dict.get("huggingface", None),
-        )
+        if not isinstance(config_dict, dict):
+            raise ConfigurationError("must be dictionary")  # noqa: TRY003
+
+        try:
+            return cls(**config_dict)
+        except Exception as e:
+            raise ConfigurationError(  # noqa: TRY003
+                f"invalid structure: {str(e)}"
+            ) from e  # noqa: TRY003
 
     def get_topic_tree_args(self, **overrides) -> TopicTreeArguments:
         """Get TopicTreeArguments from config with optional overrides."""
-        args = self.topic_tree.get("args", {}).copy()  # Make a copy of the args
+        try:
+            args = self.topic_tree.get("args", {}).copy()
 
-        # Replace system prompt placeholder
-        if "model_system_prompt" in args:
-            args["model_system_prompt"] = args["model_system_prompt"].replace(
-                "<system_prompt_placeholder>", self.system_prompt
-            )
+            # Replace system prompt placeholder
+            if "model_system_prompt" in args and isinstance(args["model_system_prompt"], str):
+                args["model_system_prompt"] = args["model_system_prompt"].replace(
+                    SYSTEM_PROMPT_PLACEHOLDER, self.system_prompt
+                )
 
-        # Handle provider and model separately
-        provider = overrides.pop("provider", args.pop("provider", "ollama"))
-        model = overrides.pop("model", args.pop("model", "mistral:latest"))
+            # Handle provider and model separately
+            provider = overrides.pop("provider", args.pop("provider", DEFAULT_PROVIDER))
+            model = overrides.pop("model", args.pop("model", DEFAULT_MODEL))
 
-        # Apply remaining overrides
-        args.update(overrides)
+            # Apply remaining overrides
+            args.update(overrides)
 
-        # Construct full model string
-        args["model_name"] = construct_model_string(provider, model)
+            # Construct full model string
+            args["model_name"] = construct_model_string(provider, model)
 
-        return TopicTreeArguments(
-            root_prompt=args.get("root_prompt", ""),
-            model_system_prompt=args.get("model_system_prompt", ""),
-            tree_degree=args.get("tree_degree", 3),
-            tree_depth=args.get("tree_depth", 2),
-            temperature=args.get("temperature", 0.7),
-            model_name=args["model_name"],
-        )
+            return TopicTreeArguments(**args)
+        except Exception as e:
+            raise ConfigurationError(f"args error: {str(e)}") from e  # noqa: TRY003
 
     def get_engine_args(self, **overrides) -> EngineArguments:
         """Get EngineArguments from config with optional overrides."""
-        args = self.data_engine.get("args", {}).copy()  # Make a copy of the args
+        try:
+            args = self.data_engine.get("args", {}).copy()
 
-        # Replace system prompt placeholder
-        if "system_prompt" in args:
-            args["system_prompt"] = args["system_prompt"].replace(
-                "<system_prompt_placeholder>", self.system_prompt
-            )
+            # Replace system prompt placeholder
+            if "system_prompt" in args and isinstance(args["system_prompt"], str):
+                args["system_prompt"] = args["system_prompt"].replace(
+                    SYSTEM_PROMPT_PLACEHOLDER, self.system_prompt
+                )
 
-        # Handle provider and model separately
-        provider = overrides.pop("provider", args.pop("provider", "ollama"))
-        model = overrides.pop("model", args.pop("model", "mistral:latest"))
+            # Handle provider and model separately
+            provider = overrides.pop("provider", args.pop("provider", DEFAULT_PROVIDER))
+            model = overrides.pop("model", args.pop("model", DEFAULT_MODEL))
 
-        # Apply remaining overrides
-        args.update(overrides)
+            # Apply remaining overrides
+            args.update(overrides)
 
-        # Construct full model string
-        args["model_name"] = construct_model_string(provider, model)
+            # Construct full model string
+            args["model_name"] = construct_model_string(provider, model)
 
-        # Get sys_msg from dataset config, defaulting to True
-        dataset_config = self.get_dataset_config()
-        sys_msg = dataset_config.get("creation", {}).get("sys_msg", True)
+            # Get sys_msg from dataset config, defaulting to True
+            dataset_config = self.get_dataset_config()
+            args.setdefault("sys_msg", dataset_config.get("creation", {}).get("sys_msg", True))
 
-        return EngineArguments(
-            instructions=args.get("instructions", ""),
-            system_prompt=args.get("system_prompt", ""),
-            model_name=args["model_name"],
-            temperature=args.get("temperature", 0.9),
-            max_retries=args.get("max_retries", 2),
-            sys_msg=sys_msg,
-        )
+            return EngineArguments(**args)
+        except Exception as e:
+            raise ConfigurationError(f"args error: {str(e)}") from e  # noqa: TRY003
 
     def get_dataset_config(self) -> dict:
         """Get dataset configuration."""

@@ -1,15 +1,16 @@
+from promptwright import Dataset
+
+
 def test_dataset_initialization():
     """Test Dataset class initialization."""
-    from promptwright import Dataset
-
     dataset = Dataset()
+
     assert len(dataset) == 0
     assert dataset.samples == []
 
 
 def test_dataset_validation():
     """Test sample validation."""
-    from promptwright import Dataset
 
     valid_sample = {
         "messages": [
@@ -26,7 +27,6 @@ def test_dataset_validation():
 
 def test_dataset_validation_with_system_message():
     """Test sample validation with system message."""
-    from promptwright import Dataset
 
     valid_sample = {
         "messages": [
@@ -41,7 +41,6 @@ def test_dataset_validation_with_system_message():
 
 def test_dataset_validation_system_message_order():
     """Test sample validation with system message in different positions."""
-    from promptwright import Dataset
 
     # System message should be valid in any position
     valid_sample_start = {
@@ -75,7 +74,6 @@ def test_dataset_validation_system_message_order():
 
 def test_dataset_validation_multiple_system_messages():
     """Test sample validation with multiple system messages."""
-    from promptwright import Dataset
 
     # Multiple system messages should be valid
     valid_sample = {
@@ -92,7 +90,6 @@ def test_dataset_validation_multiple_system_messages():
 
 def test_dataset_add_samples():
     """Test adding samples to dataset."""
-    from promptwright import Dataset
 
     dataset = Dataset()
 
@@ -118,7 +115,6 @@ def test_dataset_add_samples():
 
 def test_dataset_add_samples_with_system_messages():
     """Test adding samples with system messages to dataset."""
-    from promptwright import Dataset
 
     dataset = Dataset()
 
@@ -147,7 +143,6 @@ def test_dataset_add_samples_with_system_messages():
 
 def test_dataset_filter_by_role():
     """Test filtering samples by role."""
-    from promptwright import Dataset
 
     dataset = Dataset()
 
@@ -173,7 +168,6 @@ def test_dataset_filter_by_role():
 
 def test_dataset_get_statistics():
     """Test getting dataset statistics."""
-    from promptwright import Dataset
 
     dataset = Dataset()
 

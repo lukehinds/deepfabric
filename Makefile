@@ -11,9 +11,8 @@ clean:
 install:
 	uv sync --all-extras
 
-format:
-	uv run black .
-	uv run ruff check --fix .
+format: ## Format code with ruff (parallel)
+	uv run ruff format promptwright/ tests/
 
 lint:
 	uv run ruff check .

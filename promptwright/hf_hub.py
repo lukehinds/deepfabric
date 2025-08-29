@@ -1,6 +1,8 @@
 from datasets import load_dataset
 from huggingface_hub import DatasetCard, login
-from huggingface_hub.utils import HfHubHTTPError, RepositoryNotFoundError
+from huggingface_hub.errors import HfHubHTTPError, RepositoryNotFoundError
+
+from .constants import DEFAULT_HF_TAGS
 
 
 class HFUploader:
@@ -48,23 +50,27 @@ class HFUploader:
         try:
             card = DatasetCard.load(repo_id)
 
-            # Initialize tags if not present
-            if not hasattr(card.data, "tags") or not isinstance(card.data.tags, list):
-                card.data.tags = []
+            # Initialize tags if not present - use getattr for safe access
+            current_tags = getattr(card.data, "tags", None)
+            if not current_tags or not isinstance(current_tags, list):
+                current_tags = []
+                setattr(card.data, "tags", current_tags)  # noqa: B010
 
             # Add default promptwright tags
-            default_tags = ["promptwright", "synthetic"]
-            for tag in default_tags:
-                if tag not in card.data.tags:
-                    card.data.tags.append(tag)
+            for tag in DEFAULT_HF_TAGS:
+                if tag not in current_tags:
+                    current_tags.append(tag)
 
             # Add custom tags if provided
             if tags:
                 for tag in tags:
-                    if tag not in card.data.tags:
-                        card.data.tags.append(tag)
+                    if tag not in current_tags:
+                        current_tags.append(tag)
 
-            card.push_to_hub(repo_id)
+            # Use getattr to safely access push_to_hub method
+            push_method = getattr(card, "push_to_hub", None)
+            if push_method:
+                push_method(repo_id)
             return True  # noqa: TRY300
         except Exception as e:
             print(f"Warning: Failed to update dataset card: {str(e)}")  # nosec
@@ -86,8 +92,15 @@ class HFUploader:
         """
         try:
             login(token=self.hf_token)
-            dataset = load_dataset("json", data_files={"train": jsonl_file_path})
-            dataset.push_to_hub(hf_dataset_repo, token=self.hf_token)
+            # Bandit locally produced and sourced
+            dataset = load_dataset("json", data_files={"train": jsonl_file_path})  # nosec
+
+            # Use getattr to safely access push_to_hub method
+            push_method = getattr(dataset, "push_to_hub", None)
+            if push_method:
+                push_method(hf_dataset_repo, token=self.hf_token)
+            else:
+                raise AttributeError("Dataset object does not support push_to_hub")  # noqa: TRY003, TRY301
 
             # Update dataset card with tags
             self.update_dataset_card(hf_dataset_repo, tags)
