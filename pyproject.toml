@@ -7,7 +7,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "certifi==2025.1.31",
-    "charset-normalizer==3.4.1",
+    "charset-normalizer==3.4.3",
     "idna==3.10",
     "requests==2.32.3",
     "tqdm==4.67.1",
