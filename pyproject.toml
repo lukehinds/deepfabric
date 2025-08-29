@@ -6,7 +6,7 @@ authors = [{name = "Luke Hinds", email = "luke@rdrocket.com"}]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "certifi==2025.1.31",
+    "certifi==2025.8.3",
     "charset-normalizer==3.4.1",
     "idna==3.10",
     "requests==2.32.3",
