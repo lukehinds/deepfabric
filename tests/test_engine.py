@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from promptwright.engine import DataEngine, Dataset, EngineArguments
+from promptwright.exceptions import DataEngineError
 
 
 @pytest.fixture
@@ -18,6 +19,7 @@ def engine_args():
         default_batch_size=5,
         default_num_examples=3,
         request_timeout=30,
+        sys_msg=True,
     )
 
 
@@ -34,7 +36,7 @@ def test_engine_initialization(engine_args):
 
 
 def test_create_data_no_steps(data_engine):
-    with pytest.raises(ValueError, match="num_steps must be specified"):
+    with pytest.raises(DataEngineError, match="positive"):
         data_engine.create_data()
 
 
@@ -143,6 +145,13 @@ def test_create_data_sys_msg_override(mock_batch_completion):
         instructions="Test instructions",
         system_prompt="Test system prompt",
         model_name="test-model",
+        prompt_template=None,
+        example_data=None,
+        temperature=0.7,
+        max_retries=3,
+        default_batch_size=5,
+        default_num_examples=3,
+        request_timeout=30,
         sys_msg=False,  # Default to False
     )
     engine = DataEngine(args)

@@ -28,7 +28,11 @@ def cli():
 @cli.command()
 @click.argument("config_file", type=click.Path(exists=True))
 @click.option("--topic-tree-save-as", help="Override the save path for the topic tree")
-@click.option('--topic-tree-jsonl', type=click.Path(exists=True), help='Path to the JSONL file containing the topic tree.')
+@click.option(
+    "--topic-tree-jsonl",
+    type=click.Path(exists=True),
+    help="Path to the JSONL file containing the topic tree.",
+)
 @click.option("--dataset-save-as", help="Override the save path for the dataset")
 @click.option("--provider", help="Override the LLM provider (e.g., ollama)")
 @click.option("--model", help="Override the model name (e.g., mistral:latest)")
@@ -108,7 +112,7 @@ def start(  # noqa: PLR0912
         # Construct model name
         model_name = construct_model_string(
             provider or dataset_params.get("provider", "default_provider"),
-            model or dataset_params.get("model", "default_model")
+            model or dataset_params.get("model", "default_model"),
         )
 
         # Create and build topic tree
@@ -117,18 +121,16 @@ def start(  # noqa: PLR0912
                 click.echo(f"Reading topic tree from JSONL file: {topic_tree_jsonl}")
                 dict_list = read_topic_tree_from_jsonl(topic_tree_jsonl)
                 default_args = TopicTreeArguments(
-                    root_prompt="default",
-                    model_name=model_name
+                    root_prompt="default", model_name=model_name
                 )
                 tree = TopicTree(args=default_args)
                 tree.from_dict_list(dict_list)
             else:
-                if hasattr(config, 'topic_tree'):
+                if hasattr(config, "topic_tree"):
                     tree_args = config.get_topic_tree_args(**tree_overrides)
                 else:
                     tree_args = TopicTreeArguments(
-                        root_prompt="default",
-                        model_name=model_name
+                        root_prompt="default", model_name=model_name
                     )
                 tree = TopicTree(args=tree_args)
                 tree.build_tree()
@@ -170,7 +172,7 @@ def start(  # noqa: PLR0912
         # Construct model name for dataset creation
         model_name = construct_model_string(
             provider or dataset_params.get("provider", "ollama"),
-            model or dataset_params.get("model", "mistral:latest")
+            model or dataset_params.get("model", "mistral:latest"),
         )
 
         # Create dataset with overrides

@@ -282,14 +282,17 @@ def test_start_command_with_overrides(
     assert kwargs["model_name"] == "override/model"
     assert kwargs["sys_msg"] is False
 
+
 @patch("promptwright.cli.read_topic_tree_from_jsonl")
 @patch("promptwright.cli.TopicTree")
 @patch("promptwright.cli.DataEngine")
-
 def test_start_command_with_jsonl(
-    mock_data_engine, mock_topic_tree, mock_read_topic_tree_from_jsonl, cli_runner,
-    sample_config_file
-    ):
+    mock_data_engine,
+    mock_topic_tree,
+    mock_read_topic_tree_from_jsonl,
+    cli_runner,
+    sample_config_file,
+):
     """Test start command with JSONL file."""
     mock_tree_instance = Mock()
     mock_topic_tree.return_value = mock_tree_instance
@@ -308,12 +311,7 @@ def test_start_command_with_jsonl(
         # Run command with JSONL file
         result = cli_runner.invoke(
             cli,
-            [
-                "start",
-                sample_config_file,
-                "--topic-tree-jsonl",
-                temp_jsonl_path
-            ],
+            ["start", sample_config_file, "--topic-tree-jsonl", temp_jsonl_path],
         )
 
         # Print output if command fails
@@ -327,7 +325,9 @@ def test_start_command_with_jsonl(
         mock_read_topic_tree_from_jsonl.assert_called_once_with(temp_jsonl_path)
 
         # Verify from_dict_list was called with the correct data
-        mock_tree_instance.from_dict_list.assert_called_once_with([{"path": ["root", "child"]}])
+        mock_tree_instance.from_dict_list.assert_called_once_with(
+            [{"path": ["root", "child"]}]
+        )
 
         # Verify save was not called since JSONL file was provided
         mock_tree_instance.save.assert_not_called()
@@ -336,6 +336,7 @@ def test_start_command_with_jsonl(
         # Cleanup the temporary JSONL file
         if os.path.exists(temp_jsonl_path):
             os.unlink(temp_jsonl_path)
+
 
 def test_start_command_missing_config(cli_runner):
     """Test start command with missing config file."""

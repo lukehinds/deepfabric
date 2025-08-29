@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from huggingface_hub.utils import HfHubHTTPError, RepositoryNotFoundError
+from huggingface_hub.errors import HfHubHTTPError, RepositoryNotFoundError
 from requests import Request, Response
 
 from promptwright.hf_hub import HFUploader
@@ -51,11 +51,11 @@ def test_update_dataset_card(uploader, mock_dataset_card):
 
 def test_push_to_hub_success(uploader):
     """Test successful dataset push to hub."""
-    with patch("promptwright.hf_hub.login") as mock_login, patch(
-        "promptwright.hf_hub.load_dataset"
-    ) as mock_load_dataset, patch.object(
-        uploader, "update_dataset_card"
-    ) as mock_update_card:
+    with (
+        patch("promptwright.hf_hub.login") as mock_login,
+        patch("promptwright.hf_hub.load_dataset") as mock_load_dataset,
+        patch.object(uploader, "update_dataset_card") as mock_update_card,
+    ):
 
         mock_dataset = Mock()
         mock_load_dataset.return_value = mock_dataset
@@ -77,9 +77,10 @@ def test_push_to_hub_success(uploader):
 
 def test_push_to_hub_file_not_found(uploader):
     """Test push to hub with non-existent file."""
-    with patch("promptwright.hf_hub.login") as mock_login, patch(  # noqa: F841
-        "promptwright.hf_hub.load_dataset"
-    ) as mock_load_dataset:
+    with (
+        patch("promptwright.hf_hub.login") as _mock_login,
+        patch("promptwright.hf_hub.load_dataset") as mock_load_dataset,  # noqa: F841
+    ):
 
         mock_load_dataset.side_effect = FileNotFoundError("File not found")
 

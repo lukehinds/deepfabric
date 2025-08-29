@@ -2,6 +2,8 @@ from datasets import load_dataset
 from huggingface_hub import DatasetCard, login
 from huggingface_hub.utils import HfHubHTTPError, RepositoryNotFoundError
 
+from .constants import DEFAULT_HF_TAGS
+
 
 class HFUploader:
     """
@@ -53,8 +55,7 @@ class HFUploader:
                 card.data.tags = []
 
             # Add default promptwright tags
-            default_tags = ["promptwright", "synthetic"]
-            for tag in default_tags:
+            for tag in DEFAULT_HF_TAGS:
                 if tag not in card.data.tags:
                     card.data.tags.append(tag)
 

@@ -3,15 +3,30 @@ import re
 import time
 import warnings
 
-from dataclasses import dataclass
 from typing import Any
 
 import litellm
 
+from pydantic import BaseModel, Field, field_validator
+
+from .constants import (
+    DEFAULT_MAX_TOKENS,
+    MAX_RETRY_ATTEMPTS,
+    RETRY_BASE_DELAY,
+    TOPIC_TREE_DEFAULT_DEGREE,
+    TOPIC_TREE_DEFAULT_DEPTH,
+    TOPIC_TREE_DEFAULT_MODEL,
+    TOPIC_TREE_DEFAULT_TEMPERATURE,
+)
+from .exceptions import TopicTreeError
 from .prompts import TREE_GENERATION_PROMPT, TREE_JSON_INSTRUCTIONS
 from .utils import extract_list
 
 warnings.filterwarnings("ignore", message="Pydantic serializer warnings:.*")
+
+
+UPPER_TREE_DEGREE = 50
+UPPER_TREE_DEPTH = 10
 
 
 def validate_and_clean_response(response_text: str) -> str | list[str] | None:
@@ -35,25 +50,58 @@ def validate_and_clean_response(response_text: str) -> str | list[str] | None:
         return None
 
 
-@dataclass
-class TopicTreeArguments:
-    """
-    A class to represent the arguments for constructing a topic tree.
+class TopicTreeArguments(BaseModel):
+    """Arguments for constructing a topic tree."""
 
-    Attributes:
-        root_prompt (str): The initial prompt to start the topic tree.
-        model_system_prompt (str): The system prompt for the model.
-        tree_degree (int): The branching factor of the tree.
-        tree_depth (int): The depth of the tree.
-        model_name (str): The name of the model to be used.
-    """
+    root_prompt: str = Field(
+        ..., min_length=1, description="The initial prompt to start the topic tree"
+    )
+    model_system_prompt: str = Field("", description="The system prompt for the model")
+    tree_degree: int = Field(
+        TOPIC_TREE_DEFAULT_DEGREE,
+        ge=1,
+        le=50,
+        description="The branching factor of the tree",
+    )
+    tree_depth: int = Field(
+        TOPIC_TREE_DEFAULT_DEPTH, ge=1, le=10, description="The depth of the tree"
+    )
+    model_name: str = Field(
+        TOPIC_TREE_DEFAULT_MODEL,
+        min_length=1,
+        description="The name of the model to be used",
+    )
+    temperature: float = Field(
+        TOPIC_TREE_DEFAULT_TEMPERATURE,
+        ge=0.0,
+        le=2.0,
+        description="Temperature for model generation",
+    )
 
-    root_prompt: str
-    model_system_prompt: str = ""
-    tree_degree: int = 10
-    tree_depth: int = 3
-    model_name: str = "ollama/llama3"
-    temperature: float = 0.2
+    @field_validator("tree_degree")
+    @classmethod
+    def validate_tree_degree(cls, v):
+        if v <= 0:
+            raise ValueError("positive")
+        if v > UPPER_TREE_DEGREE:
+            raise ValueError("max")
+        return v
+
+    @field_validator("tree_depth")
+    @classmethod
+    def validate_tree_depth(cls, v):
+        if v <= 0:
+            raise ValueError("positive")
+        if v > UPPER_TREE_DEPTH:
+            raise ValueError("max")
+        return v
+
+    @field_validator("model_name")
+    @classmethod
+    def validate_model_name(cls, v):
+        if not v or not v.strip():
+            raise ValueError("required")
+        return v.strip()
 
 
 class TopicTreeValidator:
@@ -106,10 +154,16 @@ class TopicTree:
 
     def __init__(self, args: TopicTreeArguments):
         """Initialize the TopicTree with the given arguments."""
-        if not args.model_name:
-            raise ValueError(  # noqa: TRY003
-                "model_name must be specified in TopicTreeArguments"
-            )  # noqa: TRY003
+        if not isinstance(args, TopicTreeArguments):
+            raise TopicTreeError("invalid")
+
+        try:
+            # Validate args if it's a dict (for backward compatibility)
+            if isinstance(args, dict):
+                args = TopicTreeArguments(**args)
+        except Exception as e:
+            raise TopicTreeError("invalid args") from e  # noqa: TRY003
+
         json_instructions = TREE_JSON_INSTRUCTIONS
 
         self.args = args
@@ -121,7 +175,7 @@ class TopicTree:
         self.tree_paths = []
         self.failed_generations = []
 
-    def build_tree(self, model_name: str = None) -> None:
+    def build_tree(self, model_name: str | None = None) -> None:
         """Build the complete topic tree."""
         if model_name:
             self.model_name = model_name
@@ -150,7 +204,7 @@ class TopicTree:
                 self.save("partial_tree.jsonl")
             raise
 
-    def get_subtopics(
+    def get_subtopics(  # noqa: PLR0912
         self, system_prompt: str, node_path: list[str], num_subtopics: int
     ) -> list[str]:
         """Generate subtopics with improved error handling and validation."""
@@ -163,7 +217,7 @@ class TopicTree:
         prompt = prompt.replace("{{{{subtopics_list}}}}", " -> ".join(node_path))
         prompt = prompt.replace("{{{{num_subtopics}}}}", str(num_subtopics))
 
-        max_retries = 3
+        max_retries = MAX_RETRY_ATTEMPTS
         retries = 0
         last_error = "No error recorded"
 
@@ -172,16 +226,53 @@ class TopicTree:
                 # Prepare completion arguments
                 completion_args = {
                     "model": self.model_name,
-                    "max_tokens": 1000,
+                    "max_tokens": DEFAULT_MAX_TOKENS,
                     "temperature": self.temperature,
                     "messages": [{"role": "user", "content": prompt}],
+                    "stream": False,  # Ensure we get a complete response
                 }
 
                 response = litellm.completion(**completion_args)
 
-                subtopics = validate_and_clean_response(
-                    response.choices[0].message.content
-                )
+                # Extract content from the response - use getattr to safely access attributes
+                response_content = None
+
+                # Try standard OpenAI format first
+                choices = getattr(response, 'choices', None)
+                if choices and len(choices) > 0:
+                    choice = choices[0]
+                    message = getattr(choice, 'message', None)
+                    if message:
+                        response_content = getattr(message, 'content', None)
+                    if not response_content:
+                        response_content = getattr(choice, 'text', None)
+
+                # Try direct content access if no content found yet
+                if not response_content:
+                    response_content = getattr(response, 'content', None)
+
+                if not response_content:
+                    response_content = getattr(response, 'text', None)
+
+                # Try getting content from response as dict if still no content
+                if not response_content and isinstance(response, dict):
+                    try:
+                        if 'choices' in response and response['choices']:
+                            choice = response['choices'][0]
+                            if isinstance(choice, dict):
+                                if 'message' in choice and 'content' in choice['message']:
+                                    response_content = choice['message']['content']
+                                elif 'text' in choice:
+                                    response_content = choice['text']
+                        elif 'content' in response:
+                            response_content = response['content']
+                    except (KeyError, IndexError, TypeError):
+                        pass
+
+                if not response_content:
+                    raise ValueError("No content in response")  # noqa: TRY003, TRY301
+
+                subtopics = validate_and_clean_response(response_content)
 
                 if subtopics and len(subtopics) > 0:
                     # Validate and clean each subtopic
@@ -207,7 +298,7 @@ class TopicTree:
 
             retries += 1
             if retries < max_retries:
-                time.sleep(2**retries)  # Exponential backoff
+                time.sleep(RETRY_BASE_DELAY**retries)  # Exponential backoff
 
         # If all retries failed, generate default subtopics and log the failure
         default_subtopics = [
@@ -217,7 +308,7 @@ class TopicTree:
             {"path": node_path, "attempts": retries, "last_error": last_error}
         )
         print(
-            f"Failed to generate valid subtopics after {max_retries} attempts. Using default subtopics."
+            f"Failed to generate valid subtopics after {max_retries} attempts. Using defaults."
         )
         return default_subtopics
 
@@ -311,9 +402,11 @@ class TopicTree:
         self.failed_generations = []
 
         for d in dict_list:
-            if 'path' in d:
-                self.tree_paths.append(d['path'])
-            if 'failed_generation' in d:
-                self.failed_generations.append(d['failed_generation'])
+            if "path" in d:
+                self.tree_paths.append(d["path"])
+            if "failed_generation" in d:
+                self.failed_generations.append(d["failed_generation"])
 
-        print(f"Loaded {len(self.tree_paths)} paths and {len(self.failed_generations)} failed generations from JSONL file")
+        print(
+            f"Loaded {len(self.tree_paths)} paths and {len(self.failed_generations)} failed generations from JSONL file"
+        )

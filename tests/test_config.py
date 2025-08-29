@@ -8,6 +8,7 @@ import yaml
 
 from promptwright.config import PromptWrightConfig
 from promptwright.engine import EngineArguments
+from promptwright.exceptions import ConfigurationError
 from promptwright.topic_tree import TopicTreeArguments
 
 
@@ -210,7 +211,7 @@ def test_get_dataset_config_no_sys_msg(sample_yaml_file_no_sys_msg):
 
 def test_missing_yaml_file():
     """Test handling of missing YAML file."""
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(ConfigurationError):
         PromptWrightConfig.from_yaml("nonexistent.yaml")
 
 
@@ -221,7 +222,7 @@ def test_invalid_yaml_content():
         temp_path = f.name
 
     try:
-        with pytest.raises(yaml.YAMLError):
+        with pytest.raises(ConfigurationError):
             PromptWrightConfig.from_yaml(temp_path)
     finally:
         if os.path.exists(temp_path):
