@@ -1,6 +1,6 @@
 [project]
 name = "promptwright"
-version = "1.3.1"
+version = "1.4.1"
 description = "Large Scale Topic based Synthetic Data Generation"
 authors = [{name = "Luke Hinds", email = "luke@rdrocket.com"}]
 readme = "README.md"
