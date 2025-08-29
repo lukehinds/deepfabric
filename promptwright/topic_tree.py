@@ -136,9 +136,7 @@ class TopicTreeValidator:
             }
             print("Recommended configurations to fit within the tree paths:")
             print(f" - Reduce num_steps to: {recommendation['suggested_num_steps']} or")
-            print(
-                f" - Reduce batch_size to: {recommendation['suggested_batch_size']} or"
-            )
+            print(f" - Reduce batch_size to: {recommendation['suggested_batch_size']} or")
             print(" - Increase tree_depth or tree_degree to provide more paths.")
             return recommendation
 
@@ -193,9 +191,7 @@ class TopicTree:
 
             print(f"Tree building complete. Generated {len(self.tree_paths)} paths.")
             if self.failed_generations:
-                print(
-                    f"Warning: {len(self.failed_generations)} subtopic generations failed."
-                )
+                print(f"Warning: {len(self.failed_generations)} subtopic generations failed.")
 
         except Exception as e:
             print(f"Error building tree: {str(e)}")
@@ -211,9 +207,7 @@ class TopicTree:
         print(f"Generating {num_subtopics} subtopics for: {' -> '.join(node_path)}")
 
         prompt = TREE_GENERATION_PROMPT
-        prompt = prompt.replace(
-            "{{{{system_prompt}}}}", system_prompt if system_prompt else ""
-        )
+        prompt = prompt.replace("{{{{system_prompt}}}}", system_prompt if system_prompt else "")
         prompt = prompt.replace("{{{{subtopics_list}}}}", " -> ".join(node_path))
         prompt = prompt.replace("{{{{num_subtopics}}}}", str(num_subtopics))
 
@@ -238,34 +232,34 @@ class TopicTree:
                 response_content = None
 
                 # Try standard OpenAI format first
-                choices = getattr(response, 'choices', None)
+                choices = getattr(response, "choices", None)
                 if choices and len(choices) > 0:
                     choice = choices[0]
-                    message = getattr(choice, 'message', None)
+                    message = getattr(choice, "message", None)
                     if message:
-                        response_content = getattr(message, 'content', None)
+                        response_content = getattr(message, "content", None)
                     if not response_content:
-                        response_content = getattr(choice, 'text', None)
+                        response_content = getattr(choice, "text", None)
 
                 # Try direct content access if no content found yet
                 if not response_content:
-                    response_content = getattr(response, 'content', None)
+                    response_content = getattr(response, "content", None)
 
                 if not response_content:
-                    response_content = getattr(response, 'text', None)
+                    response_content = getattr(response, "text", None)
 
                 # Try getting content from response as dict if still no content
                 if not response_content and isinstance(response, dict):
                     try:
-                        if 'choices' in response and response['choices']:
-                            choice = response['choices'][0]
+                        if "choices" in response and response["choices"]:
+                            choice = response["choices"][0]
                             if isinstance(choice, dict):
-                                if 'message' in choice and 'content' in choice['message']:
-                                    response_content = choice['message']['content']
-                                elif 'text' in choice:
-                                    response_content = choice['text']
-                        elif 'content' in response:
-                            response_content = response['content']
+                                if "message" in choice and "content" in choice["message"]:
+                                    response_content = choice["message"]["content"]
+                                elif "text" in choice:
+                                    response_content = choice["text"]
+                        elif "content" in response:
+                            response_content = response["content"]
                     except (KeyError, IndexError, TypeError):
                         pass
 
@@ -301,15 +295,11 @@ class TopicTree:
                 time.sleep(RETRY_BASE_DELAY**retries)  # Exponential backoff
 
         # If all retries failed, generate default subtopics and log the failure
-        default_subtopics = [
-            f"subtopic_{i+1}_for_{node_path[-1]}" for i in range(num_subtopics)
-        ]
+        default_subtopics = [f"subtopic_{i + 1}_for_{node_path[-1]}" for i in range(num_subtopics)]
         self.failed_generations.append(
             {"path": node_path, "attempts": retries, "last_error": last_error}
         )
-        print(
-            f"Failed to generate valid subtopics after {max_retries} attempts. Using defaults."
-        )
+        print(f"Failed to generate valid subtopics after {max_retries} attempts. Using defaults.")
         return default_subtopics
 
     def build_subtree(
@@ -322,9 +312,7 @@ class TopicTree:
     ) -> list[list[str]]:
         """Build a subtree with improved error handling and validation."""
         # Convert any non-string elements to strings
-        node_path = [
-            str(node) if not isinstance(node, str) else node for node in node_path
-        ]
+        node_path = [str(node) if not isinstance(node, str) else node for node in node_path]
         print(f"Building topic subtree: {' -> '.join(node_path)}")
 
         if subtree_depth == 0:

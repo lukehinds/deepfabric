@@ -33,9 +33,7 @@ if TYPE_CHECKING:
     from .topic_tree import TopicTree
 
 
-def validate_json_response(
-    json_str: str, schema: dict[str, Any] | None = None
-) -> dict | None:
+def validate_json_response(json_str: str, schema: dict[str, Any] | None = None) -> dict | None:
     """Validate and clean JSON response from LLM."""
     try:
         json_match = re.search(r"(?s)\{.*\}", json_str)
@@ -59,17 +57,11 @@ def validate_json_response(
 class EngineArguments(BaseModel):
     """Arguments for configuring the data engine."""
 
-    instructions: str = Field(
-        "", description="Additional instructions for data generation"
-    )
-    system_prompt: str = Field(
-        ..., min_length=1, description="System prompt for the model"
-    )
+    instructions: str = Field("", description="Additional instructions for data generation")
+    system_prompt: str = Field(..., min_length=1, description="System prompt for the model")
     model_name: str = Field(..., min_length=1, description="Name of the model to use")
     prompt_template: str | None = Field(None, description="Custom prompt template")
-    example_data: Dataset | None = Field(
-        None, description="Example dataset for few-shot learning"
-    )
+    example_data: Dataset | None = Field(None, description="Example dataset for few-shot learning")
     temperature: float = Field(
         ENGINE_DEFAULT_TEMPERATURE,
         ge=0.0,
@@ -97,9 +89,7 @@ class EngineArguments(BaseModel):
     request_timeout: int = Field(
         DEFAULT_REQUEST_TIMEOUT, ge=5, le=300, description="Request timeout in seconds"
     )
-    sys_msg: bool = Field(
-        True, description="Whether to include system message in dataset"
-    )
+    sys_msg: bool = Field(True, description="Whether to include system message in dataset")
 
     class Config:
         arbitrary_types_allowed = True  # Allow Dataset type
@@ -128,15 +118,15 @@ class DataEngine:
                 if isinstance(args, dict):
                     args = EngineArguments(**args)
                 else:
-                    raise DataEngineError("invalid")
+                    raise DataEngineError("invalid")  # noqa: TRY301
             except Exception as e:
-                raise DataEngineError(f"invalid") from e
+                raise DataEngineError("invalid") from e
 
         self.args = args
         self.model_name = args.model_name
         self.dataset = Dataset()
         self.failed_samples = []
-        self.failure_analysis = {category: [] for category in ERROR_CATEGORIES.keys()}
+        self.failure_analysis = {category: [] for category in ERROR_CATEGORIES}
 
         # Store original system prompt for dataset inclusion
         self.original_system_prompt = args.system_prompt
@@ -144,7 +134,7 @@ class DataEngine:
         self.generation_system_prompt = ENGINE_JSON_INSTRUCTIONS + args.system_prompt
 
     def _validate_create_data_params(
-        self, num_steps: int, batch_size: int, topic_tree: "TopicTree" = None
+        self, num_steps: int, batch_size: int, topic_tree: "TopicTree | None" = None
     ) -> None:
         """Validate parameters for data creation."""
         if num_steps is None or num_steps <= 0:
@@ -157,8 +147,8 @@ class DataEngine:
             raise DataEngineError("")
 
     def _prepare_tree_paths(
-        self, num_steps: int, batch_size: int, topic_tree: "TopicTree" = None
-    ) -> tuple[list, int]:
+        self, num_steps: int, batch_size: int, topic_tree: "TopicTree | None" = None
+    ) -> tuple[list | None, int]:
         """Prepare and validate tree paths for data generation."""
         tree_paths = None
         if topic_tree is not None:
@@ -167,9 +157,7 @@ class DataEngine:
             required_samples = num_steps * batch_size
 
             if required_samples > total_paths:
-                raise DataEngineError(
-                    f"insufficient"
-                )
+                raise DataEngineError("insufficient")
 
             tree_paths = random.sample(tree_paths, required_samples)
             num_steps = math.ceil(len(tree_paths) / batch_size)
@@ -203,7 +191,7 @@ class DataEngine:
             prompts.append(sample_prompt)
         return prompts
 
-    def _process_batch_responses(
+    def _process_batch_responses(  # noqa: PLR0912
         self, responses: list, include_sys_msg: bool
     ) -> tuple[list, list]:
         """Process batch responses and return samples and failed responses."""
@@ -214,58 +202,55 @@ class DataEngine:
             try:
                 # Extract content from the response - use getattr to safely access attributes
                 response_content = None
-                
+
                 # Try standard OpenAI format first
-                choices = getattr(response, 'choices', None)
+                choices = getattr(response, "choices", None)
                 if choices and len(choices) > 0:
                     choice = choices[0]
-                    message = getattr(choice, 'message', None)
+                    message = getattr(choice, "message", None)
                     if message:
-                        response_content = getattr(message, 'content', None)
+                        response_content = getattr(message, "content", None)
                     if not response_content:
-                        response_content = getattr(choice, 'text', None)
-                
+                        response_content = getattr(choice, "text", None)
+
                 # Try direct content access if no content found yet
                 if not response_content:
-                    response_content = getattr(response, 'content', None)
-                
+                    response_content = getattr(response, "content", None)
+
                 if not response_content:
-                    response_content = getattr(response, 'text', None)
-                
+                    response_content = getattr(response, "text", None)
+
                 # Try getting content from response as dict if still no content
                 if not response_content and isinstance(response, dict):
                     try:
-                        if 'choices' in response and response['choices']:
-                            choice = response['choices'][0]
+                        if "choices" in response and response["choices"]:
+                            choice = response["choices"][0]
                             if isinstance(choice, dict):
-                                if 'message' in choice and 'content' in choice['message']:
-                                    response_content = choice['message']['content']
-                                elif 'text' in choice:
-                                    response_content = choice['text']
-                        elif 'content' in response:
-                            response_content = response['content']
+                                if "message" in choice and "content" in choice["message"]:
+                                    response_content = choice["message"]["content"]
+                                elif "text" in choice:
+                                    response_content = choice["text"]
+                        elif "content" in response:
+                            response_content = response["content"]
                     except (KeyError, IndexError, TypeError):
                         pass
-                
+
                 if not response_content:
                     failed_responses.append("empty model response")
-                    self.failure_analysis["empty_responses"].append(
-                        "empty model response"
-                    )
+                    self.failure_analysis["empty_responses"].append("empty model response")
                     continue
 
                 parsed_json = validate_json_response(response_content)
 
-                if parsed_json and include_sys_msg:
+                if parsed_json and include_sys_msg and "messages" in parsed_json:
                     # Add system message at the start if sys_msg is True
-                    if "messages" in parsed_json:
-                        parsed_json["messages"].insert(
-                            0,
-                            {
-                                "role": "system",
-                                "content": self.original_system_prompt,
-                            },
-                        )
+                    parsed_json["messages"].insert(
+                        0,
+                        {
+                            "role": "system",
+                            "content": self.original_system_prompt,
+                        },
+                    )
 
                 if parsed_json:
                     samples.append(parsed_json)
@@ -291,7 +276,7 @@ class DataEngine:
         }
         return litellm.batch_completion(**completion_args)
 
-    def analyze_failure(self, response_content: str, error: Exception = None) -> str:
+    def analyze_failure(self, response_content: str, error: Exception | None = None) -> str:
         """Analyze the failure reason for a sample."""
         if error:
             error_str = str(error)
@@ -334,13 +319,17 @@ class DataEngine:
 
     def create_data(
         self,
-        num_steps: int = None,
+        num_steps: int | None = None,
         num_example_demonstrations: int = 3,
         batch_size: int = 10,
-        topic_tree: TopicTree = None,
-        model_name: str = None,
-        sys_msg: bool = None,
+        topic_tree: TopicTree | None = None,
+        model_name: str | None = None,
+        sys_msg: bool | None = None,
     ):
+        # Set default value for num_steps if None
+        if num_steps is None:
+            num_steps = 1
+
         # Validate inputs
         self._validate_create_data_params(num_steps, batch_size, topic_tree)
 
@@ -355,9 +344,7 @@ class DataEngine:
         include_sys_msg = sys_msg if sys_msg is not None else self.args.sys_msg
 
         # Prepare tree paths and adjust num_steps if necessary
-        tree_paths, num_steps = self._prepare_tree_paths(
-            num_steps, batch_size, topic_tree
-        )
+        tree_paths, num_steps = self._prepare_tree_paths(num_steps, batch_size, topic_tree)
 
         total_samples = num_steps * batch_size
         print(f"Generating dataset using model {self.model_name}")
@@ -372,7 +359,7 @@ class DataEngine:
             num_steps=num_steps,
             batch_size=batch_size,
             total_samples=total_samples,
-            tree_paths=tree_paths,
+            tree_paths=tree_paths or [],
             data_creation_prompt=data_creation_prompt,
             num_example_demonstrations=num_example_demonstrations,
             include_sys_msg=include_sys_msg,
@@ -401,9 +388,7 @@ class DataEngine:
                         num_example_demonstrations,
                     )
 
-                    success = self._process_batch_with_retries(
-                        prompts, include_sys_msg, pbar
-                    )
+                    success = self._process_batch_with_retries(prompts, include_sys_msg, pbar)
                     if not success:
                         print(f"Failed to process batch {step + 1} after all retries")
 
@@ -417,15 +402,13 @@ class DataEngine:
             print(f"\nUnexpected error: {str(e)}")
             self.print_failure_summary()
             self.save_dataset(ERROR_DATASET_FILENAME)
-            raise DataEngineError(f"failed") from e
+            raise DataEngineError("failed") from e
 
         print(f"Successfully Generated {len(self.dataset)} samples.")
         self.print_failure_summary()
         return self.dataset
 
-    def _process_batch_with_retries(
-        self, prompts: list[str], include_sys_msg: bool, pbar
-    ) -> bool:
+    def _process_batch_with_retries(self, prompts: list[str], include_sys_msg: bool, pbar) -> bool:
         """Process a batch with retry logic."""
         for attempt in range(self.args.max_retries):
             try:
@@ -438,13 +421,9 @@ class DataEngine:
                 self.failed_samples.extend(failed_responses)
 
                 if samples:
-                    failed_samples, failure_descriptions = self.dataset.add_samples(
-                        samples
-                    )
+                    failed_samples, failure_descriptions = self.dataset.add_samples(samples)
                     if failed_samples:
-                        for sample, desc in zip(
-                            failed_samples, failure_descriptions, strict=True
-                        ):
+                        for sample, desc in zip(failed_samples, failure_descriptions, strict=True):
                             self.failed_samples.append(sample)
                             self.failure_analysis["invalid_schema"].append(desc)
 
@@ -475,9 +454,7 @@ class DataEngine:
                 print(f"\n{failure_type.replace('_', ' ').title()}: {count}")
                 if failure_type in summary["failure_examples"]:
                     print("Example failures:")
-                    for i, example in enumerate(
-                        summary["failure_examples"][failure_type], 1
-                    ):
+                    for i, example in enumerate(summary["failure_examples"][failure_type], 1):
                         print(f"  {i}. {example}")
         print("\n=============================")
 
@@ -485,20 +462,16 @@ class DataEngine:
         self,
         data_creation_prompt: str,
         num_example_demonstrations: int,
-        subtopics_list: list[str] = None,
+        subtopics_list: list[str] | None = None,
     ) -> str:
         prompt = data_creation_prompt.replace(
             "{{{{system_prompt}}}}", self.generation_system_prompt
         )
-        prompt = prompt.replace(
-            "{{{{instructions}}}}", self.build_custom_instructions_text()
-        )
+        prompt = prompt.replace("{{{{instructions}}}}", self.build_custom_instructions_text())
         prompt = prompt.replace(
             "{{{{examples}}}}", self.build_examples_text(num_example_demonstrations)
         )
-        return prompt.replace(
-            "{{{{subtopics}}}}", self.build_subtopics_text(subtopics_list)
-        )
+        return prompt.replace("{{{{subtopics}}}}", self.build_subtopics_text(subtopics_list))
 
     def build_system_prompt(self):
         """Return the original system prompt for dataset inclusion."""
@@ -513,18 +486,12 @@ class DataEngine:
         if self.args.example_data is None or num_example_demonstrations == 0:
             return ""
 
-        examples = random.sample(
-            self.args.example_data.samples, num_example_demonstrations
-        )
+        examples = random.sample(self.args.example_data.samples, num_example_demonstrations)
         examples_text = "Here are output examples:\n\n"
-        examples_text += "\n".join(
-            f"Example {i+1}: \n\n{ex}\n" for i, ex in enumerate(examples)
-        )
-        return (
-            f"\nHere are output examples:\n<examples>\n{examples_text}\n</examples>\n"
-        )
+        examples_text += "\n".join(f"Example {i + 1}: \n\n{ex}\n" for i, ex in enumerate(examples))
+        return f"\nHere are output examples:\n<examples>\n{examples_text}\n</examples>\n"
 
-    def build_subtopics_text(self, subtopic_list: list[str]):
+    def build_subtopics_text(self, subtopic_list: list[str] | None):
         if subtopic_list is None:
             return ""
         return f"\nLastly, the topic of the training data should be related to the following subtopics: {' -> '.join(subtopic_list)}"

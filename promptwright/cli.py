@@ -3,17 +3,24 @@
 import os
 import sys
 
+from typing import NoReturn
+
 import click
 import yaml
 
 from .config import PromptWrightConfig, construct_model_string
+from .constants import (
+    TOPIC_TREE_DEFAULT_DEGREE,
+    TOPIC_TREE_DEFAULT_DEPTH,
+    TOPIC_TREE_DEFAULT_TEMPERATURE,
+)
 from .engine import DataEngine
 from .hf_hub import HFUploader
 from .topic_tree import TopicTree, TopicTreeArguments
 from .utils import read_topic_tree_from_jsonl
 
 
-def handle_error(ctx: click.Context, error: Exception) -> None:  # noqa: ARG001
+def handle_error(ctx: click.Context, error: Exception) -> NoReturn:  # noqa: ARG001
     """Handle errors in CLI commands."""
     click.echo(f"Error: {str(error)}", err=True)
     sys.exit(1)
@@ -45,9 +52,7 @@ def cli():
     "--hf-repo",
     help="Hugging Face repository to upload dataset (e.g., username/dataset-name)",
 )
-@click.option(
-    "--hf-token", help="Hugging Face API token (can also be set via HF_TOKEN env var)"
-)
+@click.option("--hf-token", help="Hugging Face API token (can also be set via HF_TOKEN env var)")
 @click.option(
     "--hf-tags",
     multiple=True,
@@ -82,15 +87,15 @@ def start(  # noqa: PLR0912
             config = PromptWrightConfig.from_yaml(config_file)
         except FileNotFoundError:
             handle_error(
-                click.get_current_context(), f"Config file not found: {config_file}"
+                click.get_current_context(), ValueError(f"Config file not found: {config_file}")
             )
         except yaml.YAMLError as e:
             handle_error(
-                click.get_current_context(), f"Invalid YAML in config file: {str(e)}"
+                click.get_current_context(), ValueError(f"Invalid YAML in config file: {str(e)}")
             )
         except Exception as e:
             handle_error(
-                click.get_current_context(), f"Error loading config file: {str(e)}"
+                click.get_current_context(), ValueError(f"Error loading config file: {str(e)}")
             )
         # Get dataset parameters
         dataset_config = config.get_dataset_config()
@@ -121,7 +126,12 @@ def start(  # noqa: PLR0912
                 click.echo(f"Reading topic tree from JSONL file: {topic_tree_jsonl}")
                 dict_list = read_topic_tree_from_jsonl(topic_tree_jsonl)
                 default_args = TopicTreeArguments(
-                    root_prompt="default", model_name=model_name
+                    root_prompt="default",
+                    model_name=model_name,
+                    model_system_prompt="",
+                    tree_degree=TOPIC_TREE_DEFAULT_DEGREE,
+                    tree_depth=TOPIC_TREE_DEFAULT_DEPTH,
+                    temperature=TOPIC_TREE_DEFAULT_TEMPERATURE,
                 )
                 tree = TopicTree(args=default_args)
                 tree.from_dict_list(dict_list)
@@ -130,13 +140,18 @@ def start(  # noqa: PLR0912
                     tree_args = config.get_topic_tree_args(**tree_overrides)
                 else:
                     tree_args = TopicTreeArguments(
-                        root_prompt="default", model_name=model_name
+                        root_prompt="default",
+                        model_name=model_name,
+                        model_system_prompt="",
+                        tree_degree=3,
+                        tree_depth=2,
+                        temperature=0.7,
                     )
                 tree = TopicTree(args=tree_args)
                 tree.build_tree()
         except Exception as e:
             handle_error(
-                click.get_current_context(), f"Error building topic tree: {str(e)}"
+                click.get_current_context(), ValueError(f"Error building topic tree: {str(e)}")
             )
 
         # Save topic tree if JSONL file is not provided
@@ -149,7 +164,7 @@ def start(  # noqa: PLR0912
                 click.echo(f"Topic tree saved to: {tree_save_path}")
             except Exception as e:
                 handle_error(
-                    click.get_current_context(), f"Error saving topic tree: {str(e)}"
+                    click.get_current_context(), ValueError(f"Error saving topic tree: {str(e)}")
                 )
 
         # Prepare engine overrides
@@ -166,7 +181,7 @@ def start(  # noqa: PLR0912
             engine = DataEngine(args=config.get_engine_args(**engine_overrides))
         except Exception as e:
             handle_error(
-                click.get_current_context(), f"Error creating data engine: {str(e)}"
+                click.get_current_context(), ValueError(f"Error creating data engine: {str(e)}")
             )
 
         # Construct model name for dataset creation
@@ -186,18 +201,16 @@ def start(  # noqa: PLR0912
             )
         except Exception as e:
             handle_error(
-                click.get_current_context(), f"Error creating dataset: {str(e)}"
+                click.get_current_context(), ValueError(f"Error creating dataset: {str(e)}")
             )
 
         # Save dataset
         try:
-            dataset_save_path = dataset_save_as or dataset_config.get(
-                "save_as", "dataset.jsonl"
-            )
+            dataset_save_path = dataset_save_as or dataset_config.get("save_as", "dataset.jsonl")
             dataset.save(dataset_save_path)
             click.echo(f"Dataset saved to: {dataset_save_path}")
         except Exception as e:
-            handle_error(click.get_current_context(), f"Error saving dataset: {str(e)}")
+            handle_error(click.get_current_context(), Exception(f"Error saving dataset: {str(e)}"))
 
         # Handle Hugging Face upload if configured
         hf_config = config.get_huggingface_config()
@@ -208,7 +221,9 @@ def start(  # noqa: PLR0912
                 if not token:
                     handle_error(
                         click.get_current_context(),
-                        "Hugging Face token not provided. Set via --hf-token, HF_TOKEN env var, or config file.",
+                        ValueError(
+                            "Hugging Face token not provided. Set via --hf-token, HF_TOKEN env var, or config file."
+                        ),
                     )
 
                 # Get repository from CLI arg or config
@@ -216,7 +231,9 @@ def start(  # noqa: PLR0912
                 if not repo:
                     handle_error(
                         click.get_current_context(),
-                        "Hugging Face repository not provided. Set via --hf-repo or config file.",
+                        ValueError(
+                            "Hugging Face repository not provided. Set via --hf-repo or config file."
+                        ),
                     )
 
                 # Get tags from CLI args and config
@@ -226,21 +243,21 @@ def start(  # noqa: PLR0912
 
                 # Upload to Hugging Face
                 uploader = HFUploader(token)
-                result = uploader.push_to_hub(repo, dataset_save_path, tags=all_tags)
+                result = uploader.push_to_hub(str(repo), dataset_save_path, tags=all_tags)
 
                 if result["status"] == "success":
                     click.echo(result["message"])
                 else:
-                    handle_error(click.get_current_context(), result["message"])
+                    handle_error(click.get_current_context(), ValueError(result["message"]))
 
             except Exception as e:
                 handle_error(
                     click.get_current_context(),
-                    f"Error uploading to Hugging Face Hub: {str(e)}",
+                    ValueError(f"Error uploading to Hugging Face Hub: {str(e)}"),
                 )
 
     except Exception as e:
-        handle_error(click.get_current_context(), f"Unexpected error: {str(e)}")
+        handle_error(click.get_current_context(), ValueError(f"Unexpected error: {str(e)}"))
 
 
 if __name__ == "__main__":

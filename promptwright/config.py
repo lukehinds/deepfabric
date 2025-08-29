@@ -20,15 +20,11 @@ def construct_model_string(provider: str, model: str) -> str:
 class PromptWrightConfig(BaseModel):
     """Configuration for PromptWright tasks."""
 
-    system_prompt: str = Field(
-        ..., min_length=1, description="System prompt for the model"
-    )
+    system_prompt: str = Field(..., min_length=1, description="System prompt for the model")
     topic_tree: dict[str, Any] = Field(..., description="Topic tree configuration")
     data_engine: dict[str, Any] = Field(..., description="Data engine configuration")
     dataset: dict[str, Any] = Field(..., description="Dataset configuration")
-    huggingface: dict[str, Any] | None = Field(
-        None, description="Hugging Face configuration"
-    )
+    huggingface: dict[str, Any] | None = Field(None, description="Hugging Face configuration")
 
     @field_validator("system_prompt")
     @classmethod
@@ -56,7 +52,9 @@ class PromptWrightConfig(BaseModel):
         try:
             return cls(**config_dict)
         except Exception as e:
-            raise ConfigurationError(f"invalid structure: {str(e)}") from e  # noqa: TRY003
+            raise ConfigurationError(  # noqa: TRY003
+                f"invalid structure: {str(e)}"
+            ) from e  # noqa: TRY003
 
     def get_topic_tree_args(self, **overrides) -> TopicTreeArguments:
         """Get TopicTreeArguments from config with optional overrides."""
@@ -64,9 +62,7 @@ class PromptWrightConfig(BaseModel):
             args = self.topic_tree.get("args", {}).copy()
 
             # Replace system prompt placeholder
-            if "model_system_prompt" in args and isinstance(
-                args["model_system_prompt"], str
-            ):
+            if "model_system_prompt" in args and isinstance(args["model_system_prompt"], str):
                 args["model_system_prompt"] = args["model_system_prompt"].replace(
                     SYSTEM_PROMPT_PLACEHOLDER, self.system_prompt
                 )
@@ -108,9 +104,7 @@ class PromptWrightConfig(BaseModel):
 
             # Get sys_msg from dataset config, defaulting to True
             dataset_config = self.get_dataset_config()
-            args.setdefault(
-                "sys_msg", dataset_config.get("creation", {}).get("sys_msg", True)
-            )
+            args.setdefault("sys_msg", dataset_config.get("creation", {}).get("sys_msg", True))
 
             return EngineArguments(**args)
         except Exception as e:

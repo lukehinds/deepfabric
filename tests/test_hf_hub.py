@@ -56,18 +56,16 @@ def test_push_to_hub_success(uploader):
         patch("promptwright.hf_hub.load_dataset") as mock_load_dataset,
         patch.object(uploader, "update_dataset_card") as mock_update_card,
     ):
-
         mock_dataset = Mock()
         mock_load_dataset.return_value = mock_dataset
 
         result = uploader.push_to_hub("test/repo", "test.jsonl", tags=["test"])
 
         mock_login.assert_called_once_with(token="dummy_token")  # noqa: S106
-        mock_load_dataset.assert_called_once_with(
-            "json", data_files={"train": "test.jsonl"}
-        )
+        mock_load_dataset.assert_called_once_with("json", data_files={"train": "test.jsonl"})
         mock_dataset.push_to_hub.assert_called_once_with(
-            "test/repo", token="dummy_token"  # noqa: S106
+            "test/repo",
+            token="dummy_token",  # noqa: S106
         )
         mock_update_card.assert_called_once()
 
@@ -81,7 +79,6 @@ def test_push_to_hub_file_not_found(uploader):
         patch("promptwright.hf_hub.login") as _mock_login,
         patch("promptwright.hf_hub.load_dataset") as mock_load_dataset,  # noqa: F841
     ):
-
         mock_load_dataset.side_effect = FileNotFoundError("File not found")
 
         result = uploader.push_to_hub("test/repo", "nonexistent.jsonl")
