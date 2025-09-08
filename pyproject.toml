@@ -14,7 +14,7 @@ dependencies = [
     "urllib3==2.4.0",
     "huggingface-hub==0.34.4",
     "datasets==4.0.0",
-    "litellm==1.76.2",
+    "litellm==1.76.3",
     "PyYAML>=6.0.1",
     "click>=8.1.7",
     "pydantic>=2.0.0",
