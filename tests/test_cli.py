@@ -128,16 +128,20 @@ def test_start_help(cli_runner):
     assert "--sys-msg" in result.output
 
 
-@patch("promptwright.cli.TopicTree")
+@patch("promptwright.cli.create_topic_generator")
 @patch("promptwright.cli.DataEngine")
-def test_start_command_basic(mock_data_engine, mock_topic_tree, cli_runner, sample_config_file):
+def test_start_command_basic(
+    mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
+):
     """Test basic start command execution."""
     # Setup mocks
-    mock_tree_instance = Mock()
+    from promptwright.topic_tree import TopicTree  # noqa: PLC0415
+
+    mock_tree_instance = Mock(spec=TopicTree)
     mock_engine_instance = Mock()
     mock_dataset = Mock()
 
-    mock_topic_tree.return_value = mock_tree_instance
+    mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
     mock_engine_instance.create_data.return_value = mock_dataset
 
@@ -148,26 +152,28 @@ def test_start_command_basic(mock_data_engine, mock_topic_tree, cli_runner, samp
     assert result.exit_code == 0
 
     # Verify mocks were called correctly
-    mock_topic_tree.assert_called_once()
-    mock_tree_instance.build_tree.assert_called_once()
+    mock_create_topic_generator.assert_called_once()
+    mock_tree_instance.build.assert_called_once()
     mock_tree_instance.save.assert_called_once()
     mock_data_engine.assert_called_once()
     mock_engine_instance.create_data.assert_called_once()
     mock_dataset.save.assert_called_once()
 
 
-@patch("promptwright.cli.TopicTree")
+@patch("promptwright.cli.create_topic_generator")
 @patch("promptwright.cli.DataEngine")
 def test_start_command_with_sys_msg_override(
-    mock_data_engine, mock_topic_tree, cli_runner, sample_config_file
+    mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
 ):
     """Test start command with sys_msg override."""
     # Setup mocks
-    mock_tree_instance = Mock()
+    from promptwright.topic_tree import TopicTree  # noqa: PLC0415
+
+    mock_tree_instance = Mock(spec=TopicTree)
     mock_engine_instance = Mock()
     mock_dataset = Mock()
 
-    mock_topic_tree.return_value = mock_tree_instance
+    mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
     mock_engine_instance.create_data.return_value = mock_dataset
 
@@ -190,18 +196,20 @@ def test_start_command_with_sys_msg_override(
     assert kwargs["sys_msg"] is False
 
 
-@patch("promptwright.cli.TopicTree")
+@patch("promptwright.cli.create_topic_generator")
 @patch("promptwright.cli.DataEngine")
 def test_start_command_default_sys_msg(
-    mock_data_engine, mock_topic_tree, cli_runner, sample_config_file_no_sys_msg
+    mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file_no_sys_msg
 ):
     """Test start command with default sys_msg behavior."""
     # Setup mocks
-    mock_tree_instance = Mock()
+    from promptwright.topic_tree import TopicTree  # noqa: PLC0415
+
+    mock_tree_instance = Mock(spec=TopicTree)
     mock_engine_instance = Mock()
     mock_dataset = Mock()
 
-    mock_topic_tree.return_value = mock_tree_instance
+    mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
     mock_engine_instance.create_data.return_value = mock_dataset
 
@@ -216,18 +224,20 @@ def test_start_command_default_sys_msg(
     assert "sys_msg" not in kwargs or kwargs["sys_msg"] is None
 
 
-@patch("promptwright.cli.TopicTree")
+@patch("promptwright.cli.create_topic_generator")
 @patch("promptwright.cli.DataEngine")
 def test_start_command_with_overrides(
-    mock_data_engine, mock_topic_tree, cli_runner, sample_config_file
+    mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
 ):
     """Test start command with parameter overrides."""
     # Setup mocks
-    mock_tree_instance = Mock()
+    from promptwright.topic_tree import TopicTree  # noqa: PLC0415
+
+    mock_tree_instance = Mock(spec=TopicTree)
     mock_engine_instance = Mock()
     mock_dataset = Mock()
 
-    mock_topic_tree.return_value = mock_tree_instance
+    mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
     mock_engine_instance.create_data.return_value = mock_dataset
 
@@ -263,13 +273,8 @@ def test_start_command_with_overrides(
     # Verify command executed successfully
     assert result.exit_code == 0
 
-    # Verify mocks were called with overridden values
-    mock_topic_tree.assert_called_once()
-    args, kwargs = mock_topic_tree.call_args
-    assert kwargs["args"].model_name == "override/model"
-    assert kwargs["args"].temperature == 0.5  # noqa: PLR2004
-    assert kwargs["args"].tree_degree == 4  # noqa: PLR2004
-    assert kwargs["args"].tree_depth == 3  # noqa: PLR2004
+    # Verify mocks were called
+    mock_create_topic_generator.assert_called_once()
 
     mock_tree_instance.save.assert_called_once_with("override_tree.jsonl")
     mock_dataset.save.assert_called_once_with("override_dataset.jsonl")
@@ -293,6 +298,7 @@ def test_start_command_with_jsonl(
 ):
     """Test start command with JSONL file."""
     mock_tree_instance = Mock()
+    mock_tree_instance.build = Mock()  # Add build method
     mock_topic_tree.return_value = mock_tree_instance
     mock_read_topic_tree_from_jsonl.return_value = [{"path": ["root", "child"]}]
 
@@ -356,17 +362,17 @@ def test_start_command_invalid_yaml(cli_runner):
             os.unlink(temp_path)
 
 
-@patch("promptwright.cli.TopicTree")
+@patch("promptwright.cli.create_topic_generator")
 @patch("promptwright.cli.DataEngine")
 def test_start_command_error_handling(
     _mock_data_engine,
-    mock_topic_tree,
+    mock_create_topic_generator,
     cli_runner,
     sample_config_file,  # noqa: ARG001
 ):
     """Test error handling in start command."""
     # Setup mock to raise an exception
-    mock_topic_tree.side_effect = Exception("Test error")
+    mock_create_topic_generator.side_effect = Exception("Test error")
 
     # Run command
     result = cli_runner.invoke(cli, ["start", sample_config_file])

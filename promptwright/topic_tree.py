@@ -20,9 +20,10 @@ from .constants import (
 )
 from .exceptions import TopicTreeError
 from .prompts import TREE_GENERATION_PROMPT, TREE_JSON_INSTRUCTIONS
+from .topic_model import TopicModel
 from .utils import extract_list
 
-warnings.filterwarnings("ignore", message="Pydantic serializer warnings:.*")
+warnings.filterwarnings("ignore", message=".*Pydantic serializer warnings:.*")
 
 
 UPPER_TREE_DEGREE = 50
@@ -33,7 +34,7 @@ def validate_and_clean_response(response_text: str) -> str | list[str] | None:
     """Clean and validate the response from the LLM."""
     try:
         # First try to extract a JSON array if present
-        json_match = re.search(r"\[.*\]", response_text, re.DOTALL)
+        json_match = re.search(r"[.*]", response_text, re.DOTALL)
         if json_match:
             cleaned_json = json_match.group(0)
             # Remove any markdown code block markers
@@ -147,7 +148,7 @@ class TopicTreeValidator:
         }
 
 
-class TopicTree:
+class TopicTree(TopicModel):
     """A class to represent and build a hierarchical topic tree."""
 
     def __init__(self, args: TopicTreeArguments):
@@ -170,11 +171,17 @@ class TopicTree:
         self.model_name = args.model_name
         self.tree_degree = args.tree_degree
         self.tree_depth = args.tree_depth
-        self.tree_paths = []
-        self.failed_generations = []
+        self.tree_paths: list[list[str]] = []
+        self.failed_generations: list[dict[str, Any]] = []
 
-    def build_tree(self, model_name: str | None = None) -> None:
-        """Build the complete topic tree."""
+    def build(self, model_name: str | None = None) -> None:
+        """
+        Build the complete topic tree.
+
+        Args:
+            model_name: Optional model name to override the configured model
+        """
+
         if model_name:
             self.model_name = model_name
 
@@ -199,6 +206,10 @@ class TopicTree:
                 print("Saving partial tree...")
                 self.save("partial_tree.jsonl")
             raise
+
+    def get_all_paths(self) -> list[list[str]]:
+        """Returns all the paths in the topic model."""
+        return self.tree_paths
 
     def get_subtopics(  # noqa: PLR0912
         self, system_prompt: str, node_path: list[str], num_subtopics: int
@@ -378,6 +389,32 @@ class TopicTree:
         print("Topic Tree Structure:")
         for path in self.tree_paths:
             print(" -> ".join(path))
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert the topic tree to a dictionary representation.
+
+        Returns:
+            dict: Dictionary containing the tree structure and metadata
+        """
+        return {
+            "root_prompt": self.args.root_prompt,
+            "tree_degree": self.tree_degree,
+            "tree_depth": self.tree_depth,
+            "model_name": self.model_name,
+            "temperature": self.temperature,
+            "paths": self.tree_paths,
+            "failed_generations": self.failed_generations,
+            "total_paths": len(self.tree_paths),
+            "args": {
+                "root_prompt": self.args.root_prompt,
+                "model_system_prompt": self.args.model_system_prompt,
+                "tree_degree": self.args.tree_degree,
+                "tree_depth": self.args.tree_depth,
+                "model_name": self.args.model_name,
+                "temperature": self.args.temperature,
+            },
+        }
 
     def from_dict_list(self, dict_list: list[dict[str, Any]]) -> None:
         """

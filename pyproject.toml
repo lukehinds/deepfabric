@@ -18,6 +18,8 @@ dependencies = [
     "PyYAML>=6.0.1",
     "click>=8.1.7",
     "pydantic>=2.0.0",
+    "mermaid-py>=0.8.0",
+    "ipython>=9.5.0",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +31,7 @@ dev = [
     "ruff>=0.1.0",
     "black>=24.10,<26.0",
     "bandit>=1.7.10",
+    "mermaid-py>=0.2.0",
 ]
 
 [project.scripts]

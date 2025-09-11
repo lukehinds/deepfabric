@@ -1,6 +1,6 @@
-# Promptwright - Synthetic Dataset Generation Library
-
 <div align="center">
+  <h1>Promptwright - Synthetic Dataset Generation</h1>
+  <h3>Model Distillation, Agent / Model Evaluations, and Statistical Research</h3>
   <img src="https://raw.githubusercontent.com/lukehinds/promptwright/main/assets/logo.png" alt="promptwright Logo" width="400"/>
 
   <!-- CTA Buttons -->
@@ -42,16 +42,62 @@ The library offers a flexible and easy-to-use set of interfaces, enabling users 
 generate prompt led synthetic datasets. This makes it suitable for a wide range of applications,
 from training machine learning models to creating realistic user simulations.
 
-
-
 ## Features
 
 - **Multiple Providers Support**: Works with most LLM service providers and LocalLLM's via Ollama, VLLM etc
-- **Configurable Instructions and Prompts**: Define custom instructions and system prompts
-- **YAML Configuration**: Define your generation tasks using YAML configuration files
+- **Configurable Instructions and Prompts**: Define custom instructions and system prompts to craft distillation methods.
+- **YAML Configuration**: Define your generation tasks using YAML configuration files or use as a library.
 - **Command Line Interface**: Run generation tasks directly from the command line
 - **Push to Hugging Face**: Push the generated dataset to Hugging Face Hub with automatic dataset cards and tags
-- **System Message Control**: Choose whether to include system messages in the generated dataset
+
+## Topic Graphs (Experimental)
+
+<img src="assets/graph.svg" width="100%" height="100%"/>
+
+PromptWright now includes an experimental **Topic Graph** feature that extends beyond traditional hierarchical topic trees to support **cross-connections** between topics. 
+
+The Topic Graph uses a directed acyclic graph (DAG) in place of the Topic Tree. It allows for more complex and realistic relationships between topics,
+where a topic can have multiple parent topics and more connection density. This system is introduced as an experimental feature, designed to co-exist with the current `TopicTree` implementation,
+allowing for a gradual transition and comparative analysis.
+
+### Usage
+
+**YAML Configuration:**
+```yaml
+# Enable graph mode
+topic_generator: graph
+
+topic_graph:
+  args:
+    root_prompt: "Modern Software Architecture"
+    provider: "ollama"
+    model: "llama3"
+    temperature: 0.7
+    graph_degree: 3    # Subtopics per node
+    graph_depth: 3     # Graph depth
+  save_as: "software_graph.json"
+```
+
+**Programmatic Usage:**
+```python
+from promptwright.topic_graph import TopicGraph, TopicGraphArguments
+
+graph = TopicGraph(
+    args=TopicGraphArguments(
+        root_prompt="Machine Learning Fundamentals",
+        model_name="ollama/llama3",
+        temperature=0.7,
+        graph_degree=3,
+        graph_depth=2,
+    )
+)
+
+graph.build()
+graph.save("ml_graph.json")
+
+# Optional: Generate visualization
+graph.visualize("ml_graph")  # Creates ml_graph.svg
+```
 
 ## Getting Started
 

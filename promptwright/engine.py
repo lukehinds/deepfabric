@@ -26,11 +26,11 @@ from .exceptions import (
     DataEngineError,
 )
 from .prompts import ENGINE_JSON_INSTRUCTIONS, SAMPLE_GENERATION_PROMPT
-from .topic_tree import TopicTree
+from .topic_model import TopicModel
 
 # Handle circular import for type hints
 if TYPE_CHECKING:
-    from .topic_tree import TopicTree
+    from .topic_model import TopicModel
 
 
 def validate_json_response(json_str: str, schema: dict[str, Any] | None = None) -> dict | None:
@@ -134,7 +134,10 @@ class DataEngine:
         self.generation_system_prompt = ENGINE_JSON_INSTRUCTIONS + args.system_prompt
 
     def _validate_create_data_params(
-        self, num_steps: int, batch_size: int, topic_tree: "TopicTree | None" = None
+        self,
+        num_steps: int,
+        batch_size: int,
+        topic_model: "TopicModel | None" = None,
     ) -> None:
         """Validate parameters for data creation."""
         if num_steps is None or num_steps <= 0:
@@ -143,32 +146,35 @@ class DataEngine:
         if batch_size <= 0:
             raise DataEngineError("positive")
 
-        if topic_tree and len(topic_tree.tree_paths) == 0:
+        if topic_model and len(topic_model.get_all_paths()) == 0:
             raise DataEngineError("")
 
-    def _prepare_tree_paths(
-        self, num_steps: int, batch_size: int, topic_tree: "TopicTree | None" = None
+    def _prepare_topic_paths(
+        self,
+        num_steps: int,
+        batch_size: int,
+        topic_model: "TopicModel | None" = None,
     ) -> tuple[list | None, int]:
-        """Prepare and validate tree paths for data generation."""
-        tree_paths = None
-        if topic_tree is not None:
-            tree_paths = topic_tree.tree_paths
-            total_paths = len(tree_paths)
+        """Prepare and validate topic paths for data generation."""
+        topic_paths = None
+        if topic_model is not None:
+            topic_paths = topic_model.get_all_paths()
+            total_paths = len(topic_paths)
             required_samples = num_steps * batch_size
 
             if required_samples > total_paths:
                 raise DataEngineError("insufficient")
             # Bandit: not a security function
-            tree_paths = random.sample(tree_paths, required_samples)  # nosec
-            num_steps = math.ceil(len(tree_paths) / batch_size)
+            topic_paths = random.sample(topic_paths, required_samples)  # nosec
+            num_steps = math.ceil(len(topic_paths) / batch_size)
 
-        return tree_paths, num_steps
+        return topic_paths, num_steps
 
     def _generate_batch_prompts(
         self,
         batch_size: int,
         start_idx: int,
-        tree_paths: list,
+        topic_paths: list,
         data_creation_prompt: str,
         num_example_demonstrations: int,
     ) -> list[str]:
@@ -176,10 +182,10 @@ class DataEngine:
         prompts = []
         for i in range(batch_size):
             path = None
-            if tree_paths:
+            if topic_paths:
                 current_idx = start_idx + i
-                if current_idx < len(tree_paths):
-                    path = tree_paths[current_idx]
+                if current_idx < len(topic_paths):
+                    path = topic_paths[current_idx]
                 else:
                     break
 
@@ -192,7 +198,9 @@ class DataEngine:
         return prompts
 
     def _process_batch_responses(  # noqa: PLR0912
-        self, responses: list, include_sys_msg: bool
+        self,
+        responses: list,
+        include_sys_msg: bool,
     ) -> tuple[list, list]:
         """Process batch responses and return samples and failed responses."""
         samples = []
@@ -303,11 +311,11 @@ class DataEngine:
         }
 
         # Add example failures for each category
-        for category, failures in self.failure_analysis.items():
+        for _category, failures in self.failure_analysis.items():
             if failures:
                 # Get up to 3 examples for each category
                 examples = failures[:3]
-                summary["failure_examples"][category] = [
+                summary["failure_examples"] = [
                     (
                         str(ex)[:200] + "..."
                         if len(str(ex)) > 200  # noqa: PLR2004
@@ -322,7 +330,7 @@ class DataEngine:
         num_steps: int | None = None,
         num_example_demonstrations: int = 3,
         batch_size: int = 10,
-        topic_tree: TopicTree | None = None,
+        topic_model: TopicModel | None = None,
         model_name: str | None = None,
         sys_msg: bool | None = None,
     ):
@@ -331,7 +339,7 @@ class DataEngine:
             num_steps = 1
 
         # Validate inputs
-        self._validate_create_data_params(num_steps, batch_size, topic_tree)
+        self._validate_create_data_params(num_steps, batch_size, topic_model)
 
         # Use instance model_name as fallback if none provided
         if model_name:
@@ -343,8 +351,8 @@ class DataEngine:
         # Use provided sys_msg or fall back to args.sys_msg
         include_sys_msg = sys_msg if sys_msg is not None else self.args.sys_msg
 
-        # Prepare tree paths and adjust num_steps if necessary
-        tree_paths, num_steps = self._prepare_tree_paths(num_steps, batch_size, topic_tree)
+        # Prepare topic paths and adjust num_steps if necessary
+        topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
 
         total_samples = num_steps * batch_size
         print(f"Generating dataset using model {self.model_name}")
@@ -359,7 +367,7 @@ class DataEngine:
             num_steps=num_steps,
             batch_size=batch_size,
             total_samples=total_samples,
-            tree_paths=tree_paths or [],
+            topic_paths=topic_paths or [],
             data_creation_prompt=data_creation_prompt,
             num_example_demonstrations=num_example_demonstrations,
             include_sys_msg=include_sys_msg,
@@ -370,7 +378,7 @@ class DataEngine:
         num_steps: int,
         batch_size: int,
         total_samples: int,
-        tree_paths: list,
+        topic_paths: list,
         data_creation_prompt: str,
         num_example_demonstrations: int,
         include_sys_msg: bool,
@@ -383,7 +391,7 @@ class DataEngine:
                     prompts = self._generate_batch_prompts(
                         batch_size,
                         start_idx,
-                        tree_paths,
+                        topic_paths,
                         data_creation_prompt,
                         num_example_demonstrations,
                     )

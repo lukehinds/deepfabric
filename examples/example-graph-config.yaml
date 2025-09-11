@@ -1,0 +1,41 @@
+# Example configuration for topic graph generation
+system_prompt: "You are an expert in creating comprehensive knowledge graphs."
+
+# Specify the topic generator type
+topic_generator: graph
+
+# Topic graph configuration
+topic_graph:
+  args:
+    root_prompt: "Programming paradigms, languages, design patterns, data structures, architecture, algorithms, and their practical implementations across different programming languages with idiomatic specific examples"
+    provider: "gemini"              # Optional: overrides the main provider
+    model: "gemini-2.5-flash-lite"  # Optional: overrides the main model
+    temperature: 0.7                # Temperature for generation (0.0-2.0)
+    graph_degree: 3                 # Number of subtopics per node
+    graph_depth: 3                  # Depth of the graph
+  save_as: "programming_graph.json" # Where to save the graph
+
+# Data engine configuration
+data_engine:
+  args:
+    instructions: "Generate diverse programming examples"
+    system_prompt: "<system_prompt_placeholder>"
+    provider: "gemini"
+    model: "gemini-2.5-flash-lite"
+    temperature: 0.9
+    max_retries: 3
+
+# Dataset configuration
+dataset:
+  creation:
+    num_steps: 10
+    batch_size: 5
+    provider: "gemini"
+    model: "gemini-2.5-flash-lite"
+    sys_msg: true
+  save_as: "programming_dataset.jsonl"
+
+# Optional: Hugging Face Hub configuration
+# huggingface:
+#   repository: "username/dataset-name"
+#   tags: ["programming", "education", "synthetic"]

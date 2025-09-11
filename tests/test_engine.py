@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock, patch
 
-import pytest
+import pytest  # type: ignore
 
 from promptwright.engine import DataEngine, Dataset, EngineArguments
 from promptwright.exceptions import DataEngineError
@@ -68,12 +68,13 @@ def test_create_data_success(mock_batch_completion, data_engine):
         "path9",
         "path10",
     ]
+    topic_tree.get_all_paths.return_value = [[p] for p in topic_tree.tree_paths]
 
     # Define a constant for the expected number of samples
     expected_num_samples = 10
 
     # Generate the data
-    dataset = data_engine.create_data(num_steps=1, batch_size=10, topic_tree=topic_tree)
+    dataset = data_engine.create_data(num_steps=1, batch_size=10, topic_model=topic_tree)
 
     # Assert that the dataset contains exactly the expected number of samples
     assert len(dataset.samples) == expected_num_samples
@@ -96,9 +97,10 @@ def test_create_data_with_sys_msg_default(mock_batch_completion, data_engine):
 
     topic_tree = MagicMock()
     topic_tree.tree_paths = ["path1"]
+    topic_tree.get_all_paths.return_value = [["path1"]]
 
     # Generate data with default sys_msg (True)
-    dataset = data_engine.create_data(num_steps=1, batch_size=1, topic_tree=topic_tree)
+    dataset = data_engine.create_data(num_steps=1, batch_size=1, topic_model=topic_tree)
 
     # Verify system message is included
     assert len(dataset.samples) == 1
@@ -124,10 +126,11 @@ def test_create_data_without_sys_msg(mock_batch_completion, data_engine):
 
     topic_tree = MagicMock()
     topic_tree.tree_paths = ["path1"]
+    topic_tree.get_all_paths.return_value = [["path1"]]
 
     # Generate data with sys_msg=False
     dataset = data_engine.create_data(
-        num_steps=1, batch_size=1, topic_tree=topic_tree, sys_msg=False
+        num_steps=1, batch_size=1, topic_model=topic_tree, sys_msg=False
     )
 
     # Verify system message is not included
@@ -169,9 +172,10 @@ def test_create_data_sys_msg_override(mock_batch_completion):
 
     topic_tree = MagicMock()
     topic_tree.tree_paths = ["path1"]
+    topic_tree.get_all_paths.return_value = [["path1"]]
 
     # Override sys_msg=False with True in create_data
-    dataset = engine.create_data(num_steps=1, batch_size=1, topic_tree=topic_tree, sys_msg=True)
+    dataset = engine.create_data(num_steps=1, batch_size=1, topic_model=topic_tree, sys_msg=True)
 
     # Verify system message is included despite engine default
     assert len(dataset.samples) == 1
