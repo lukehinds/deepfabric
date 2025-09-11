@@ -1,5 +1,3 @@
-"""Constants used throughout PromptWright."""
-
 # Default values
 DEFAULT_PROVIDER = "ollama"
 DEFAULT_MODEL = "mistral:latest"

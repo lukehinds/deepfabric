@@ -1,5 +1,3 @@
-"""Command-line interface for PromptWright."""
-
 import os
 import sys
 
@@ -15,7 +13,8 @@ from .constants import (
     TOPIC_TREE_DEFAULT_TEMPERATURE,
 )
 from .engine import DataEngine
-from .hf_hub import HFUploader
+from .factory import create_topic_generator
+from .topic_graph import TopicGraph
 from .topic_tree import TopicTree, TopicTreeArguments
 from .utils import read_topic_tree_from_jsonl
 
@@ -40,6 +39,13 @@ def cli():
     type=click.Path(exists=True),
     help="Path to the JSONL file containing the topic tree.",
 )
+@click.option("--graph-save-as", help="Override the save path for the topic graph")
+@click.option(
+    "--graph-load-from",
+    type=click.Path(exists=True),
+    help="Path to the JSON file containing the topic graph.",
+)
+@click.option("--graph-visualize-as", help="Save a visualization of the graph to an SVG file")
 @click.option("--dataset-save-as", help="Override the save path for the dataset")
 @click.option("--provider", help="Override the LLM provider (e.g., ollama)")
 @click.option("--model", help="Override the model name (e.g., mistral:latest)")
@@ -63,10 +69,13 @@ def cli():
     type=bool,
     help="Include system message in dataset (default: true)",
 )
-def start(  # noqa: PLR0912
+def start(  # noqa: PLR0912, PLR0913
     config_file: str,
     topic_tree_save_as: str | None = None,
     topic_tree_jsonl: str | None = None,
+    graph_save_as: str | None = None,
+    graph_load_from: str | None = None,
+    graph_visualize_as: str | None = None,
     dataset_save_as: str | None = None,
     provider: str | None = None,
     model: str | None = None,
@@ -120,7 +129,7 @@ def start(  # noqa: PLR0912
             model or dataset_params.get("model", "default_model"),
         )
 
-        # Create and build topic tree
+        # Create and build topic model
         try:
             if topic_tree_jsonl:
                 click.echo(f"Reading topic tree from JSONL file: {topic_tree_jsonl}")
@@ -133,38 +142,55 @@ def start(  # noqa: PLR0912
                     tree_depth=TOPIC_TREE_DEFAULT_DEPTH,
                     temperature=TOPIC_TREE_DEFAULT_TEMPERATURE,
                 )
-                tree = TopicTree(args=default_args)
-                tree.from_dict_list(dict_list)
+                topic_model = TopicTree(args=default_args)
+                topic_model.from_dict_list(dict_list)
+            elif graph_load_from:
+                click.echo(f"Reading topic graph from JSON file: {graph_load_from}")
+                graph_args = config.get_topic_graph_args(**tree_overrides)
+                topic_model = TopicGraph.from_json(graph_load_from, graph_args)
             else:
-                if hasattr(config, "topic_tree"):
-                    tree_args = config.get_topic_tree_args(**tree_overrides)
-                else:
-                    tree_args = TopicTreeArguments(
-                        root_prompt="default",
-                        model_name=model_name,
-                        model_system_prompt="",
-                        tree_degree=3,
-                        tree_depth=2,
-                        temperature=0.7,
-                    )
-                tree = TopicTree(args=tree_args)
-                tree.build_tree()
+                topic_model = create_topic_generator(config)
+                topic_model.build()
         except Exception as e:
             handle_error(
-                click.get_current_context(), ValueError(f"Error building topic tree: {str(e)}")
+                click.get_current_context(), ValueError(f"Error building topic model: {str(e)}")
             )
 
-        # Save topic tree if JSONL file is not provided
-        if not topic_tree_jsonl:
+        # Save topic model
+        if not topic_tree_jsonl and not graph_load_from:
+            if isinstance(topic_model, TopicTree):
+                try:
+                    tree_save_path = topic_tree_save_as or (config.topic_tree or {}).get(
+                        "save_as", "topic_tree.jsonl"
+                    )
+                    topic_model.save(tree_save_path)
+                    click.echo(f"Topic tree saved to: {tree_save_path}")
+                except Exception as e:
+                    handle_error(
+                        click.get_current_context(),
+                        ValueError(f"Error saving topic tree: {str(e)}"),
+                    )
+            elif isinstance(topic_model, TopicGraph):
+                try:
+                    graph_save_path = graph_save_as or (config.topic_graph or {}).get(
+                        "save_as", "topic_graph.json"
+                    )
+                    topic_model.save(graph_save_path)
+                    click.echo(f"Topic graph saved to: {graph_save_path}")
+                except Exception as e:
+                    handle_error(
+                        click.get_current_context(),
+                        ValueError(f"Error saving topic graph: {str(e)}"),
+                    )
+
+        # Visualize graph if requested
+        if isinstance(topic_model, TopicGraph) and graph_visualize_as:
             try:
-                tree_save_path = topic_tree_save_as or config.topic_tree.get(
-                    "save_as", "topic_tree.jsonl"
-                )
-                tree.save(tree_save_path)
-                click.echo(f"Topic tree saved to: {tree_save_path}")
+                topic_model.visualize(graph_visualize_as)
+                click.echo(f"Graph visualization saved to: {graph_visualize_as}.svg")
             except Exception as e:
                 handle_error(
-                    click.get_current_context(), ValueError(f"Error saving topic tree: {str(e)}")
+                    click.get_current_context(), ValueError(f"Error visualizing graph: {str(e)}")
                 )
 
         # Prepare engine overrides
@@ -195,7 +221,7 @@ def start(  # noqa: PLR0912
             dataset = engine.create_data(
                 num_steps=num_steps or dataset_params.get("num_steps", 5),
                 batch_size=batch_size or dataset_params.get("batch_size", 1),
-                topic_tree=tree,
+                topic_model=topic_model,
                 model_name=model_name,
                 sys_msg=sys_msg,  # Pass sys_msg to create_data
             )
@@ -242,6 +268,9 @@ def start(  # noqa: PLR0912
                 all_tags.extend(config_tags)
 
                 # Upload to Hugging Face
+                # Lazy import to avoid slow startup when not using HF features
+                from .hf_hub import HFUploader  # noqa: PLC0415
+
                 uploader = HFUploader(token)
                 result = uploader.push_to_hub(str(repo), dataset_save_path, tags=all_tags)
 

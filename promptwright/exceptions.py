@@ -1,6 +1,3 @@
-"""Custom exceptions for PromptWright."""
-
-
 class PromptWrightError(Exception):
     """Base exception class for PromptWright."""
 

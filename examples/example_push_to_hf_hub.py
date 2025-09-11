@@ -4,7 +4,7 @@ import sys
 # Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from promptwright import HFUploader
+from promptwright import HFUploader # type: ignore  # noqa: I001
 
 
 def main():

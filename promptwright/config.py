@@ -1,6 +1,4 @@
-"""Configuration handling for YAML-based promptwright configurations."""
-
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 
@@ -9,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 from .constants import DEFAULT_MODEL, DEFAULT_PROVIDER, SYSTEM_PROMPT_PLACEHOLDER
 from .engine import EngineArguments
 from .exceptions import ConfigurationError
+from .topic_graph import TopicGraphArguments
 from .topic_tree import TopicTreeArguments
 
 
@@ -20,8 +19,12 @@ def construct_model_string(provider: str, model: str) -> str:
 class PromptWrightConfig(BaseModel):
     """Configuration for PromptWright tasks."""
 
+    topic_generator: Literal["tree", "graph"] = Field(
+        "tree", description="The type of topic model to use."
+    )
     system_prompt: str = Field(..., min_length=1, description="System prompt for the model")
-    topic_tree: dict[str, Any] = Field(..., description="Topic tree configuration")
+    topic_tree: dict[str, Any] | None = Field(None, description="Topic tree configuration")
+    topic_graph: dict[str, Any] | None = Field(None, description="Topic graph configuration")
     data_engine: dict[str, Any] = Field(..., description="Data engine configuration")
     dataset: dict[str, Any] = Field(..., description="Dataset configuration")
     huggingface: dict[str, Any] | None = Field(None, description="Hugging Face configuration")
@@ -58,6 +61,8 @@ class PromptWrightConfig(BaseModel):
 
     def get_topic_tree_args(self, **overrides) -> TopicTreeArguments:
         """Get TopicTreeArguments from config with optional overrides."""
+        if not self.topic_tree:
+            raise ConfigurationError("missing 'topic_tree' configuration")  # noqa: TRY003
         try:
             args = self.topic_tree.get("args", {}).copy()
 
@@ -78,6 +83,27 @@ class PromptWrightConfig(BaseModel):
             args["model_name"] = construct_model_string(provider, model)
 
             return TopicTreeArguments(**args)
+        except Exception as e:
+            raise ConfigurationError(f"args error: {str(e)}") from e  # noqa: TRY003
+
+    def get_topic_graph_args(self, **overrides) -> TopicGraphArguments:
+        """Get TopicGraphArguments from config with optional overrides."""
+        if not self.topic_graph:
+            raise ConfigurationError("missing 'topic_graph' configuration")  # noqa: TRY003
+        try:
+            args = self.topic_graph.get("args", {}).copy()
+
+            # Handle provider and model separately
+            provider = overrides.pop("provider", args.pop("provider", DEFAULT_PROVIDER))
+            model = overrides.pop("model", args.pop("model", DEFAULT_MODEL))
+
+            # Apply remaining overrides
+            args.update(overrides)
+
+            # Construct full model string
+            args["model_name"] = construct_model_string(provider, model)
+
+            return TopicGraphArguments(**args)
         except Exception as e:
             raise ConfigurationError(f"args error: {str(e)}") from e  # noqa: TRY003
 
