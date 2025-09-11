@@ -5,7 +5,7 @@ import tempfile
 
 from unittest.mock import Mock, patch
 
-import pytest
+import pytest  # type: ignore
 
 from click.testing import CliRunner
 

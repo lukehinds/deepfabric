@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
+import pytest  # type: ignore
 
 from promptwright.topic_graph import (
     Node,
