@@ -1,7 +1,11 @@
 <div align="center">
   <h1>DeepFabric - Synthetic Dataset Generation</h1>
   <h3>Model Distillation, Agent / Model Evaluations, and Statistical Research</h3>
-  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo.png" alt="deepfabric Logo" width="400"/>
+  <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-dark.png">
+      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png">
+      <img alt="Shows a black logo in light color mode and a white one in dark color mode." src="https://user-images.githubusercontent.com/25423296/163456779-a8556205-d0a5-45e2-ac17-42d089e3c3f8.png">
+  </picture>
 
   <!-- CTA Buttons -->
   <p>
