@@ -1,13 +1,13 @@
 <div align="center">
   <h1>DeepFabric - Synthetic Dataset Generation</h1>
   <h3>Model Distillation, Agent / Model Evaluations, and Statistical Research</h3>
-</div>
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/logo-light.png">
-  <img alt="CodeGate logo" src="./assets/logo-dark.svg" width="800px" style="max-width: 100%;">
-</picture>
+  
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png">
+    <img alt="Deepfabric logo" src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-dark.png" width="800px" style="max-width: 100%;">
+  </picture>
+  
   <!-- CTA Buttons -->
-<div align="center">
   <p>
     <a href="https://github.com/lukehinds/deepfabric/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">
       <img src="https://img.shields.io/badge/Contribute-Good%20First%20Issues-green?style=for-the-badge&logo=github" alt="Good First Issues"/>
