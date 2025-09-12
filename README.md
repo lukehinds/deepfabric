@@ -4,7 +4,7 @@
   <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-dark.png">
       <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png">
-      <img alt="Shows a black logo in light color mode and a white one in dark color mode." src="https://user-images.githubusercontent.com/25423296/163456779-a8556205-d0a5-45e2-ac17-42d089e3c3f8.png">
+      <img alt="Shows a black logo in light color mode and a white one in dark color mode." src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png>
   </picture>
 
   <!-- CTA Buttons -->
@@ -39,7 +39,6 @@
   <br/>
 </div>
 
-
 Generate complex Graph or Tree seeded Synthetic Datasets with DeepFabric (formerly known as promptwright)
 
 DeepFabric is a library / CLI that offers a flexible and easy-to-use set of interfaces, enabling
@@ -49,7 +48,7 @@ used for research purposes.
 
 ## Topic Graphs (Experimental)
 
-<img src="assets/graph.svg" width="100%" height="100%"/>
+<img src="https://raw.githubusercontent.com/lukehinds/deepfabric/f6ac2717a99b1ae1963aedeb099ad75bb30170e8/assets/graph.svg" width="100%" height="100%"/>
 
 DeepFabric now includes an experimental **Topic Graph** feature that extends beyond traditional hierarchical topic trees to support **cross-connections** between topics. 
 
@@ -398,6 +397,14 @@ is a known issue with the underlying model and not the library. We handle these
 errors by retrying the generation process and filtering out invalid JSON. The 
 failure rate is low, but it can happen. We report on each failure within a final
 summary.
+
+## Promptwright
+
+The project was renamed and also happened in sync with a large refactor. The last
+release of what we promptwright was made at v1.50 which is now under the branch `archive`
+
+I will make sure any security issues or nasty bugs are backported, but I won't be pushing
+to pypi under the old promptwright name anymore.
 
 ## Contributing
 
