@@ -31,7 +31,7 @@ The validation process examines multiple aspects of your configuration:
 Successful validation produces a summary of your configuration:
 
 ```
-✅ Configuration is valid
+ Configuration is valid
 
 Configuration Summary:
   Topic Tree: depth=3, degree=4
@@ -89,8 +89,8 @@ deepfabric validate config.yaml
 
 ```
 Provider Validation:
-  ✅ OpenAI API key detected (OPENAI_API_KEY)
-  ✅ Model gpt-4 is available
+   OpenAI API key detected (OPENAI_API_KEY)
+   Model gpt-4 is available
   ⚠️  Model gpt-4 has higher costs than gpt-3.5-turbo
 ```
 

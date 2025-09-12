@@ -383,6 +383,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "requests" },
+    { name = "rich" },
     { name = "tqdm" },
     { name = "urllib3" },
 ]
@@ -424,6 +425,7 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0.1" },
     { name = "requests", specifier = "==2.32.3" },
     { name = "requests-mock", marker = "extra == 'dev'", specifier = ">=1.11.0" },
+    { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "tqdm", specifier = "==4.67.1" },
     { name = "urllib3", specifier = "==2.4.0" },

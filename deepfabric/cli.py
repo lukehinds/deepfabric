@@ -16,12 +16,14 @@ from .factory import create_topic_generator
 from .generator import DataSetGenerator
 from .graph import Graph
 from .tree import Tree, TreeArguments
+from .tui import get_tui
 from .utils import read_topic_tree_from_jsonl
 
 
 def handle_error(ctx: click.Context, error: Exception) -> NoReturn:  # noqa: ARG001
     """Handle errors in CLI commands."""
-    click.echo(f"Error: {str(error)}", err=True)
+    tui = get_tui()
+    tui.error(f"Error: {str(error)}")
     sys.exit(1)
 
 
@@ -134,8 +136,9 @@ def generate(  # noqa: PLR0912, PLR0913
 
         # Create and build topic model
         try:
+            tui = get_tui()
             if load_tree:
-                click.echo(f"Reading topic tree from JSONL file: {load_tree}")
+                tui.info(f"Reading topic tree from JSONL file: {load_tree}")
                 dict_list = read_topic_tree_from_jsonl(load_tree)
                 default_args = TreeArguments(
                     root_prompt="default",
@@ -148,7 +151,7 @@ def generate(  # noqa: PLR0912, PLR0913
                 topic_model = Tree(args=default_args)
                 topic_model.from_dict_list(dict_list)
             elif load_graph:
-                click.echo(f"Reading topic graph from JSON file: {load_graph}")
+                tui.info(f"Reading topic graph from JSON file: {load_graph}")
                 graph_args = config.get_topic_graph_args(**graph_overrides)
                 topic_model = Graph.from_json(load_graph, graph_args)
             else:
@@ -161,7 +164,7 @@ def generate(  # noqa: PLR0912, PLR0913
                 click.get_current_context(), ValueError(f"Error building topic model: {str(e)}")
             )
 
-        # Save topic model
+        # Save topic model (TUI messaging is handled in save methods)
         if not load_tree and not load_graph:
             if isinstance(topic_model, Tree):
                 try:
@@ -169,7 +172,6 @@ def generate(  # noqa: PLR0912, PLR0913
                         "save_as", "topic_tree.jsonl"
                     )
                     topic_model.save(tree_save_path)
-                    click.echo(f"Topic tree saved to: {tree_save_path}")
                 except Exception as e:
                     handle_error(
                         click.get_current_context(),
@@ -181,7 +183,6 @@ def generate(  # noqa: PLR0912, PLR0913
                         "save_as", "topic_graph.json"
                     )
                     topic_model.save(graph_save_path)
-                    click.echo(f"Topic graph saved to: {graph_save_path}")
                 except Exception as e:
                     handle_error(
                         click.get_current_context(),
@@ -229,12 +230,14 @@ def generate(  # noqa: PLR0912, PLR0913
         try:
             dataset_save_path = dataset_save_as or dataset_config.get("save_as", "dataset.jsonl")
             dataset.save(dataset_save_path)
-            click.echo(f"Dataset saved to: {dataset_save_path}")
+            tui.success(f"Dataset saved to: {dataset_save_path}")
         except Exception as e:
             handle_error(click.get_current_context(), Exception(f"Error saving dataset: {str(e)}"))
 
     except Exception as e:
-        handle_error(click.get_current_context(), ValueError(f"Unexpected error: {str(e)}"))
+        tui = get_tui()
+        tui.error(f"Unexpected error: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -275,16 +278,17 @@ def upload(
         uploader = HFUploader(token)
         result = uploader.push_to_hub(str(repo), dataset_file, tags=list(tags) if tags else [])
 
+        tui = get_tui()
         if result["status"] == "success":
-            click.echo(result["message"])
+            tui.success(result["message"])
         else:
-            handle_error(click.get_current_context(), ValueError(result["message"]))
+            tui.error(result["message"])
+            sys.exit(1)
 
     except Exception as e:
-        handle_error(
-            click.get_current_context(),
-            ValueError(f"Error uploading to Hugging Face Hub: {str(e)}"),
-        )
+        tui = get_tui()
+        tui.error(f"Error uploading to Hugging Face Hub: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -337,13 +341,13 @@ def visualize(graph_file: str, output: str) -> None:
 
         # Visualize the graph
         graph.visualize(output)
-        click.echo(f"Graph visualization saved to: {output}.svg")
+        tui = get_tui()
+        tui.success(f"Graph visualization saved to: {output}.svg")
 
     except Exception as e:
-        handle_error(
-            click.get_current_context(),
-            ValueError(f"Error visualizing graph: {str(e)}"),
-        )
+        tui = get_tui()
+        tui.error(f"Error visualizing graph: {str(e)}")
+        sys.exit(1)
 
 
 @cli.command()
@@ -386,40 +390,41 @@ def validate(config_file: str) -> None:  # noqa: PLR0912
                 warnings.append("No save_as path defined for dataset")
 
         # Report results
+        tui = get_tui()
         if errors:
-            click.echo("❌ Configuration validation failed:", err=True)
+            tui.error("Configuration validation failed:")
             for error in errors:
-                click.echo(f"  - {error}", err=True)
+                tui.console.print(f"  - {error}", style="red")
             sys.exit(1)
         else:
-            click.echo("✅ Configuration is valid")
+            tui.success("Configuration is valid")
 
         if warnings:
-            click.echo("\nWarnings:")
+            tui.console.print("\nWarnings:", style="yellow bold")
             for warning in warnings:
-                click.echo(f"  ⚠️  {warning}")
+                tui.warning(warning)
 
         # Print configuration summary
-        click.echo("\nConfiguration Summary:")
+        tui.console.print("\nConfiguration Summary:", style="cyan bold")
         if config.topic_tree:
             tree_args = config.topic_tree.get("args", {})
-            click.echo(
-                f"  Topic Tree: depth={tree_args.get('tree_depth', 'default')}, degree={tree_args.get('tree_degree', 'default')}"
+            tui.info(
+                f"Topic Tree: depth={tree_args.get('tree_depth', 'default')}, degree={tree_args.get('tree_degree', 'default')}"
             )
         if config.topic_graph:
             graph_args = config.topic_graph.get("args", {})
-            click.echo(
-                f"  Topic Graph: depth={graph_args.get('graph_depth', 'default')}, degree={graph_args.get('graph_degree', 'default')}"
+            tui.info(
+                f"Topic Graph: depth={graph_args.get('graph_depth', 'default')}, degree={graph_args.get('graph_degree', 'default')}"
             )
 
         dataset_params = config.get_dataset_config().get("creation", {})
-        click.echo(
-            f"  Dataset: steps={dataset_params.get('num_steps', 'default')}, batch_size={dataset_params.get('batch_size', 'default')}"
+        tui.info(
+            f"Dataset: steps={dataset_params.get('num_steps', 'default')}, batch_size={dataset_params.get('batch_size', 'default')}"
         )
 
         if config.huggingface:
             hf_config = config.get_huggingface_config()
-            click.echo(f"  Hugging Face: repo={hf_config.get('repository', 'not set')}")
+            tui.info(f"Hugging Face: repo={hf_config.get('repository', 'not set')}")
 
     except FileNotFoundError:
         handle_error(
@@ -450,26 +455,40 @@ def info() -> None:
         except importlib.metadata.PackageNotFoundError:
             version = "development"
 
-        click.echo(f"DeepFabric v{version}")
-        click.echo("\nAvailable Commands:")
-        click.echo("  generate   - Generate training data from configuration")
-        click.echo("  validate   - Validate a configuration file")
-        click.echo("  visualize  - Create SVG visualization of a topic graph")
-        click.echo("  upload     - Upload dataset to Hugging Face Hub")
-        click.echo("  info       - Show this information")
+        tui = get_tui()
+        header = tui.create_header(
+            f"DeepFabric v{version}", "Large Scale Topic based Synthetic Data Generation"
+        )
+        tui.console.print(header)
 
-        click.echo("\nEnvironment Variables:")
-        click.echo("  OPENAI_API_KEY     - OpenAI API key")
-        click.echo("  ANTHROPIC_API_KEY  - Anthropic API key")
-        click.echo("  HF_TOKEN           - Hugging Face API token")
+        tui.console.print("\n📋 Available Commands:", style="cyan bold")
+        commands = [
+            ("generate", "Generate training data from configuration"),
+            ("validate", "Validate a configuration file"),
+            ("visualize", "Create SVG visualization of a topic graph"),
+            ("upload", "Upload dataset to Hugging Face Hub"),
+            ("info", "Show this information"),
+        ]
+        for cmd, desc in commands:
+            tui.console.print(f"  [cyan]{cmd}[/cyan] - {desc}")
 
-        click.echo("\nFor more information, visit: https://github.com/stacklok/deepfabric")
+        tui.console.print("\n🔑 Environment Variables:", style="cyan bold")
+        env_vars = [
+            ("OPENAI_API_KEY", "OpenAI API key"),
+            ("ANTHROPIC_API_KEY", "Anthropic API key"),
+            ("HF_TOKEN", "Hugging Face API token"),
+        ]
+        for var, desc in env_vars:
+            tui.console.print(f"  [yellow]{var}[/yellow] - {desc}")
+
+        tui.console.print(
+            "\n🔗 For more information, visit: [link]https://github.com/stacklok/deepfabric[/link]"
+        )
 
     except Exception as e:
-        handle_error(
-            click.get_current_context(),
-            ValueError(f"Error getting info: {str(e)}"),
-        )
+        tui = get_tui()
+        tui.error(f"Error getting info: {str(e)}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import litellm
 
 from pydantic import BaseModel, Field, field_validator
-from tqdm import tqdm
+from tqdm.rich import tqdm
 
 from .constants import (
     API_ERROR_INDICATORS,
@@ -27,6 +27,7 @@ from .exceptions import (
 )
 from .prompts import ENGINE_JSON_INSTRUCTIONS, SAMPLE_GENERATION_PROMPT
 from .topic_model import TopicModel
+from .tui import get_dataset_tui
 
 # Handle circular import for type hints
 if TYPE_CHECKING:
@@ -355,8 +356,10 @@ class DataSetGenerator:
         topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
 
         total_samples = num_steps * batch_size
-        print(f"Generating dataset using model {self.model_name}")
-        print(f"Generating dataset in {num_steps} steps, with batch size {batch_size}")
+
+        # Initialize dataset generation TUI
+        dataset_tui = get_dataset_tui()
+        dataset_tui.show_generation_header(self.model_name, num_steps, batch_size)
 
         # Enable JSON schema validation
         litellm.enable_json_schema_validation = True
@@ -371,9 +374,10 @@ class DataSetGenerator:
             data_creation_prompt=data_creation_prompt,
             num_example_demonstrations=num_example_demonstrations,
             include_sys_msg=include_sys_msg,
+            dataset_tui=dataset_tui,
         )
 
-    def _run_generation_loop(
+    def _run_generation_loop(  # noqa: PLR0912
         self,
         num_steps: int,
         batch_size: int,
@@ -382,10 +386,22 @@ class DataSetGenerator:
         data_creation_prompt: str,
         num_example_demonstrations: int,
         include_sys_msg: bool,
+        dataset_tui=None,
     ):
         """Run the main generation loop."""
         try:
-            with tqdm(total=total_samples, desc="Progress") as pbar:
+            # Create rich progress bar
+            progress = dataset_tui.create_rich_progress() if dataset_tui else None
+            if progress:
+                progress.start()
+                progress_task = progress.add_task("Generating dataset samples", total=total_samples)
+            else:
+                progress_task = None
+
+            # Fallback to regular tqdm if no TUI
+            pbar = None if progress else tqdm(total=total_samples, desc="Progress")
+
+            try:
                 for step in range(num_steps):
                     start_idx = step * batch_size
                     prompts = self._generate_batch_prompts(
@@ -396,27 +412,56 @@ class DataSetGenerator:
                         num_example_demonstrations,
                     )
 
-                    success = self._process_batch_with_retries(prompts, include_sys_msg, pbar)
+                    success = self._process_batch_with_retries(
+                        prompts, include_sys_msg, progress, progress_task, pbar
+                    )
                     if not success:
-                        print(f"Failed to process batch {step + 1} after all retries")
+                        if dataset_tui:
+                            dataset_tui.tui.warning(
+                                f"Failed to process batch {step + 1} after all retries"
+                            )
+                        else:
+                            print(f"Failed to process batch {step + 1} after all retries")
+
+            finally:
+                if progress:
+                    progress.stop()
+                elif pbar:
+                    pbar.close()
 
         except KeyboardInterrupt:
-            print("\nGeneration interrupted by user.")
+            if dataset_tui:
+                dataset_tui.tui.warning("Generation interrupted by user.")
+            else:
+                print("\nGeneration interrupted by user.")
             self.print_failure_summary()
             self.save_dataset(INTERRUPTED_DATASET_FILENAME)
             return self.dataset
 
         except Exception as e:
-            print(f"\nUnexpected error: {str(e)}")
+            if dataset_tui:
+                dataset_tui.tui.error(f"Unexpected error: {str(e)}")
+            else:
+                print(f"\nUnexpected error: {str(e)}")
             self.print_failure_summary()
             self.save_dataset(ERROR_DATASET_FILENAME)
             raise DataSetGeneratorError("failed") from e
 
-        print(f"Successfully Generated {len(self.dataset)} samples.")
+        if dataset_tui:
+            dataset_tui.tui.success(f"Successfully Generated {len(self.dataset)} samples.")
+        else:
+            print(f"Successfully Generated {len(self.dataset)} samples.")
         self.print_failure_summary()
         return self.dataset
 
-    def _process_batch_with_retries(self, prompts: list[str], include_sys_msg: bool, pbar) -> bool:
+    def _process_batch_with_retries(
+        self,
+        prompts: list[str],
+        include_sys_msg: bool,
+        progress=None,
+        progress_task=None,
+        pbar=None,
+    ) -> bool:
         """Process a batch with retry logic."""
         for attempt in range(self.args.max_retries):
             try:
@@ -436,17 +481,23 @@ class DataSetGenerator:
                             self.failure_analysis["invalid_schema"].append(desc)
 
                     successful_samples = len(samples) - len(failed_samples)
-                    pbar.update(successful_samples)
+
+                    # Update progress
+                    if progress and progress_task is not None:
+                        progress.advance(progress_task, successful_samples)
+                    elif pbar:
+                        pbar.update(successful_samples)
+
                     return True  # Success - exit retry loop
 
             except Exception as e:
                 if attempt == self.args.max_retries - 1:
-                    print(f"Failed after {self.args.max_retries} attempts: {str(e)}")
+                    # Don't print here, let TUI or calling code handle final messaging
                     self.failed_samples.append(str(e))
                     failure_type = self.analyze_failure(str(e), error=e)
                     self.failure_analysis[failure_type].append(str(e))
                     return False
-                print(f"Attempt {attempt + 1} failed: {str(e)}")
+                # Don't print retry messages to avoid clutter with TUI
 
         return False
 
