@@ -20,6 +20,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "mermaid-py>=0.8.0",
     "ipython>=9.5.0",
+    "rich>=13.0.0",
 ]
 
 [project.optional-dependencies]

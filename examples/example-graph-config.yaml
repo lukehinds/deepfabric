@@ -29,7 +29,7 @@ data_engine:
 dataset:
   creation:
     num_steps: 10
-    batch_size: 5
+    batch_size: 1
     provider: "gemini"
     model: "gemini-2.5-flash-lite"
     sys_msg: true

@@ -139,7 +139,7 @@ def main():
     try:
         tree.build()
         tree.save(os.path.join(OUTPUT_DIR, "python_patterns_tree.jsonl"))
-        print(f"✅ Topic tree created with {len(tree.get_all_paths())} paths")
+        print(f" Topic tree created with {len(tree.get_all_paths())} paths")
     except Exception as e:
         print(f"❌ Error building tree: {e}")
         return
@@ -207,7 +207,7 @@ def main():
 
     output_path = os.path.join(OUTPUT_DIR, "python_patterns_dataset.jsonl")
     dataset.save(output_path)
-    print(f"✅ Dataset saved to {output_path}")
+    print(f" Dataset saved to {output_path}")
 
     # Step 6: Optional - Upload to HuggingFace Hub
     # Uncomment and configure if you want to use this
@@ -225,7 +225,7 @@ def main():
             tags=["python", "design-patterns", "synthetic", "education"]
         )
         if result["status"] == "success":
-            print(f"✅ {result['message']}")
+            print(f" {result['message']}")
         else:
             print(f"❌ {result['message']}")
     else:
@@ -251,7 +251,7 @@ def main():
     with open(os.path.join(OUTPUT_DIR, "metadata.json"), "w") as f:
         json.dump(metadata, f, indent=2)
 
-    print("✅ Pipeline completed successfully!")
+    print(" Pipeline completed successfully!")
     print(f"\nOutput files in '{OUTPUT_DIR}/':")
     print("  - python_patterns_tree.jsonl (topic tree)")
     print("  - python_patterns_dataset.jsonl (training dataset)")

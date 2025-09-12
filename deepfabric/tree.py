@@ -21,6 +21,7 @@ from .constants import (
 from .exceptions import TreeError
 from .prompts import TREE_GENERATION_PROMPT, TREE_JSON_INSTRUCTIONS
 from .topic_model import TopicModel
+from .tui import get_tree_tui, get_tui
 from .utils import extract_list
 
 warnings.filterwarnings("ignore", message=".*Pydantic serializer warnings:.*")
@@ -185,7 +186,9 @@ class Tree(TopicModel):
         if model_name:
             self.model_name = model_name
 
-        print(f"Building the topic tree with model: {self.model_name}")
+        # Initialize TUI
+        tui = get_tree_tui()
+        tui.start_building(self.model_name, self.args.tree_depth, self.args.tree_degree)
 
         try:
             self.tree_paths = self.build_subtree(
@@ -194,16 +197,18 @@ class Tree(TopicModel):
                 self.args.tree_degree,
                 self.args.tree_depth,
                 model_name=self.model_name,
+                tui=tui,
+                current_depth=1,
             )
 
-            print(f"Tree building complete. Generated {len(self.tree_paths)} paths.")
-            if self.failed_generations:
-                print(f"Warning: {len(self.failed_generations)} subtopic generations failed.")
+            tui.finish_building(len(self.tree_paths), len(self.failed_generations))
 
         except Exception as e:
-            print(f"Error building tree: {str(e)}")
+            if tui.progress:
+                tui.progress.stop()
+            tui.tui.error(f"Error building tree: {str(e)}")
             if self.tree_paths:
-                print("Saving partial tree...")
+                tui.tui.info("Saving partial tree...")
                 self.save("partial_tree.jsonl")
             raise
 
@@ -212,10 +217,11 @@ class Tree(TopicModel):
         return self.tree_paths
 
     def get_subtopics(  # noqa: PLR0912
-        self, system_prompt: str, node_path: list[str], num_subtopics: int
+        self, system_prompt: str, node_path: list[str], num_subtopics: int, tui=None
     ) -> list[str]:
         """Generate subtopics with improved error handling and validation."""
-        print(f"Generating {num_subtopics} subtopics for: {' -> '.join(node_path)}")
+        if tui:
+            tui.start_subtree_generation(node_path, num_subtopics)
 
         prompt = TREE_GENERATION_PROMPT
         prompt = prompt.replace("{{{{system_prompt}}}}", system_prompt if system_prompt else "")
@@ -290,16 +296,20 @@ class Tree(TopicModel):
                                 cleaned_subtopics.append(cleaned_topic)
 
                     if len(cleaned_subtopics) >= num_subtopics:
+                        if tui:
+                            tui.complete_subtree_generation(True, num_subtopics)
                         return cleaned_subtopics[:num_subtopics]
 
                 last_error = "Insufficient valid subtopics generated"
-                print(f"Attempt {retries + 1}: {last_error}. Retrying...")
+                if not tui:  # Only print if no TUI
+                    print(f"Attempt {retries + 1}: {last_error}. Retrying...")
 
             except Exception as e:
                 last_error = str(e)
-                print(
-                    f"Error generating subtopics (attempt {retries + 1}/{max_retries}): {last_error}"
-                )
+                if not tui:  # Only print if no TUI
+                    print(
+                        f"Error generating subtopics (attempt {retries + 1}/{max_retries}): {last_error}"
+                    )
 
             retries += 1
             if retries < max_retries:
@@ -310,7 +320,13 @@ class Tree(TopicModel):
         self.failed_generations.append(
             {"path": node_path, "attempts": retries, "last_error": last_error}
         )
-        print(f"Failed to generate valid subtopics after {max_retries} attempts. Using defaults.")
+        if tui:
+            tui.complete_subtree_generation(False, 0)
+            tui.add_failure()
+        else:
+            print(
+                f"Failed to generate valid subtopics after {max_retries} attempts. Using defaults."
+            )
         return default_subtopics
 
     def build_subtree(
@@ -320,16 +336,21 @@ class Tree(TopicModel):
         tree_degree: int,
         subtree_depth: int,
         model_name: str,
+        tui=None,
+        current_depth: int = 1,
     ) -> list[list[str]]:
         """Build a subtree with improved error handling and validation."""
         # Convert any non-string elements to strings
         node_path = [str(node) if not isinstance(node, str) else node for node in node_path]
-        print(f"Building topic subtree: {' -> '.join(node_path)}")
+
+        # Update TUI for new depth level if at root of this depth
+        if tui and len(node_path) == current_depth:
+            tui.start_depth_level(current_depth)
 
         if subtree_depth == 0:
             return [node_path]
 
-        subnodes = self.get_subtopics(system_prompt, node_path, tree_degree)
+        subnodes = self.get_subtopics(system_prompt, node_path, tree_degree, tui)
 
         # Clean and validate subnodes
         cleaned_subnodes = []
@@ -354,10 +375,13 @@ class Tree(TopicModel):
                         tree_degree,
                         subtree_depth - 1,
                         model_name,
+                        tui,
+                        current_depth + 1,
                     )
                 )
             except Exception as e:
-                print(f"Error building subtree for {subnode}: {str(e)}")
+                if not tui:  # Only print if no TUI
+                    print(f"Error building subtree for {subnode}: {str(e)}")
                 continue
 
         return result
@@ -377,11 +401,14 @@ class Tree(TopicModel):
                         f.write(json.dumps(failure) + "\n")
                 print(f"Failed generations saved to {failed_path}")
 
-            print(f"Topic tree saved to {save_path}")
-            print(f"Total paths: {len(self.tree_paths)}")
+            # Let TUI handle final messaging, fallback to print if no TUI active
+            tui = get_tui()
+            tui.success(f"Topic tree saved to {save_path}")
+            tui.info(f"Total paths: {len(self.tree_paths)}")
 
         except Exception as e:
-            print(f"Error saving topic tree: {str(e)}")
+            tui = get_tui()
+            tui.error(f"Error saving topic tree: {str(e)}")
             raise
 
     def print_tree(self) -> None:
@@ -432,6 +459,7 @@ class Tree(TopicModel):
             if "failed_generation" in d:
                 self.failed_generations.append(d["failed_generation"])
 
-        print(
+        tui = get_tui()
+        tui.info(
             f"Loaded {len(self.tree_paths)} paths and {len(self.failed_generations)} failed generations from JSONL file"
         )

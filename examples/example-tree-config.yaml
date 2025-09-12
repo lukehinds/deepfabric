@@ -26,7 +26,7 @@ data_engine:
 # Dataset configuration
 dataset:
   creation:
-    num_steps: 10
+    num_steps: 5
     batch_size: 5
     provider: "gemini"
     model: "gemini-2.5-flash-lite"

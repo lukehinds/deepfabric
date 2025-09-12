@@ -16,6 +16,7 @@ from .constants import (
     TOPIC_TREE_DEFAULT_TEMPERATURE,
 )
 from .topic_model import TopicModel
+from .tui import get_graph_tui, get_tui
 
 # The prompt to be used for generating the graph
 GRAPH_GENERATION_PROMPT = """
@@ -160,8 +161,17 @@ class Graph(TopicModel):
 
     def save(self, save_path: str) -> None:
         """Save the topic graph to a file."""
-        with open(save_path, "w") as f:
-            f.write(self.to_json())
+        try:
+            with open(save_path, "w") as f:
+                f.write(self.to_json())
+
+            tui = get_tui()
+            tui.success(f"Topic graph saved to {save_path}")
+
+        except Exception as e:
+            tui = get_tui()
+            tui.error(f"Error saving topic graph: {str(e)}")
+            raise
 
     @classmethod
     def from_json(cls, json_path: str, args: GraphArguments) -> "Graph":
@@ -209,15 +219,37 @@ class Graph(TopicModel):
 
     def build(self) -> None:
         """Builds the graph by iteratively calling the LLM to get subtopics and connections."""
-        print(f"Building the topic graph with model: {self.args.model_name}")
-        for depth in range(self.args.graph_depth):
-            print(f"Building graph at depth {depth + 1}")
-            leaf_nodes = [node for node in self.nodes.values() if not node.children]
-            for node in leaf_nodes:
-                self.get_subtopics_and_connections(node, self.args.graph_degree)
+        # Initialize TUI
+        tui = get_graph_tui()
+        tui.start_building(self.args.model_name, self.args.graph_depth, self.args.graph_degree)
 
-    def get_subtopics_and_connections(self, parent_node: Node, num_subtopics: int) -> None:  # noqa: PLR0912
-        """Generate subtopics and connections for a given node."""
+        try:
+            for depth in range(self.args.graph_depth):
+                leaf_nodes = [node for node in self.nodes.values() if not node.children]
+                tui.start_depth_level(depth + 1, len(leaf_nodes))
+
+                for node in leaf_nodes:
+                    subtopics_added, connections_added = self.get_subtopics_and_connections(
+                        node, self.args.graph_degree, tui
+                    )
+                    tui.complete_node_expansion(node.topic, subtopics_added, connections_added)
+
+                tui.complete_depth_level(depth + 1)
+
+            tui.finish_building(len(self.failed_generations))
+
+        except Exception as e:
+            if tui.progress:
+                tui.progress.stop()
+            tui.tui.error(f"Error building graph: {str(e)}")
+            raise
+
+    def get_subtopics_and_connections(  # noqa: PLR0912
+        self, parent_node: Node, num_subtopics: int, tui=None
+    ) -> tuple[int, int]:
+        """Generate subtopics and connections for a given node. Returns (subtopics_added, connections_added)."""
+        subtopics_added = 0
+        connections_added = 0
         graph_summary = self.to_json()  # A simple summary for now
         prompt = GRAPH_GENERATION_PROMPT.replace("{{current_graph_summary}}", graph_summary)
         prompt = prompt.replace("{{current_topic}}", parent_node.topic)
@@ -288,19 +320,23 @@ class Graph(TopicModel):
                     for subtopic_data in subtopics_data["subtopics"]:
                         new_node = self.add_node(subtopic_data["topic"])
                         self.add_edge(parent_node.id, new_node.id)
+                        subtopics_added += 1
                         for connection_id in subtopic_data.get("connections", []):
                             if connection_id in self.nodes:
                                 self.add_edge(connection_id, new_node.id)
-                    return
+                                connections_added += 1
+                    return subtopics_added, connections_added
 
                 last_error = "Insufficient valid subtopics generated"
-                print(f"Attempt {retries + 1}: {last_error}. Retrying...")
+                if not tui:  # Only print if no TUI
+                    print(f"Attempt {retries + 1}: {last_error}. Retrying...")
 
             except Exception as e:
                 last_error = str(e)
-                print(
-                    f"Error generating subtopics (attempt {retries + 1}/{max_retries}): {last_error}"
-                )
+                if not tui:  # Only print if no TUI
+                    print(
+                        f"Error generating subtopics (attempt {retries + 1}/{max_retries}): {last_error}"
+                    )
 
             retries += 1
             if retries < max_retries:
@@ -309,9 +345,13 @@ class Graph(TopicModel):
         self.failed_generations.append(
             {"node_id": parent_node.id, "attempts": retries, "last_error": last_error}
         )
-        print(
-            f"Failed to generate valid subtopics for node {parent_node.id} after {max_retries} attempts."
-        )
+        if tui:
+            tui.add_failure(parent_node.topic)
+        else:
+            print(
+                f"Failed to generate valid subtopics for node {parent_node.id} after {max_retries} attempts."
+            )
+        return 0, 0  # No subtopics or connections added on failure
 
     def get_all_paths(self) -> list[list[str]]:
         """Returns all paths from the root to leaf nodes."""

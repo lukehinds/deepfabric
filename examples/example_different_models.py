@@ -34,7 +34,7 @@ def example_with_ollama():
     # Run model: ollama run llama3
 
     tree.build()
-    print(f"✅ Generated tree with {len(tree.get_all_paths())} paths using Ollama\n")
+    print(f" Generated tree with {len(tree.get_all_paths())} paths using Ollama\n")
     return tree
 
 
@@ -62,7 +62,7 @@ def example_with_openai():
     )
 
     tree.build()
-    print(f"✅ Generated tree with {len(tree.get_all_paths())} paths using OpenAI\n")
+    print(f" Generated tree with {len(tree.get_all_paths())} paths using OpenAI\n")
     return tree
 
 
@@ -90,7 +90,7 @@ def example_with_anthropic():
     )
 
     tree.build()
-    print(f"✅ Generated tree with {len(tree.get_all_paths())} paths using Claude\n")
+    print(f" Generated tree with {len(tree.get_all_paths())} paths using Claude\n")
     return tree
 
 
@@ -118,7 +118,7 @@ def example_with_google():
     )
 
     tree.build()
-    print(f"✅ Generated tree with {len(tree.get_all_paths())} paths using Gemini\n")
+    print(f" Generated tree with {len(tree.get_all_paths())} paths using Gemini\n")
     return tree
 
 
@@ -173,7 +173,7 @@ def example_mixed_models():
     )
 
     dataset.save("database_dataset.jsonl")
-    print(f"✅ Generated dataset with {len(dataset.samples)} samples using mixed models\n")
+    print(f" Generated dataset with {len(dataset.samples)} samples using mixed models\n")
 
 
 def main():

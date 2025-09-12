@@ -83,7 +83,7 @@ dataset = engine.create_data(
 
 # Save with a different name
 dataset.save("web_dev_tutorials_v2.jsonl")
-print(f"✅ Generated {len(dataset.samples)} new tutorials from existing graph")
+print(f" Generated {len(dataset.samples)} new tutorials from existing graph")
 
 # Optional: Extend the loaded graph with more nodes
 print("\nExtending the loaded graph...")
