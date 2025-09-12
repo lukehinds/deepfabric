@@ -1,5 +1,5 @@
 """
-Example of using PromptWright's TopicGraph programmatically to create
+Example of using DeepFabric's Graph programmatically to create
 a knowledge graph with cross-connections between topics.
 """
 
@@ -9,8 +9,8 @@ import sys
 # Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from promptwright import DataEngine, EngineArguments
-from promptwright.topic_graph import TopicGraph, TopicGraphArguments
+from deepfabric import DataSetGenerator, DataSetGeneratorArguments
+from deepfabric.graph import Graph, GraphArguments
 
 # Define the system prompt for consistency
 system_prompt = """You are an expert in computer science and software engineering.
@@ -18,8 +18,8 @@ Your responses should be technically accurate, practical, and include real-world
 
 # Create a topic graph with cross-connections
 print("Building topic graph...")
-graph = TopicGraph(
-    args=TopicGraphArguments(
+graph = Graph(
+    args=GraphArguments(
         root_prompt="Modern Software Architecture and Design Patterns",
         model_name="ollama/llama3",  # Change to your preferred model
         temperature=0.7,
@@ -49,8 +49,8 @@ else:
     print("Graph is acyclic")
 
 # Create a data engine for generating training data
-engine = DataEngine(
-    args=EngineArguments(
+engine = DataSetGenerator(
+    args=DataSetGeneratorArguments(
         instructions="""Create detailed technical explanations that include:
                        - Core concepts and principles
                        - Implementation examples in multiple languages

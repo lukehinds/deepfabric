@@ -1,5 +1,5 @@
 """
-Minimal example to get started with PromptWright.
+Minimal example to get started with DeepFabric.
 This creates a small synthetic dataset about Python programming.
 """
 
@@ -9,11 +9,11 @@ import sys
 # Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from promptwright import DataEngine, EngineArguments, TopicTree, TopicTreeArguments
+from deepfabric import DataSetGenerator, DataSetGeneratorArguments, Tree, TreeArguments
 
 # Step 1: Create a topic tree
-tree = TopicTree(
-    args=TopicTreeArguments(
+tree = Tree(
+    args=TreeArguments(
         root_prompt="Python programming fundamentals",
         model_name="ollama/llama3",  # Change to your model
         model_system_prompt="You are a Python programming instructor.",
@@ -28,8 +28,8 @@ tree.build()
 tree.save("python_topics.jsonl")
 
 # Step 2: Create a data engine
-engine = DataEngine(
-    args=EngineArguments(
+engine = DataSetGenerator(
+    args=DataSetGeneratorArguments(
         instructions="Create a Python code example with explanation",
         system_prompt="You are a Python programming instructor.",
         model_name="ollama/llama3",

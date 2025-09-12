@@ -7,7 +7,7 @@ import pytest
 from huggingface_hub.errors import HfHubHTTPError, RepositoryNotFoundError
 from requests import Request, Response
 
-from promptwright.hf_hub import HFUploader
+from deepfabric.hf_hub import HFUploader
 
 
 @pytest.fixture
@@ -26,12 +26,12 @@ def uploader():
 
 def test_update_dataset_card(uploader, mock_dataset_card):
     """Test updating dataset card with tags."""
-    with patch("promptwright.hf_hub.DatasetCard") as mock_card_class:
+    with patch("deepfabric.hf_hub.DatasetCard") as mock_card_class:
         mock_card_class.load.return_value = mock_dataset_card
 
         # Test with default tags only
         uploader.update_dataset_card("test/repo")
-        assert "promptwright" in mock_dataset_card.data.tags
+        assert "deepfabric" in mock_dataset_card.data.tags
         assert "synthetic" in mock_dataset_card.data.tags
         mock_dataset_card.push_to_hub.assert_called_once_with("test/repo")
 
@@ -43,8 +43,7 @@ def test_update_dataset_card(uploader, mock_dataset_card):
         custom_tags = ["custom1", "custom2"]
         uploader.update_dataset_card("test/repo", tags=custom_tags)
         assert all(
-            tag in mock_dataset_card.data.tags
-            for tag in ["promptwright", "synthetic"] + custom_tags
+            tag in mock_dataset_card.data.tags for tag in ["deepfabric", "synthetic"] + custom_tags
         )
         mock_dataset_card.push_to_hub.assert_called_once_with("test/repo")
 
@@ -52,8 +51,8 @@ def test_update_dataset_card(uploader, mock_dataset_card):
 def test_push_to_hub_success(uploader):
     """Test successful dataset push to hub."""
     with (
-        patch("promptwright.hf_hub.login") as mock_login,
-        patch("promptwright.hf_hub.load_dataset") as mock_load_dataset,
+        patch("deepfabric.hf_hub.login") as mock_login,
+        patch("deepfabric.hf_hub.load_dataset") as mock_load_dataset,
         patch.object(uploader, "update_dataset_card") as mock_update_card,
     ):
         mock_dataset = Mock()
@@ -76,8 +75,8 @@ def test_push_to_hub_success(uploader):
 def test_push_to_hub_file_not_found(uploader):
     """Test push to hub with non-existent file."""
     with (
-        patch("promptwright.hf_hub.login") as _mock_login,
-        patch("promptwright.hf_hub.load_dataset") as mock_load_dataset,  # noqa: F841
+        patch("deepfabric.hf_hub.login") as _mock_login,
+        patch("deepfabric.hf_hub.load_dataset") as mock_load_dataset,  # noqa: F841
     ):
         mock_load_dataset.side_effect = FileNotFoundError("File not found")
 
@@ -86,7 +85,7 @@ def test_push_to_hub_file_not_found(uploader):
         assert "not found" in result["message"]
 
 
-@patch("promptwright.hf_hub.login")
+@patch("deepfabric.hf_hub.login")
 def test_push_to_hub_repository_not_found(mock_login, uploader):
     """Test push to hub with non-existent repository."""
     mock_login.side_effect = RepositoryNotFoundError("Repository not found")
@@ -96,7 +95,7 @@ def test_push_to_hub_repository_not_found(mock_login, uploader):
     assert "Repository" in result["message"]
 
 
-@patch("promptwright.hf_hub.login")
+@patch("deepfabric.hf_hub.login")
 def test_push_to_hub_http_error(mock_login, uploader):
     """Test push to hub with HTTP error."""
     # Create a mock response object with all required attributes

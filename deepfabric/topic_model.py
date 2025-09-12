@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 
 
 class TopicModel(ABC):
-    """Abstract base class for topic models like TopicTree and TopicGraph."""
+    """Abstract base class for topic models like Tree and Graph."""
 
     @abstractmethod
     def build(self, *args, **kwargs) -> None:

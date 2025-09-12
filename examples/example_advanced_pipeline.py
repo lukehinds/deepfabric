@@ -12,16 +12,16 @@ from typing import Any
 # Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from promptwright import (
-    DataEngine,
+from deepfabric import (
     Dataset,
-    EngineArguments,
-    TopicTree,
-    TopicTreeArguments,
+    DataSetGenerator,
+    DataSetGeneratorArguments,
+    Tree,
+    TreeArguments,
 )
 
 # Uncomment to use HuggingFace integration
-# from promptwright.hf_hub import HFUploader  # noqa: ERA001
+# from deepfabric.hf_hub import HFUploader  # noqa: ERA001
 
 
 class CustomDatasetValidator:
@@ -69,8 +69,8 @@ class CustomDatasetValidator:
 
 
 def create_filtered_dataset(
-    topic_tree: TopicTree,
-    engine: DataEngine,
+    topic_tree: Tree,
+    engine: DataSetGenerator,
     num_steps: int,
     min_quality_threshold: float = 0.8
 ) -> Dataset:
@@ -125,8 +125,8 @@ def main():
     print("Step 1: Building Topic Tree")
     print("=" * 50)
 
-    tree = TopicTree(
-        args=TopicTreeArguments(
+    tree = Tree(
+        args=TreeArguments(
             root_prompt=ROOT_TOPIC,
             model_name=MODEL_NAME,
             model_system_prompt="You are an expert in software architecture and Python.",
@@ -149,8 +149,8 @@ def main():
     print("Step 2: Configuring Data Engine")
     print("=" * 50)
 
-    engine = DataEngine(
-        args=EngineArguments(
+    engine = DataSetGenerator(
+        args=DataSetGeneratorArguments(
             instructions="""Create an advanced Python tutorial that includes:
                           - Design pattern explanation and use cases
                           - Complete implementation with type hints

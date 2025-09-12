@@ -1,11 +1,11 @@
 <div align="center">
-  <h1>Promptwright - Synthetic Dataset Generation</h1>
+  <h1>DeepFabric - Synthetic Dataset Generation</h1>
   <h3>Model Distillation, Agent / Model Evaluations, and Statistical Research</h3>
-  <img src="https://raw.githubusercontent.com/lukehinds/promptwright/main/assets/logo.png" alt="promptwright Logo" width="400"/>
+  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo.png" alt="deepfabric Logo" width="400"/>
 
   <!-- CTA Buttons -->
   <p>
-    <a href="https://github.com/lukehinds/promptwright/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">
+    <a href="https://github.com/lukehinds/deepfabric/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">
       <img src="https://img.shields.io/badge/Contribute-Good%20First%20Issues-green?style=for-the-badge&logo=github" alt="Good First Issues"/>
     </a>
     &nbsp;
@@ -19,14 +19,14 @@
     <a href="https://opensource.org/licenses/Apache-2.0">
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/>
     </a>
-    <a href="https://github.com/lukehinds/promptwright/actions/workflows/test.yml">
-      <img src="https://github.com/lukehinds/promptwright/actions/workflows/test.yml/badge.svg" alt="CI Status"/>
+    <a href="https://github.com/lukehinds/deepfabric/actions/workflows/test.yml">
+      <img src="https://github.com/lukehinds/deepfabric/actions/workflows/test.yml/badge.svg" alt="CI Status"/>
     </a>
-    <a href="https://pypi.org/project/promptwright/">
-      <img src="https://img.shields.io/pypi/v/promptwright.svg" alt="PyPI Version"/>
+    <a href="https://pypi.org/project/deepfabric/">
+      <img src="https://img.shields.io/pypi/v/deepfabric.svg" alt="PyPI Version"/>
     </a>
-    <a href="https://pepy.tech/project/promptwright">
-      <img src="https://static.pepy.tech/badge/promptwright" alt="Downloads"/>
+    <a href="https://pepy.tech/project/deepfabric">
+      <img src="https://static.pepy.tech/badge/deepfabric" alt="Downloads"/>
     </a>
     <a href="https://discord.gg/pPcjYzGvbS">
       <img src="https://img.shields.io/discord/1384081906773131274?color=7289da&label=Discord&logo=discord&logoColor=white" alt="Discord"/>
@@ -36,28 +36,21 @@
 </div>
 
 
-Promptwright is a Python library designed for generating large synthetic datasets
+Generate complex Graph or Tree seeded Synthetic Datasets with DeepFabric (formerly known as promptwright)
 
-The library offers a flexible and easy-to-use set of interfaces, enabling users the ability to
-generate prompt led synthetic datasets. This makes it suitable for a wide range of applications,
-from training machine learning models to creating realistic user simulations.
-
-## Features
-
-- **Multiple Providers Support**: Works with most LLM service providers and LocalLLM's via Ollama, VLLM etc
-- **Configurable Instructions and Prompts**: Define custom instructions and system prompts to craft distillation methods.
-- **YAML Configuration**: Define your generation tasks using YAML configuration files or use as a library.
-- **Command Line Interface**: Run generation tasks directly from the command line
-- **Push to Hugging Face**: Push the generated dataset to Hugging Face Hub with automatic dataset cards and tags
+DeepFabric is a library / CLI that offers a flexible and easy-to-use set of interfaces, enabling
+users the ability to generate prompt led synthetic datasets. This makes it suitable for a wide range
+of applications, from Teacher-Student distillation, generation of Model / Agent Evals, or general datasets
+used for research purposes.
 
 ## Topic Graphs (Experimental)
 
 <img src="assets/graph.svg" width="100%" height="100%"/>
 
-PromptWright now includes an experimental **Topic Graph** feature that extends beyond traditional hierarchical topic trees to support **cross-connections** between topics. 
+DeepFabric now includes an experimental **Topic Graph** feature that extends beyond traditional hierarchical topic trees to support **cross-connections** between topics. 
 
 The Topic Graph uses a directed acyclic graph (DAG) in place of the Topic Tree. It allows for more complex and realistic relationships between topics,
-where a topic can have multiple parent topics and more connection density. This system is introduced as an experimental feature, designed to co-exist with the current `TopicTree` implementation,
+where a topic can have multiple parent topics and more connection density. This system is introduced as an experimental feature, designed to co-exist with the current `Tree` implementation,
 allowing for a gradual transition and comparative analysis.
 
 ### Usage
@@ -80,10 +73,10 @@ topic_graph:
 
 **Programmatic Usage:**
 ```python
-from promptwright.topic_graph import TopicGraph, TopicGraphArguments
+from deepfabric.topic_graph import Graph, GraphArguments
 
-graph = TopicGraph(
-    args=TopicGraphArguments(
+graph = Graph(
+    args=GraphArguments(
         root_prompt="Machine Learning Fundamentals",
         model_name="ollama/llama3",
         temperature=0.7,
@@ -111,10 +104,10 @@ graph.visualize("ml_graph")  # Creates ml_graph.svg
 
 #### pip
 
-You can install Promptwright using pip:
+You can install DeepFabric using pip:
 
 ```bash
-pip install promptwright
+pip install deepfabric
 ```
 
 #### Development Installation
@@ -125,15 +118,15 @@ To install the prerequisites, you can use the following commands:
 # Install uv if you haven't already
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install promptwright and its dependencies
-git clone https://github.com/lukehinds/promptwright.git
-cd promptwright
+# Install deepfabric and its dependencies
+git clone https://github.com/lukehinds/deepfabric.git
+cd deepfabric
 uv sync --all-extras
 ```
 
 ### Usage
 
-Promptwright offers two ways to define and run your generation tasks:
+DeepFabric offers two ways to define and run your generation tasks:
 
 #### 1. Using YAML Configuration (Recommended)
 
@@ -150,7 +143,7 @@ topic_tree:
     tree_depth: 2
     temperature: 0.7
     model_name: "ollama/mistral:latest"
-  save_as: "basic_prompt_topictree.jsonl"
+  save_as: "basic_prompt_Tree.jsonl"
 
 data_engine:
   args:
@@ -175,23 +168,23 @@ huggingface:
   # Token can also be provided via HF_TOKEN environment variable or --hf-token CLI option
   token: "your-hf-token"
   # Additional tags for the dataset (optional)
-  # "promptwright" and "synthetic" tags are added automatically
+  # "deepfabric" and "synthetic" tags are added automatically
   tags:
-    - "promptwright-generated-dataset"
+    - "deepfabric-generated-dataset"
     - "geography"
 ```
 
 Run using the CLI:
 
 ```bash
-promptwright start config.yaml
+deepfabric start config.yaml
 ```
 
 The CLI supports various options to override configuration values:
 
 ```bash
-promptwright start config.yaml \
-  --topic-tree-save-as output_tree.jsonl \
+deepfabric start config.yaml \
+  --save-tree output_tree.jsonl \
   --dataset-save-as output_dataset.jsonl \
   --model-name ollama/llama3 \
   --temperature 0.8 \
@@ -207,7 +200,7 @@ promptwright start config.yaml \
 
 #### Provider Integration
 
-Promptwright uses LiteLLM to interface with LLM providers. You can specify the
+DeepFabric uses LiteLLM to interface with LLM providers. You can specify the
 provider in the provider, model section in your config or code:
 
 ```yaml
@@ -233,7 +226,7 @@ response = completion(
 )
 ```
 
-In Promptwright, you would specify the provider as `gemini` and the model as `gemini-pro`.
+In DeepFabric, you would specify the provider as `gemini` and the model as `gemini-pro`.
 
 ```yaml
 provider: "gemini"  # LLM provider
@@ -263,11 +256,11 @@ for more information on setting up the API keys.
 
 #### Hugging Face Hub Integration
 
-Promptwright supports automatic dataset upload to the Hugging Face Hub with the following features:
+DeepFabric supports automatic dataset upload to the Hugging Face Hub with the following features:
 
 1. **Dataset Upload**: Upload your generated dataset directly to Hugging Face Hub
 2. **Dataset Cards**: Automatically creates and updates dataset cards
-3. **Automatic Tags**: Adds "promptwright" and "synthetic" tags automatically
+3. **Automatic Tags**: Adds "deepfabric" and "synthetic" tags automatically
 4. **Custom Tags**: Support for additional custom tags
 5. **Flexible Authentication**: HF token can be provided via:
    - CLI option: `--hf-token your-token`
@@ -277,12 +270,12 @@ Promptwright supports automatic dataset upload to the Hugging Face Hub with the 
 Example using environment variable:
 ```bash
 export HF_TOKEN=your-token
-promptwright start config.yaml --hf-repo username/dataset-name
+deepfabric start config.yaml --hf-repo username/dataset-name
 ```
 
 Or pass it in as a CLI option:
 ```bash
-promptwright start config.yaml --hf-repo username/dataset-name --hf-token your-token
+deepfabric start config.yaml --hf-repo username/dataset-name --hf-token your-token
 ```
 
 #### 2. Using Python Code
@@ -293,10 +286,10 @@ are several examples in the `examples` directory that demonstrate this approach.
 Example Python usage:
 
 ```python
-from promptwright import DataEngine, EngineArguments, TopicTree, TopicTreeArguments
+from deepfabric import DataSetGenerator, DataSetGeneratorArguments, Tree, TreeArguments
 
-tree = TopicTree(
-    args=TopicTreeArguments(
+tree = Tree(
+    args=TreeArguments(
         root_prompt="Creative Writing Prompts",
         model_system_prompt=system_prompt,
         tree_degree=5,
@@ -306,8 +299,8 @@ tree = TopicTree(
     )
 )
 
-engine = DataEngine(
-    args=EngineArguments(
+engine = DataSetGenerator(
+    args=DataSetGeneratorArguments(
         instructions="Generate creative writing prompts and example responses.",
         system_prompt="You are a creative writing instructor providing writing prompts and example responses.",
         model_name="ollama/llama3",
@@ -405,11 +398,6 @@ summary.
 ## Contributing
 
 If something here could be improved, please open an issue or submit a pull request.
-
-## Inspiration
-
-Promptwright was inspired by the [redotvideo/pluto](https://github.com/redotvideo/pluto),
-in fact it started as fork, but ended up largely being a re-write.
 
 ### License
 

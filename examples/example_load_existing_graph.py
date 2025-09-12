@@ -9,14 +9,14 @@ import sys
 # Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from promptwright import DataEngine, EngineArguments
-from promptwright.topic_graph import TopicGraph, TopicGraphArguments
+from deepfabric import DataSetGenerator, DataSetGeneratorArguments
+from deepfabric.graph import Graph, GraphArguments
 
 # Load an existing graph from a JSON file
 # First, let's create a graph to demonstrate (in practice, you'd already have this)
 print("Creating initial graph for demonstration...")
-initial_graph = TopicGraph(
-    args=TopicGraphArguments(
+initial_graph = Graph(
+    args=GraphArguments(
         root_prompt="Web Development Technologies",
         model_name="ollama/llama3",
         temperature=0.6,
@@ -32,9 +32,9 @@ print(f"Initial graph created with {len(initial_graph.nodes)} nodes\n")
 
 # Now demonstrate loading the saved graph
 print("Loading existing graph from file...")
-loaded_graph = TopicGraph.from_json(
+loaded_graph = Graph.from_json(
     "web_dev_graph.json",
-    args=TopicGraphArguments(
+    args=GraphArguments(
         root_prompt="Web Development Technologies",  # Must match original
         model_name="ollama/llama3",  # Can be different from original
         temperature=0.6,
@@ -52,8 +52,8 @@ for i, path in enumerate(loaded_graph.get_all_paths(), 1):
     print(f"  {i}. {' → '.join(path)}")
 
 # Create a new data engine with different parameters
-engine = DataEngine(
-    args=EngineArguments(
+engine = DataSetGenerator(
+    args=DataSetGeneratorArguments(
         instructions="""Create a practical coding tutorial that includes:
                        - A real-world problem to solve
                        - Complete, runnable code example

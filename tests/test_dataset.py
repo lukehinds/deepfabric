@@ -1,4 +1,4 @@
-from promptwright import Dataset
+from deepfabric import Dataset
 
 
 def test_dataset_initialization():

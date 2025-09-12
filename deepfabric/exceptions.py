@@ -1,5 +1,5 @@
-class PromptWrightError(Exception):
-    """Base exception class for PromptWright."""
+class DeepFabricError(Exception):
+    """Base exception class for DeepFabric."""
 
     def __init__(self, message: str, context: dict | None = None):
         super().__init__(message)
@@ -7,43 +7,43 @@ class PromptWrightError(Exception):
         self.context = context or {}
 
 
-class ConfigurationError(PromptWrightError):
+class ConfigurationError(DeepFabricError):
     """Raised when there is an error in configuration."""
 
     pass
 
 
-class ValidationError(PromptWrightError):
+class ValidationError(DeepFabricError):
     """Raised when data validation fails."""
 
     pass
 
 
-class ModelError(PromptWrightError):
+class ModelError(DeepFabricError):
     """Raised when there is an error with LLM model operations."""
 
     pass
 
 
-class TopicTreeError(PromptWrightError):
+class TreeError(DeepFabricError):
     """Raised when there is an error in topic tree operations."""
 
     pass
 
 
-class DataEngineError(PromptWrightError):
+class DataSetGeneratorError(DeepFabricError):
     """Raised when there is an error in data engine operations."""
 
     pass
 
 
-class DatasetError(PromptWrightError):
+class DatasetError(DeepFabricError):
     """Raised when there is an error in dataset operations."""
 
     pass
 
 
-class HubUploadError(PromptWrightError):
+class HubUploadError(DeepFabricError):
     """Raised when there is an error uploading to Hugging Face Hub."""
 
     pass

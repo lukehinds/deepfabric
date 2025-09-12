@@ -9,7 +9,7 @@ import pytest  # type: ignore
 
 from click.testing import CliRunner
 
-from promptwright.cli import cli
+from deepfabric.cli import cli
 
 
 @pytest.fixture
@@ -117,27 +117,27 @@ def test_cli_help(cli_runner):
     """Test CLI help command."""
     result = cli_runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
-    assert "PromptWright CLI" in result.output
+    assert "DeepFabric CLI" in result.output
 
 
-def test_start_help(cli_runner):
-    """Test start command help."""
-    result = cli_runner.invoke(cli, ["start", "--help"])
+def test_generate_help(cli_runner):
+    """Test generate command help."""
+    result = cli_runner.invoke(cli, ["generate", "--help"])
     assert result.exit_code == 0
     assert "Generate training data from a YAML configuration file" in result.output
     assert "--sys-msg" in result.output
 
 
-@patch("promptwright.cli.create_topic_generator")
-@patch("promptwright.cli.DataEngine")
-def test_start_command_basic(
+@patch("deepfabric.cli.create_topic_generator")
+@patch("deepfabric.cli.DataSetGenerator")
+def test_generate_command_basic(
     mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
 ):
     """Test basic start command execution."""
     # Setup mocks
-    from promptwright.topic_tree import TopicTree  # noqa: PLC0415
+    from deepfabric.tree import Tree  # noqa: PLC0415
 
-    mock_tree_instance = Mock(spec=TopicTree)
+    mock_tree_instance = Mock(spec=Tree)
     mock_engine_instance = Mock()
     mock_dataset = Mock()
 
@@ -146,7 +146,7 @@ def test_start_command_basic(
     mock_engine_instance.create_data.return_value = mock_dataset
 
     # Run command
-    result = cli_runner.invoke(cli, ["start", sample_config_file])
+    result = cli_runner.invoke(cli, ["generate", sample_config_file])
 
     # Verify command executed successfully
     assert result.exit_code == 0
@@ -160,16 +160,16 @@ def test_start_command_basic(
     mock_dataset.save.assert_called_once()
 
 
-@patch("promptwright.cli.create_topic_generator")
-@patch("promptwright.cli.DataEngine")
-def test_start_command_with_sys_msg_override(
+@patch("deepfabric.cli.create_topic_generator")
+@patch("deepfabric.cli.DataSetGenerator")
+def test_generate_command_with_sys_msg_override(
     mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
 ):
     """Test start command with sys_msg override."""
     # Setup mocks
-    from promptwright.topic_tree import TopicTree  # noqa: PLC0415
+    from deepfabric.tree import Tree  # noqa: PLC0415
 
-    mock_tree_instance = Mock(spec=TopicTree)
+    mock_tree_instance = Mock(spec=Tree)
     mock_engine_instance = Mock()
     mock_dataset = Mock()
 
@@ -181,7 +181,7 @@ def test_start_command_with_sys_msg_override(
     result = cli_runner.invoke(
         cli,
         [
-            "start",
+            "generate",
             sample_config_file,
             "--sys-msg",
             "false",
@@ -196,16 +196,16 @@ def test_start_command_with_sys_msg_override(
     assert kwargs["sys_msg"] is False
 
 
-@patch("promptwright.cli.create_topic_generator")
-@patch("promptwright.cli.DataEngine")
-def test_start_command_default_sys_msg(
+@patch("deepfabric.cli.create_topic_generator")
+@patch("deepfabric.cli.DataSetGenerator")
+def test_generate_command_default_sys_msg(
     mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file_no_sys_msg
 ):
     """Test start command with default sys_msg behavior."""
     # Setup mocks
-    from promptwright.topic_tree import TopicTree  # noqa: PLC0415
+    from deepfabric.tree import Tree  # noqa: PLC0415
 
-    mock_tree_instance = Mock(spec=TopicTree)
+    mock_tree_instance = Mock(spec=Tree)
     mock_engine_instance = Mock()
     mock_dataset = Mock()
 
@@ -214,7 +214,7 @@ def test_start_command_default_sys_msg(
     mock_engine_instance.create_data.return_value = mock_dataset
 
     # Run command without sys_msg override
-    result = cli_runner.invoke(cli, ["start", sample_config_file_no_sys_msg])
+    result = cli_runner.invoke(cli, ["generate", sample_config_file_no_sys_msg])
 
     # Verify command executed successfully
     assert result.exit_code == 0
@@ -224,16 +224,16 @@ def test_start_command_default_sys_msg(
     assert "sys_msg" not in kwargs or kwargs["sys_msg"] is None
 
 
-@patch("promptwright.cli.create_topic_generator")
-@patch("promptwright.cli.DataEngine")
-def test_start_command_with_overrides(
+@patch("deepfabric.cli.create_topic_generator")
+@patch("deepfabric.cli.DataSetGenerator")
+def test_generate_command_with_overrides(
     mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
 ):
     """Test start command with parameter overrides."""
     # Setup mocks
-    from promptwright.topic_tree import TopicTree  # noqa: PLC0415
+    from deepfabric.tree import Tree  # noqa: PLC0415
 
-    mock_tree_instance = Mock(spec=TopicTree)
+    mock_tree_instance = Mock(spec=Tree)
     mock_engine_instance = Mock()
     mock_dataset = Mock()
 
@@ -245,9 +245,9 @@ def test_start_command_with_overrides(
     result = cli_runner.invoke(
         cli,
         [
-            "start",
+            "generate",
             sample_config_file,
-            "--topic-tree-save-as",
+            "--save-tree",
             "override_tree.jsonl",
             "--dataset-save-as",
             "override_dataset.jsonl",
@@ -286,10 +286,10 @@ def test_start_command_with_overrides(
     assert kwargs["sys_msg"] is False
 
 
-@patch("promptwright.cli.read_topic_tree_from_jsonl")
-@patch("promptwright.cli.TopicTree")
-@patch("promptwright.cli.DataEngine")
-def test_start_command_with_jsonl(
+@patch("deepfabric.cli.read_topic_tree_from_jsonl")
+@patch("deepfabric.cli.Tree")
+@patch("deepfabric.cli.DataSetGenerator")
+def test_generate_command_with_jsonl(
     mock_data_engine,
     mock_topic_tree,
     mock_read_topic_tree_from_jsonl,
@@ -315,7 +315,7 @@ def test_start_command_with_jsonl(
         # Run command with JSONL file
         result = cli_runner.invoke(
             cli,
-            ["start", sample_config_file, "--topic-tree-jsonl", temp_jsonl_path],
+            ["generate", sample_config_file, "--load-tree", temp_jsonl_path],
         )
 
         # Print output if command fails
@@ -340,21 +340,21 @@ def test_start_command_with_jsonl(
             os.unlink(temp_jsonl_path)
 
 
-def test_start_command_missing_config(cli_runner):
-    """Test start command with missing config file."""
-    result = cli_runner.invoke(cli, ["start", "nonexistent.yaml"])
+def test_generate_command_missing_config(cli_runner):
+    """Test generate command with missing config file."""
+    result = cli_runner.invoke(cli, ["generate", "nonexistent.yaml"])
     assert result.exit_code != 0
     assert "Error" in result.output
 
 
-def test_start_command_invalid_yaml(cli_runner):
-    """Test start command with invalid YAML file."""
+def test_generate_command_invalid_yaml(cli_runner):
+    """Test generate command with invalid YAML file."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write("invalid: yaml: content:")
         temp_path = f.name
 
     try:
-        result = cli_runner.invoke(cli, ["start", temp_path])
+        result = cli_runner.invoke(cli, ["generate", temp_path])
         assert result.exit_code != 0
         assert "Error" in result.output
     finally:
@@ -362,9 +362,9 @@ def test_start_command_invalid_yaml(cli_runner):
             os.unlink(temp_path)
 
 
-@patch("promptwright.cli.create_topic_generator")
-@patch("promptwright.cli.DataEngine")
-def test_start_command_error_handling(
+@patch("deepfabric.cli.create_topic_generator")
+@patch("deepfabric.cli.DataSetGenerator")
+def test_generate_command_error_handling(
     _mock_data_engine,
     mock_create_topic_generator,
     cli_runner,
@@ -375,9 +375,88 @@ def test_start_command_error_handling(
     mock_create_topic_generator.side_effect = Exception("Test error")
 
     # Run command
-    result = cli_runner.invoke(cli, ["start", sample_config_file])
+    result = cli_runner.invoke(cli, ["generate", sample_config_file])
 
     # Verify command failed with error
     assert result.exit_code != 0
     assert "Error" in result.output
     assert "Test error" in result.output
+
+
+def test_validate_command(cli_runner, sample_config_file):
+    """Test validate command."""
+    result = cli_runner.invoke(cli, ["validate", sample_config_file])
+    assert result.exit_code == 0
+    assert "Configuration is valid" in result.output
+
+
+def test_info_command(cli_runner):
+    """Test info command."""
+    result = cli_runner.invoke(cli, ["info"])
+    assert result.exit_code == 0
+    assert "DeepFabric" in result.output
+    assert "Available Commands" in result.output
+
+
+@patch("deepfabric.hf_hub.HFUploader")
+def test_upload_command(mock_uploader, cli_runner):
+    """Test upload command."""
+    # Create a temporary JSONL file
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+        f.write('{"test": "data"}\n')
+        temp_path = f.name
+
+    # Setup mock
+    mock_uploader_instance = Mock()
+    mock_uploader.return_value = mock_uploader_instance
+    mock_uploader_instance.push_to_hub.return_value = {
+        "status": "success",
+        "message": "Dataset uploaded successfully",
+    }
+
+    try:
+        # Set HF_TOKEN environment variable for test
+        os.environ["HF_TOKEN"] = "test_token"  # noqa: S105 # nosec
+
+        result = cli_runner.invoke(cli, ["upload", temp_path, "--repo", "test/repo"])
+
+        assert result.exit_code == 0
+        assert "Dataset uploaded successfully" in result.output
+        mock_uploader_instance.push_to_hub.assert_called_once()
+
+    finally:
+        # Cleanup
+        if "HF_TOKEN" in os.environ:
+            del os.environ["HF_TOKEN"]
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+@patch("deepfabric.cli.Graph.from_json")
+def test_visualize_command(mock_from_json, cli_runner):
+    """Test visualize command."""
+    # Create a temporary graph JSON file
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        f.write('{"nodes": {}, "edges": [], "degree": 3, "depth": 2}')
+        temp_path = f.name
+
+    # Setup mock
+    mock_graph_instance = Mock()
+    mock_from_json.return_value = mock_graph_instance
+
+    try:
+        result = cli_runner.invoke(cli, ["visualize", temp_path, "--output", "test_graph"])
+
+        # Print output for debugging
+        if result.exit_code != 0:
+            print(f"Exit code: {result.exit_code}")
+            print(f"Output: {result.output}")
+
+        assert result.exit_code == 0
+        assert "Graph visualization saved to" in result.output
+        mock_graph_instance.visualize.assert_called_once_with("test_graph")
+
+    finally:
+        # Cleanup
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)

@@ -1,4 +1,4 @@
-"""Main entry point for promptwright CLI."""
+"""Main entry point for deepfabric CLI."""
 
 from .cli import cli
 

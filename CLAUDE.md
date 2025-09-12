@@ -4,10 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-PromptWright is a Python library for generating synthetic datasets using LLM providers. It consists of three main components that work together in a pipeline:
+DeepFabric is a Python library for generating synthetic datasets using LLM providers. It consists of three main components that work together in a pipeline:
 
-1. **TopicTree**: Generates hierarchical topic structures from a root prompt
-2. **DataEngine**: Creates training examples based on topics 
+1. **Tree**: Generates hierarchical topic structures from a root prompt
+2. **DataSetGenerator**: Creates training examples based on topics 
 3. **Dataset**: Manages and exports the final dataset
 
 ## Development Commands
@@ -19,7 +19,7 @@ PromptWright is a Python library for generating synthetic datasets using LLM pro
 ### Code Quality
 - `make format` - Format code with black and ruff auto-fix
 - `make lint` - Run ruff linting checks
-- `make security` - Run bandit security analysis on promptwright/ directory
+- `make security` - Run bandit security analysis on deepfabric/ directory
 
 ### Testing
 - `make test` - Run pytest test suite
@@ -44,14 +44,14 @@ PromptWright is a Python library for generating synthetic datasets using LLM pro
 - API keys via environment variables: `{PROVIDER}_API_KEY`
 
 ### Data Flow
-1. TopicTree generates topic hierarchy from root prompt
-2. DataEngine uses topics to create question/answer pairs
+1. Tree generates topic hierarchy from root prompt
+2. DataSetGenerator uses topics to create question/answer pairs
 3. Dataset validates, stores, and exports training examples
 4. Optional HuggingFace Hub upload with auto-generated dataset cards
 
 ### Key Classes and Their Relationships
-- `PromptWrightConfig`: Loads YAML and provides argument objects
-- `TopicTreeArguments`/`EngineArguments`: Pydantic-style dataclasses for parameters
+- `DeepFabricConfig`: Loads YAML and provides argument objects
+- `TreeArguments`/`DataSetGeneratorArguments`: Pydantic-style dataclasses for parameters
 - `Dataset`: Handles JSONL import/export and validation
 - `HFUploader`: Manages Hugging Face Hub integration
 
@@ -93,7 +93,7 @@ Specify provider and model separately in config, or use combined format in code:
 
 The CLI supports both YAML configuration and parameter overrides:
 ```bash
-promptwright start config.yaml --model gpt-4 --temperature 0.8 --hf-repo user/dataset
+deepfabric start config.yaml --model gpt-4 --temperature 0.8 --hf-repo user/dataset
 ```
 
 ## Code Style Notes

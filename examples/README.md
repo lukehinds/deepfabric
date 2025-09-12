@@ -1,6 +1,6 @@
-# PromptWright Examples
+# DeepFabric Examples
 
-This directory contains comprehensive examples showing how to use PromptWright both as a library (programmatically) and via YAML configuration files.
+This directory contains comprehensive examples showing how to use DeepFabric both as a library (programmatically) and via YAML configuration files.
 
 ## Quick Start
 
@@ -22,7 +22,7 @@ This creates a simple synthetic dataset about Python programming fundamentals.
 
 ### Advanced Topic Generation
 
-- **`example_topic_graph_programmatic.py`** - Uses the new TopicGraph feature with cross-connections between topics
+- **`example_topic_graph_programmatic.py`** - Uses the new Graph feature with cross-connections between topics
 - **`example_load_existing_graph.py`** - Shows how to load and reuse previously generated graphs
 
 ### Multi-Model and Pipeline Examples
@@ -42,13 +42,13 @@ This creates a simple synthetic dataset about Python programming fundamentals.
 
 ```bash
 # Using topic trees (hierarchical)
-promptwright start example_tree_config.yaml
+deepfabric start example_tree_config.yaml
 
 # Using topic graphs (with cross-connections)  
-promptwright start example_graph_config.yaml
+deepfabric start example_graph_config.yaml
 
 # With parameter overrides
-promptwright start example_basic_prompt.yaml --model gpt-4 --temperature 0.8
+deepfabric start example_basic_prompt.yaml --model gpt-4 --temperature 0.8
 ```
 
 ## Key Concepts
@@ -89,7 +89,7 @@ topic_graph:
 
 ## Model Support
 
-PromptWright supports multiple LLM providers via LiteLLM:
+DeepFabric supports multiple LLM providers via LiteLLM:
 
 - **Ollama (Local)**: `ollama/llama3`, `ollama/mistral`, `ollama/codellama`
 - **OpenAI**: `gpt-4`, `gpt-4o-mini`, `gpt-3.5-turbo`
@@ -101,11 +101,11 @@ Set API keys as environment variables (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KE
 
 ## Required Parameters
 
-When using PromptWright programmatically, ensure all required parameters are provided:
+When using DeepFabric programmatically, ensure all required parameters are provided:
 
-### TopicTreeArguments
+### TreeArguments
 ```python
-TopicTreeArguments(
+TreeArguments(
     root_prompt="...",                    # Required
     model_name="ollama/llama3",          # Required  
     model_system_prompt="...",           # Required
@@ -115,9 +115,9 @@ TopicTreeArguments(
 )
 ```
 
-### EngineArguments
+### DataSetGeneratorArguments
 ```python
-EngineArguments(
+DataSetGeneratorArguments(
     instructions="...",                   # Required
     system_prompt="...",                 # Required
     model_name="ollama/llama3",          # Required

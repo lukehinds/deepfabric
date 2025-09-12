@@ -18,7 +18,7 @@ from .constants import (
     TOPIC_TREE_DEFAULT_MODEL,
     TOPIC_TREE_DEFAULT_TEMPERATURE,
 )
-from .exceptions import TopicTreeError
+from .exceptions import TreeError
 from .prompts import TREE_GENERATION_PROMPT, TREE_JSON_INSTRUCTIONS
 from .topic_model import TopicModel
 from .utils import extract_list
@@ -51,7 +51,7 @@ def validate_and_clean_response(response_text: str) -> str | list[str] | None:
         return None
 
 
-class TopicTreeArguments(BaseModel):
+class TreeArguments(BaseModel):
     """Arguments for constructing a topic tree."""
 
     root_prompt: str = Field(
@@ -105,9 +105,9 @@ class TopicTreeArguments(BaseModel):
         return v.strip()
 
 
-class TopicTreeValidator:
+class TreeValidator:
     """
-    TopicTreeValidator validates and calculates unique paths in a tree structure.
+    TreeValidator validates and calculates unique paths in a tree structure.
     """
 
     def __init__(self, tree_degree: int, tree_depth: int):
@@ -148,20 +148,20 @@ class TopicTreeValidator:
         }
 
 
-class TopicTree(TopicModel):
+class Tree(TopicModel):
     """A class to represent and build a hierarchical topic tree."""
 
-    def __init__(self, args: TopicTreeArguments):
-        """Initialize the TopicTree with the given arguments."""
-        if not isinstance(args, TopicTreeArguments):
-            raise TopicTreeError("invalid")
+    def __init__(self, args: TreeArguments):
+        """Initialize the Tree with the given arguments."""
+        if not isinstance(args, TreeArguments):
+            raise TreeError("invalid")
 
         try:
             # Validate args if it's a dict (for backward compatibility)
             if isinstance(args, dict):
-                args = TopicTreeArguments(**args)
+                args = TreeArguments(**args)
         except Exception as e:
-            raise TopicTreeError("invalid args") from e  # noqa: TRY003
+            raise TreeError("invalid args") from e  # noqa: TRY003
 
         json_instructions = TREE_JSON_INSTRUCTIONS
 

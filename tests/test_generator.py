@@ -2,13 +2,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest  # type: ignore
 
-from promptwright.engine import DataEngine, Dataset, EngineArguments
-from promptwright.exceptions import DataEngineError
+from deepfabric.exceptions import DataSetGeneratorError
+from deepfabric.generator import Dataset, DataSetGenerator, DataSetGeneratorArguments
 
 
 @pytest.fixture
 def engine_args():
-    return EngineArguments(
+    return DataSetGeneratorArguments(
         instructions="Test instructions",
         system_prompt="Test system prompt",
         model_name="test-model",
@@ -25,22 +25,22 @@ def engine_args():
 
 @pytest.fixture
 def data_engine(engine_args):
-    return DataEngine(engine_args)
+    return DataSetGenerator(engine_args)
 
 
 def test_engine_initialization(engine_args):
-    engine = DataEngine(engine_args)
+    engine = DataSetGenerator(engine_args)
     assert engine.args == engine_args
     assert isinstance(engine.dataset, Dataset)
     assert engine.failed_samples == []
 
 
 def test_create_data_no_steps(data_engine):
-    with pytest.raises(DataEngineError, match="positive"):
+    with pytest.raises(DataSetGeneratorError, match="positive"):
         data_engine.create_data(num_steps=0)
 
 
-@patch("promptwright.engine.litellm.batch_completion")
+@patch("deepfabric.generator.litellm.batch_completion")
 def test_create_data_success(mock_batch_completion, data_engine):
     # Mock valid JSON responses to match the expected structure for 10 samples
     mock_batch_completion.return_value = [
@@ -80,7 +80,7 @@ def test_create_data_success(mock_batch_completion, data_engine):
     assert len(dataset.samples) == expected_num_samples
 
 
-@patch("promptwright.engine.litellm.batch_completion")
+@patch("deepfabric.generator.litellm.batch_completion")
 def test_create_data_with_sys_msg_default(mock_batch_completion, data_engine):
     # Mock valid JSON response
     mock_batch_completion.return_value = [
@@ -109,7 +109,7 @@ def test_create_data_with_sys_msg_default(mock_batch_completion, data_engine):
     assert dataset.samples[0]["messages"][0]["content"] == data_engine.args.system_prompt
 
 
-@patch("promptwright.engine.litellm.batch_completion")
+@patch("deepfabric.generator.litellm.batch_completion")
 def test_create_data_without_sys_msg(mock_batch_completion, data_engine):
     # Mock valid JSON response
     mock_batch_completion.return_value = [
@@ -139,10 +139,10 @@ def test_create_data_without_sys_msg(mock_batch_completion, data_engine):
     assert dataset.samples[0]["messages"][0]["role"] == "user"
 
 
-@patch("promptwright.engine.litellm.batch_completion")
+@patch("deepfabric.generator.litellm.batch_completion")
 def test_create_data_sys_msg_override(mock_batch_completion):
     # Create engine with sys_msg=False
-    args = EngineArguments(
+    args = DataSetGeneratorArguments(
         instructions="Test instructions",
         system_prompt="Test system prompt",
         model_name="test-model",
@@ -155,7 +155,7 @@ def test_create_data_sys_msg_override(mock_batch_completion):
         request_timeout=30,
         sys_msg=False,  # Default to False
     )
-    engine = DataEngine(args)
+    engine = DataSetGenerator(args)
 
     # Mock valid JSON response
     mock_batch_completion.return_value = [

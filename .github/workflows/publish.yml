@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: release
-      url: https://pypi.org/p/promptwright
+      url: https://pypi.org/p/deepfabric
     permissions:
       id-token: write
 

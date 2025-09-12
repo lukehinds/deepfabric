@@ -56,7 +56,7 @@ class HFUploader:
                 current_tags = []
                 setattr(card.data, "tags", current_tags)  # noqa: B010
 
-            # Add default promptwright tags
+            # Add default deepfabric tags
             for tag in DEFAULT_HF_TAGS:
                 if tag not in current_tags:
                     current_tags.append(tag)

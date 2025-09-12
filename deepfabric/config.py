@@ -5,10 +5,10 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 
 from .constants import DEFAULT_MODEL, DEFAULT_PROVIDER, SYSTEM_PROMPT_PLACEHOLDER
-from .engine import EngineArguments
 from .exceptions import ConfigurationError
-from .topic_graph import TopicGraphArguments
-from .topic_tree import TopicTreeArguments
+from .generator import DataSetGeneratorArguments
+from .graph import GraphArguments
+from .tree import TreeArguments
 
 
 def construct_model_string(provider: str, model: str) -> str:
@@ -16,8 +16,8 @@ def construct_model_string(provider: str, model: str) -> str:
     return f"{provider}/{model}"
 
 
-class PromptWrightConfig(BaseModel):
-    """Configuration for PromptWright tasks."""
+class DeepFabricConfig(BaseModel):
+    """Configuration for DeepFabric tasks."""
 
     topic_generator: Literal["tree", "graph"] = Field(
         "tree", description="The type of topic model to use."
@@ -37,7 +37,7 @@ class PromptWrightConfig(BaseModel):
         return v.strip()
 
     @classmethod
-    def from_yaml(cls, yaml_path: str) -> "PromptWrightConfig":
+    def from_yaml(cls, yaml_path: str) -> "DeepFabricConfig":
         """Load configuration from a YAML file."""
         try:
             with open(yaml_path, encoding="utf-8") as f:
@@ -59,8 +59,8 @@ class PromptWrightConfig(BaseModel):
                 f"invalid structure: {str(e)}"
             ) from e  # noqa: TRY003
 
-    def get_topic_tree_args(self, **overrides) -> TopicTreeArguments:
-        """Get TopicTreeArguments from config with optional overrides."""
+    def get_topic_tree_args(self, **overrides) -> TreeArguments:
+        """Get TreeArguments from config with optional overrides."""
         if not self.topic_tree:
             raise ConfigurationError("missing 'topic_tree' configuration")  # noqa: TRY003
         try:
@@ -82,12 +82,12 @@ class PromptWrightConfig(BaseModel):
             # Construct full model string
             args["model_name"] = construct_model_string(provider, model)
 
-            return TopicTreeArguments(**args)
+            return TreeArguments(**args)
         except Exception as e:
             raise ConfigurationError(f"args error: {str(e)}") from e  # noqa: TRY003
 
-    def get_topic_graph_args(self, **overrides) -> TopicGraphArguments:
-        """Get TopicGraphArguments from config with optional overrides."""
+    def get_topic_graph_args(self, **overrides) -> GraphArguments:
+        """Get GraphArguments from config with optional overrides."""
         if not self.topic_graph:
             raise ConfigurationError("missing 'topic_graph' configuration")  # noqa: TRY003
         try:
@@ -103,12 +103,12 @@ class PromptWrightConfig(BaseModel):
             # Construct full model string
             args["model_name"] = construct_model_string(provider, model)
 
-            return TopicGraphArguments(**args)
+            return GraphArguments(**args)
         except Exception as e:
             raise ConfigurationError(f"args error: {str(e)}") from e  # noqa: TRY003
 
-    def get_engine_args(self, **overrides) -> EngineArguments:
-        """Get EngineArguments from config with optional overrides."""
+    def get_engine_args(self, **overrides) -> DataSetGeneratorArguments:
+        """Get DataSetGeneratorArguments from config with optional overrides."""
         try:
             args = self.data_engine.get("args", {}).copy()
 
@@ -132,7 +132,7 @@ class PromptWrightConfig(BaseModel):
             dataset_config = self.get_dataset_config()
             args.setdefault("sys_msg", dataset_config.get("creation", {}).get("sys_msg", True))
 
-            return EngineArguments(**args)
+            return DataSetGeneratorArguments(**args)
         except Exception as e:
             raise ConfigurationError(f"args error: {str(e)}") from e  # noqa: TRY003
 

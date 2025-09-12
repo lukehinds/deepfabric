@@ -23,7 +23,7 @@ from .constants import (
 )
 from .dataset import Dataset
 from .exceptions import (
-    DataEngineError,
+    DataSetGeneratorError,
 )
 from .prompts import ENGINE_JSON_INSTRUCTIONS, SAMPLE_GENERATION_PROMPT
 from .topic_model import TopicModel
@@ -54,7 +54,7 @@ def validate_json_response(json_str: str, schema: dict[str, Any] | None = None) 
         return None
 
 
-class EngineArguments(BaseModel):
+class DataSetGeneratorArguments(BaseModel):
     """Arguments for configuring the data engine."""
 
     instructions: str = Field("", description="Additional instructions for data generation")
@@ -109,18 +109,18 @@ class EngineArguments(BaseModel):
         return v.strip()
 
 
-class DataEngine:
-    def __init__(self, args: EngineArguments):
-        """Initialize DataEngine with validated arguments."""
-        if not isinstance(args, EngineArguments):
+class DataSetGenerator:
+    def __init__(self, args: DataSetGeneratorArguments):
+        """Initialize DataSetGenerator with validated arguments."""
+        if not isinstance(args, DataSetGeneratorArguments):
             try:
                 # Handle dict input for backward compatibility
                 if isinstance(args, dict):
-                    args = EngineArguments(**args)
+                    args = DataSetGeneratorArguments(**args)
                 else:
-                    raise DataEngineError("invalid")  # noqa: TRY301
+                    raise DataSetGeneratorError("invalid")  # noqa: TRY301
             except Exception as e:
-                raise DataEngineError("invalid") from e
+                raise DataSetGeneratorError("invalid") from e
 
         self.args = args
         self.model_name = args.model_name
@@ -141,13 +141,13 @@ class DataEngine:
     ) -> None:
         """Validate parameters for data creation."""
         if num_steps is None or num_steps <= 0:
-            raise DataEngineError("positive")
+            raise DataSetGeneratorError("positive")
 
         if batch_size <= 0:
-            raise DataEngineError("positive")
+            raise DataSetGeneratorError("positive")
 
         if topic_model and len(topic_model.get_all_paths()) == 0:
-            raise DataEngineError("")
+            raise DataSetGeneratorError("")
 
     def _prepare_topic_paths(
         self,
@@ -163,7 +163,7 @@ class DataEngine:
             required_samples = num_steps * batch_size
 
             if required_samples > total_paths:
-                raise DataEngineError("insufficient")
+                raise DataSetGeneratorError("insufficient")
             # Bandit: not a security function
             topic_paths = random.sample(topic_paths, required_samples)  # nosec
             num_steps = math.ceil(len(topic_paths) / batch_size)
@@ -346,7 +346,7 @@ class DataEngine:
             self.model_name = model_name.strip()
 
         if not self.model_name:
-            raise DataEngineError("")
+            raise DataSetGeneratorError("")
 
         # Use provided sys_msg or fall back to args.sys_msg
         include_sys_msg = sys_msg if sys_msg is not None else self.args.sys_msg
@@ -410,7 +410,7 @@ class DataEngine:
             print(f"\nUnexpected error: {str(e)}")
             self.print_failure_summary()
             self.save_dataset(ERROR_DATASET_FILENAME)
-            raise DataEngineError("failed") from e
+            raise DataSetGeneratorError("failed") from e
 
         print(f"Successfully Generated {len(self.dataset)} samples.")
         self.print_failure_summary()

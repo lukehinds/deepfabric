@@ -1,5 +1,5 @@
 """
-Example showing how to use different LLM providers and models with PromptWright.
+Example showing how to use different LLM providers and models with DeepFabric.
 Demonstrates using OpenAI, Anthropic, Google, and local models.
 """
 
@@ -9,7 +9,7 @@ import sys
 # Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from promptwright import DataEngine, EngineArguments, TopicTree, TopicTreeArguments
+from deepfabric import DataSetGenerator, DataSetGeneratorArguments, Tree, TreeArguments
 
 
 def example_with_ollama():
@@ -18,8 +18,8 @@ def example_with_ollama():
     print("Example: Ollama (Local)")
     print("=" * 50)
 
-    tree = TopicTree(
-        args=TopicTreeArguments(
+    tree = Tree(
+        args=TreeArguments(
             root_prompt="Machine Learning Algorithms",
             model_name="ollama/llama3",  # or ollama/mistral, ollama/codellama, etc.
             model_system_prompt="You are an expert in machine learning.",
@@ -50,8 +50,8 @@ def example_with_openai():
         print("⚠️  OPENAI_API_KEY not set, skipping OpenAI example\n")
         return None
 
-    tree = TopicTree(
-        args=TopicTreeArguments(
+    tree = Tree(
+        args=TreeArguments(
             root_prompt="Natural Language Processing Techniques",
             model_name="gpt-4o-mini",  # or gpt-4, gpt-3.5-turbo
             model_system_prompt="You are an expert in natural language processing.",
@@ -78,8 +78,8 @@ def example_with_anthropic():
         print("⚠️  ANTHROPIC_API_KEY not set, skipping Anthropic example\n")
         return None
 
-    tree = TopicTree(
-        args=TopicTreeArguments(
+    tree = Tree(
+        args=TreeArguments(
             root_prompt="Distributed Systems Architecture",
             model_name="claude-3-haiku-20240307",  # or claude-3-opus-20240229, claude-3-sonnet-20240229
             model_system_prompt="You are an expert in distributed systems.",
@@ -106,8 +106,8 @@ def example_with_google():
         print("⚠️  GEMINI_API_KEY not set, skipping Gemini example\n")
         return None
 
-    tree = TopicTree(
-        args=TopicTreeArguments(
+    tree = Tree(
+        args=TreeArguments(
             root_prompt="Cloud Computing Services",
             model_name="gemini/gemini-pro",  # or gemini/gemini-2.5-flash-lite
             model_system_prompt="You are an expert in cloud computing.",
@@ -129,8 +129,8 @@ def example_mixed_models():
     print("=" * 50)
 
     # Use a fast, cheap model for tree generation
-    tree = TopicTree(
-        args=TopicTreeArguments(
+    tree = Tree(
+        args=TreeArguments(
             root_prompt="Database Technologies",
             model_name="ollama/mistral",  # Fast local model for tree
             model_system_prompt="You are an expert in database technologies.",
@@ -145,8 +145,8 @@ def example_mixed_models():
     tree.save("database_tree.jsonl")
 
     # Use a more powerful model for content generation
-    engine = DataEngine(
-        args=EngineArguments(
+    engine = DataSetGenerator(
+        args=DataSetGeneratorArguments(
             instructions="""Create a detailed technical explanation including:
                           - Core concepts
                           - SQL examples
@@ -179,7 +179,7 @@ def example_mixed_models():
 def main():
     """Run examples with different providers."""
 
-    print("\nPromptWright Multi-Model Examples")
+    print("\nDeepFabric Multi-Model Examples")
     print("=" * 50)
     print("\nNote: Each provider requires appropriate API keys set as environment variables.")
     print("See each function for specific requirements.\n")

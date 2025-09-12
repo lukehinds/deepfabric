@@ -1,6 +1,6 @@
 [project]
-name = "promptwright"
-version = "1.5.0"
+name = "deepfabric"
+version = "2.0.0"
 description = "Large Scale Topic based Synthetic Data Generation"
 authors = [{name = "Luke Hinds", email = "luke@rdrocket.com"}]
 readme = "README.md"
@@ -29,20 +29,23 @@ dev = [
     "pytest-mock>=3.10.0",
     "requests-mock>=1.11.0",
     "ruff>=0.1.0",
-    "black>=24.10,<26.0",
     "bandit>=1.7.10",
     "mermaid-py>=0.2.0",
 ]
+docs = [
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.20.0",
+]
 
 [project.scripts]
-promptwright = "promptwright.cli:cli"
+deepfabric = "deepfabric.cli:cli"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["promptwright"]
+packages = ["deepfabric"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -120,7 +123,7 @@ exclude = [
 "conftest.py" = ["S101"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["promptwright"]
+known-first-party = ["deepfabric"]
 lines-between-types = 1
 
 [tool.ruff.lint.pydocstyle]

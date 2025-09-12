@@ -12,7 +12,7 @@ install:
 	uv sync --all-extras
 
 format: ## Format code with ruff (parallel)
-	uv run ruff format promptwright/ tests/
+	uv run ruff format deepfabric/ tests/
 
 lint:
 	uv run ruff check .
@@ -21,7 +21,7 @@ test:
 	uv run pytest
 
 security:
-	uv run bandit -r promptwright/
+	uv run bandit -r deepfabric/
 
 build: clean test
 	uv build

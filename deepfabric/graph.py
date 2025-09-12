@@ -55,7 +55,7 @@ def validate_graph_response(response_text: str) -> dict[str, Any] | None:
         return None
 
 
-class TopicGraphArguments(BaseModel):
+class GraphArguments(BaseModel):
     """Arguments for constructing a topic graph."""
 
     root_prompt: str = Field(
@@ -86,7 +86,7 @@ class NodeModel(BaseModel):
     parents: list[int] = Field(default_factory=list)
 
 
-class TopicGraphModel(BaseModel):
+class GraphModel(BaseModel):
     """Pydantic model for the entire topic graph."""
 
     nodes: dict[int, NodeModel]
@@ -97,7 +97,7 @@ class TopicGraphModel(BaseModel):
 
 
 class Node:
-    """Represents a node in the TopicGraph for runtime manipulation."""
+    """Represents a node in the Graph for runtime manipulation."""
 
     def __init__(self, topic: str, node_id: int):
         self.topic: str = topic
@@ -115,10 +115,10 @@ class Node:
         )
 
 
-class TopicGraph(TopicModel):
+class Graph(TopicModel):
     """Represents the topic graph and manages its structure."""
 
-    def __init__(self, args: TopicGraphArguments):
+    def __init__(self, args: GraphArguments):
         self.args = args
         self.root: Node = Node(args.root_prompt, 0)
         self.nodes: dict[int, Node] = {0: self.root}
@@ -146,9 +146,9 @@ class TopicGraph(TopicModel):
             if parent_node not in child_node.parents:
                 child_node.parents.append(parent_node)
 
-    def to_pydantic(self) -> TopicGraphModel:
+    def to_pydantic(self) -> GraphModel:
         """Converts the runtime graph to its Pydantic model representation."""
-        return TopicGraphModel(
+        return GraphModel(
             nodes={node_id: node.to_pydantic() for node_id, node in self.nodes.items()},
             root_id=self.root.id,
         )
@@ -164,12 +164,12 @@ class TopicGraph(TopicModel):
             f.write(self.to_json())
 
     @classmethod
-    def from_json(cls, json_path: str, args: TopicGraphArguments) -> "TopicGraph":
+    def from_json(cls, json_path: str, args: GraphArguments) -> "Graph":
         """Load a topic graph from a JSON file."""
         with open(json_path) as f:
             data = json.load(f)
 
-        graph_model = TopicGraphModel(**data)
+        graph_model = GraphModel(**data)
         graph = cls(args)
         graph.nodes = {}
 

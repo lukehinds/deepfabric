@@ -6,20 +6,20 @@ from unittest.mock import MagicMock, patch
 
 import pytest  # type: ignore
 
-from promptwright.topic_graph import (
+from deepfabric.graph import (
+    Graph,
+    GraphArguments,
+    GraphModel,
     Node,
     NodeModel,
-    TopicGraph,
-    TopicGraphArguments,
-    TopicGraphModel,
     validate_graph_response,
 )
 
 
 @pytest.fixture
 def topic_graph_args():
-    """Fixture for TopicGraphArguments."""
-    return TopicGraphArguments(
+    """Fixture for GraphArguments."""
+    return GraphArguments(
         root_prompt="Test root topic",
         model_name="test-model",
         temperature=0.7,
@@ -30,8 +30,8 @@ def topic_graph_args():
 
 @pytest.fixture
 def topic_graph(topic_graph_args):
-    """Fixture for TopicGraph instance."""
-    return TopicGraph(topic_graph_args)
+    """Fixture for Graph instance."""
+    return Graph(topic_graph_args)
 
 
 class TestValidateGraphResponse:
@@ -91,12 +91,12 @@ class TestNode:
         assert child_model.parents == [1]
 
 
-class TestTopicGraphArguments:
-    """Tests for TopicGraphArguments model."""
+class TestGraphArguments:
+    """Tests for GraphArguments model."""
 
     def test_valid_arguments(self):
         """Test creation with valid arguments."""
-        args = TopicGraphArguments(
+        args = GraphArguments(
             root_prompt="Test", model_name="gpt-4", temperature=0.5, graph_degree=2, graph_depth=3
         )
         assert args.root_prompt == "Test"
@@ -106,7 +106,7 @@ class TestTopicGraphArguments:
 
     def test_default_arguments(self):
         """Test default values."""
-        args = TopicGraphArguments(
+        args = GraphArguments(
             root_prompt="Test",
             model_name="ollama/llama3",
             temperature=0.2,
@@ -121,7 +121,7 @@ class TestTopicGraphArguments:
     def test_invalid_arguments(self):
         """Test validation errors."""
         with pytest.raises(ValueError):
-            TopicGraphArguments(
+            GraphArguments(
                 root_prompt="",  # Empty root_prompt
                 model_name="ollama/llama3",
                 temperature=0.2,
@@ -130,7 +130,7 @@ class TestTopicGraphArguments:
             )
 
         with pytest.raises(ValueError):
-            TopicGraphArguments(
+            GraphArguments(
                 root_prompt="Test",
                 model_name="ollama/llama3",
                 temperature=-0.1,
@@ -139,7 +139,7 @@ class TestTopicGraphArguments:
             )  # Invalid temperature
 
         with pytest.raises(ValueError):
-            TopicGraphArguments(
+            GraphArguments(
                 root_prompt="Test",
                 model_name="ollama/llama3",
                 temperature=-0.1,
@@ -148,12 +148,12 @@ class TestTopicGraphArguments:
             )  # Invalid degree
 
 
-class TestTopicGraph:
-    """Tests for TopicGraph class."""
+class TestGraph:
+    """Tests for Graph class."""
 
     def test_initialization(self, topic_graph_args):
-        """Test TopicGraph initialization."""
-        graph = TopicGraph(topic_graph_args)
+        """Test Graph initialization."""
+        graph = Graph(topic_graph_args)
         assert graph.args == topic_graph_args
         assert graph.root.topic == "Test root topic"
         assert graph.root.id == 0
@@ -205,7 +205,7 @@ class TestTopicGraph:
         topic_graph.add_edge(0, node1.id)
 
         pydantic_model = topic_graph.to_pydantic()
-        assert isinstance(pydantic_model, TopicGraphModel)
+        assert isinstance(pydantic_model, GraphModel)
         assert pydantic_model.root_id == 0
         assert len(pydantic_model.nodes) == 2  # noqa: PLR2004
         assert pydantic_model.nodes[0].topic == "Test root topic"
@@ -224,7 +224,7 @@ class TestTopicGraph:
     def test_save_and_load(self, topic_graph_args):
         """Test saving and loading a graph."""
         # Create and populate a graph
-        graph = TopicGraph(topic_graph_args)
+        graph = Graph(topic_graph_args)
         node1 = graph.add_node("Child 1")
         node2 = graph.add_node("Child 2")
         graph.add_edge(0, node1.id)
@@ -238,7 +238,7 @@ class TestTopicGraph:
             graph.save(temp_path)
 
             # Load the graph
-            loaded_graph = TopicGraph.from_json(temp_path, topic_graph_args)
+            loaded_graph = Graph.from_json(temp_path, topic_graph_args)
 
             # Verify structure
             assert len(loaded_graph.nodes) == 3  # noqa: PLR2004
@@ -297,7 +297,7 @@ class TestTopicGraph:
 
         assert topic_graph.has_cycle() is True
 
-    @patch("promptwright.topic_graph.litellm.completion")
+    @patch("deepfabric.graph.litellm.completion")
     def test_get_subtopics_and_connections_success(self, mock_completion, topic_graph):
         """Test successful subtopic generation."""
         # Mock LLM response
@@ -330,7 +330,7 @@ class TestTopicGraph:
         subtopic2 = next(node for node in topic_graph.nodes.values() if node.topic == "Subtopic 2")
         assert topic_graph.root in subtopic2.parents  # Connection to root
 
-    @patch("promptwright.topic_graph.litellm.completion")
+    @patch("deepfabric.graph.litellm.completion")
     def test_get_subtopics_and_connections_retry(self, mock_completion, topic_graph, capsys):
         """Test subtopic generation with retries."""
         # First call fails, second succeeds
@@ -358,10 +358,14 @@ class TestTopicGraph:
         # Verify node was added after retry
         assert len(topic_graph.nodes) == 2  # noqa: PLR2004
 
-    @patch("promptwright.topic_graph.litellm.completion")
-    @patch("promptwright.topic_graph.time.sleep")
+    @patch("deepfabric.graph.litellm.completion")
+    @patch("deepfabric.graph.time.sleep")
     def test_get_subtopics_and_connections_max_retries(
-        self, mock_sleep, mock_completion, topic_graph, capsys  # noqa: ARG002
+        self,
+        mock_sleep,  # noqa: ARG002
+        mock_completion,
+        topic_graph,
+        capsys,  # noqa: ARG002
     ):  # noqa: ARG002
         """Test subtopic generation hitting max retries."""
         # All calls fail
@@ -377,7 +381,7 @@ class TestTopicGraph:
         captured = capsys.readouterr()
         assert "Failed to generate valid subtopics" in captured.out
 
-    @patch("promptwright.topic_graph.litellm.completion")
+    @patch("deepfabric.graph.litellm.completion")
     def test_build(self, mock_completion, topic_graph):
         """Test building the entire graph."""
         # Mock responses for each call
@@ -435,19 +439,19 @@ class TestTopicGraph:
 
 
 class TestIntegration:
-    """Integration tests for the TopicGraph system."""
+    """Integration tests for the Graph system."""
 
-    @patch("promptwright.topic_graph.litellm.completion")
+    @patch("deepfabric.graph.litellm.completion")
     def test_complex_graph_creation(self, mock_completion):
         """Test creating a complex graph with cross-connections."""
-        args = TopicGraphArguments(
+        args = GraphArguments(
             root_prompt="Machine Learning",
             model_name="test-model",
             temperature=0.7,
             graph_degree=2,
             graph_depth=2,
         )
-        graph = TopicGraph(args)
+        graph = Graph(args)
 
         # First level response
         first_response = {
@@ -503,14 +507,14 @@ class TestIntegration:
 
     def test_graph_persistence_roundtrip(self):
         """Test complete save/load roundtrip with complex graph."""
-        args = TopicGraphArguments(
+        args = GraphArguments(
             root_prompt="Science",
             model_name="test-model",
             temperature=0.5,
             graph_degree=2,
             graph_depth=2,
         )
-        graph = TopicGraph(args)
+        graph = Graph(args)
 
         # Build a complex graph manually
         physics = graph.add_node("Physics")
@@ -532,7 +536,7 @@ class TestIntegration:
         try:
             # Save and load
             graph.save(temp_path)
-            loaded = TopicGraph.from_json(temp_path, args)
+            loaded = Graph.from_json(temp_path, args)
 
             # Verify complete structure
             assert len(loaded.nodes) == len(graph.nodes)

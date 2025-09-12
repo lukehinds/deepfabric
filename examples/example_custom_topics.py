@@ -9,11 +9,11 @@ import sys
 # Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from promptwright import DataEngine, EngineArguments, TopicTree, TopicTreeArguments
+from deepfabric import DataSetGenerator, DataSetGeneratorArguments, Tree, TreeArguments
 
 # Create a topic tree with a simple root
-tree = TopicTree(
-    args=TopicTreeArguments(
+tree = Tree(
+    args=TreeArguments(
         root_prompt="Data Science",
         model_name="ollama/llama3",
         model_system_prompt="You are a data science expert.",
@@ -23,7 +23,6 @@ tree = TopicTree(
     )
 )
 
-# Manually define your own topic structure instead of using build_tree()
 custom_topics = [
     {"path": ["Data Science", "Machine Learning", "Supervised Learning", "Classification"]},
     {"path": ["Data Science", "Machine Learning", "Supervised Learning", "Regression"]},
@@ -44,8 +43,8 @@ tree.from_dict_list(custom_topics)
 tree.save("custom_data_science_tree.jsonl")
 
 # Create an engine with specific instructions for data science content
-engine = DataEngine(
-    args=EngineArguments(
+engine = DataSetGenerator(
+    args=DataSetGeneratorArguments(
         instructions="""Create a comprehensive tutorial that includes:
                        - Theoretical explanation of the concept
                        - Mathematical formulation (if applicable)

@@ -6,10 +6,10 @@ import tempfile
 import pytest
 import yaml
 
-from promptwright.config import PromptWrightConfig
-from promptwright.engine import EngineArguments
-from promptwright.exceptions import ConfigurationError
-from promptwright.topic_tree import TopicTreeArguments
+from deepfabric.config import DeepFabricConfig
+from deepfabric.exceptions import ConfigurationError
+from deepfabric.generator import DataSetGeneratorArguments
+from deepfabric.tree import TreeArguments
 
 
 @pytest.fixture
@@ -121,7 +121,7 @@ def sample_yaml_file_no_sys_msg(sample_config_dict_no_sys_msg):
 
 def test_load_from_yaml(sample_yaml_file, sample_config_dict):
     """Test loading configuration from YAML file."""
-    config = PromptWrightConfig.from_yaml(sample_yaml_file)
+    config = DeepFabricConfig.from_yaml(sample_yaml_file)
 
     assert config.system_prompt == sample_config_dict["system_prompt"]
     assert config.topic_tree == sample_config_dict["topic_tree"]
@@ -130,11 +130,11 @@ def test_load_from_yaml(sample_yaml_file, sample_config_dict):
 
 
 def test_get_topic_tree_args(sample_yaml_file):
-    """Test getting TopicTreeArguments from config."""
-    config = PromptWrightConfig.from_yaml(sample_yaml_file)
+    """Test getting TreeArguments from config."""
+    config = DeepFabricConfig.from_yaml(sample_yaml_file)
     args = config.get_topic_tree_args()
 
-    assert isinstance(args, TopicTreeArguments)
+    assert isinstance(args, TreeArguments)
     assert args.root_prompt == "Test root prompt"
     assert args.model_system_prompt == "Test system prompt"
     assert args.tree_degree == 3  # noqa: PLR2004
@@ -144,11 +144,11 @@ def test_get_topic_tree_args(sample_yaml_file):
 
 
 def test_get_engine_args(sample_yaml_file):
-    """Test getting EngineArguments from config."""
-    config = PromptWrightConfig.from_yaml(sample_yaml_file)
+    """Test getting DataSetGeneratorArguments from config."""
+    config = DeepFabricConfig.from_yaml(sample_yaml_file)
     args = config.get_engine_args()
 
-    assert isinstance(args, EngineArguments)
+    assert isinstance(args, DataSetGeneratorArguments)
     assert args.instructions == "Test instructions"
     assert args.system_prompt == "Test system prompt"
     assert args.model_name == "test/model"
@@ -158,17 +158,17 @@ def test_get_engine_args(sample_yaml_file):
 
 
 def test_get_engine_args_no_sys_msg(sample_yaml_file_no_sys_msg):
-    """Test getting EngineArguments without sys_msg setting."""
-    config = PromptWrightConfig.from_yaml(sample_yaml_file_no_sys_msg)
+    """Test getting DataSetGeneratorArguments without sys_msg setting."""
+    config = DeepFabricConfig.from_yaml(sample_yaml_file_no_sys_msg)
     args = config.get_engine_args()
 
-    assert isinstance(args, EngineArguments)
+    assert isinstance(args, DataSetGeneratorArguments)
     assert args.sys_msg is True  # Default value when not specified
 
 
 def test_get_topic_tree_args_with_overrides(sample_yaml_file):
-    """Test getting TopicTreeArguments with overrides."""
-    config = PromptWrightConfig.from_yaml(sample_yaml_file)
+    """Test getting TreeArguments with overrides."""
+    config = DeepFabricConfig.from_yaml(sample_yaml_file)
     args = config.get_topic_tree_args(
         provider="override",
         model="model",
@@ -180,8 +180,8 @@ def test_get_topic_tree_args_with_overrides(sample_yaml_file):
 
 
 def test_get_engine_args_with_overrides(sample_yaml_file):
-    """Test getting EngineArguments with overrides."""
-    config = PromptWrightConfig.from_yaml(sample_yaml_file)
+    """Test getting DataSetGeneratorArguments with overrides."""
+    config = DeepFabricConfig.from_yaml(sample_yaml_file)
     args = config.get_engine_args(
         provider="override",
         model="model",
@@ -194,7 +194,7 @@ def test_get_engine_args_with_overrides(sample_yaml_file):
 
 def test_get_dataset_config(sample_yaml_file, sample_config_dict):
     """Test getting dataset configuration."""
-    config = PromptWrightConfig.from_yaml(sample_yaml_file)
+    config = DeepFabricConfig.from_yaml(sample_yaml_file)
     dataset_config = config.get_dataset_config()
 
     assert dataset_config == sample_config_dict["dataset"]
@@ -203,7 +203,7 @@ def test_get_dataset_config(sample_yaml_file, sample_config_dict):
 
 def test_get_dataset_config_no_sys_msg(sample_yaml_file_no_sys_msg):
     """Test getting dataset configuration without sys_msg setting."""
-    config = PromptWrightConfig.from_yaml(sample_yaml_file_no_sys_msg)
+    config = DeepFabricConfig.from_yaml(sample_yaml_file_no_sys_msg)
     dataset_config = config.get_dataset_config()
 
     assert "sys_msg" not in dataset_config["creation"]
@@ -212,7 +212,7 @@ def test_get_dataset_config_no_sys_msg(sample_yaml_file_no_sys_msg):
 def test_missing_yaml_file():
     """Test handling of missing YAML file."""
     with pytest.raises(ConfigurationError):
-        PromptWrightConfig.from_yaml("nonexistent.yaml")
+        DeepFabricConfig.from_yaml("nonexistent.yaml")
 
 
 def test_invalid_yaml_content():
@@ -223,7 +223,7 @@ def test_invalid_yaml_content():
 
     try:
         with pytest.raises(ConfigurationError):
-            PromptWrightConfig.from_yaml(temp_path)
+            DeepFabricConfig.from_yaml(temp_path)
     finally:
         if os.path.exists(temp_path):
             os.unlink(temp_path)

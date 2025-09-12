@@ -21,6 +21,10 @@ TOPIC_TREE_DEFAULT_DEPTH = 3
 TOPIC_TREE_DEFAULT_TEMPERATURE = 0.2
 TOPIC_TREE_DEFAULT_MODEL = "ollama/llama3"
 
+# Topic graph defaults
+TOPIC_GRAPH_DEFAULT_DEGREE = 10
+TOPIC_GRAPH_DEFAULT_DEPTH = 3
+
 # File extensions and patterns
 JSONL_EXTENSION = ".jsonl"
 YAML_EXTENSIONS = (".yaml", ".yml")
@@ -53,7 +57,7 @@ JSON_ARRAY_PATTERN = r"\[.*\]"
 JSON_CODE_BLOCK_PATTERN = r"```json\s*|\s*```"
 
 # Default tags
-DEFAULT_HF_TAGS = ["promptwright", "synthetic"]
+DEFAULT_HF_TAGS = ["deepfabric", "synthetic"]
 
 # Error categories
 ERROR_CATEGORIES = {
