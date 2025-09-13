@@ -22,9 +22,7 @@ Standard imports provide access to the core functionality:
 
 ```python
 from deepfabric import (
-    Tree, TreeArguments,
-    Graph, GraphArguments,  
-    DataSetGenerator, DataSetGeneratorArguments,
+    Tree, Graph, DataSetGenerator,
     Dataset, DeepFabricConfig
 )
 ```
@@ -38,10 +36,9 @@ The API supports both programmatic configuration and YAML file loading:
 ```python
 # Direct configuration
 config = DeepFabricConfig.from_yaml("config.yaml")
-tree_args = config.get_tree_args()
 
-# Programmatic configuration  
-tree_args = TreeArguments(
+# Programmatic configuration
+tree = Tree(
     root_prompt="Machine Learning Concepts",
     model_name="openai/gpt-4",
     tree_degree=4,
@@ -58,11 +55,21 @@ The standard generation workflow follows a consistent pattern across all API usa
 
 ```python
 # 1. Create topic model
-tree = Tree(args=tree_args)
+tree = Tree(
+    root_prompt="Machine Learning Concepts",
+    model_name="openai/gpt-4",
+    tree_degree=4,
+    tree_depth=3,
+    temperature=0.7
+)
 tree.build()
 
-# 2. Create dataset generator  
-generator = DataSetGenerator(args=generator_args)
+# 2. Create dataset generator
+generator = DataSetGenerator(
+    instructions="Create detailed explanations with practical examples.",
+    model_name="openai/gpt-4",
+    temperature=0.8
+)
 
 # 3. Generate dataset
 dataset = generator.create_data(

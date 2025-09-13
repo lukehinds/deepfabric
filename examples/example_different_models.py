@@ -9,7 +9,7 @@ import sys
 # Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from deepfabric import DataSetGenerator, DataSetGeneratorArguments, Tree, TreeArguments
+from deepfabric import DataSetGenerator, Tree
 
 
 def example_with_ollama():
@@ -19,14 +19,12 @@ def example_with_ollama():
     print("=" * 50)
 
     tree = Tree(
-        args=TreeArguments(
-            root_prompt="Machine Learning Algorithms",
-            model_name="ollama/llama3",  # or ollama/mistral, ollama/codellama, etc.
-            model_system_prompt="You are an expert in machine learning.",
-            temperature=0.7,
-            tree_degree=3,
-            tree_depth=2,
-        )
+        root_prompt="Machine Learning Algorithms",
+        model_name="ollama/llama3",  # or ollama/mistral, ollama/codellama, etc.
+        model_system_prompt="You are an expert in machine learning.",
+        temperature=0.7,
+        tree_degree=3,
+        tree_depth=2,
     )
 
     # Note: Ollama must be running locally
@@ -51,14 +49,12 @@ def example_with_openai():
         return None
 
     tree = Tree(
-        args=TreeArguments(
-            root_prompt="Natural Language Processing Techniques",
-            model_name="gpt-4o-mini",  # or gpt-4, gpt-3.5-turbo
-            model_system_prompt="You are an expert in natural language processing.",
-            temperature=0.8,
-            tree_degree=4,
-            tree_depth=2,
-        )
+        root_prompt="Natural Language Processing Techniques",
+        model_name="gpt-4o-mini",  # or gpt-4, gpt-3.5-turbo
+        model_system_prompt="You are an expert in natural language processing.",
+        temperature=0.8,
+        tree_degree=4,
+        tree_depth=2,
     )
 
     tree.build()
@@ -79,14 +75,12 @@ def example_with_anthropic():
         return None
 
     tree = Tree(
-        args=TreeArguments(
-            root_prompt="Distributed Systems Architecture",
-            model_name="claude-3-haiku-20240307",  # or claude-3-opus-20240229, claude-3-sonnet-20240229
-            model_system_prompt="You are an expert in distributed systems.",
-            temperature=0.6,
-            tree_degree=3,
-            tree_depth=2,
-        )
+        root_prompt="Distributed Systems Architecture",
+        model_name="claude-3-haiku-20240307",  # or claude-3-opus-20240229, claude-3-sonnet-20240229
+        model_system_prompt="You are an expert in distributed systems.",
+        temperature=0.6,
+        tree_degree=3,
+        tree_depth=2,
     )
 
     tree.build()
@@ -107,14 +101,12 @@ def example_with_google():
         return None
 
     tree = Tree(
-        args=TreeArguments(
-            root_prompt="Cloud Computing Services",
-            model_name="gemini/gemini-pro",  # or gemini/gemini-2.5-flash-lite
-            model_system_prompt="You are an expert in cloud computing.",
-            temperature=0.7,
-            tree_degree=3,
-            tree_depth=2,
-        )
+        root_prompt="Cloud Computing Services",
+        model_name="gemini/gemini-pro",  # or gemini/gemini-2.5-flash-lite
+        model_system_prompt="You are an expert in cloud computing.",
+        temperature=0.7,
+        tree_degree=3,
+        tree_depth=2,
     )
 
     tree.build()
@@ -130,14 +122,12 @@ def example_mixed_models():
 
     # Use a fast, cheap model for tree generation
     tree = Tree(
-        args=TreeArguments(
-            root_prompt="Database Technologies",
-            model_name="ollama/mistral",  # Fast local model for tree
-            model_system_prompt="You are an expert in database technologies.",
-            temperature=0.8,
-            tree_degree=3,
-            tree_depth=2,
-        )
+        root_prompt="Database Technologies",
+        model_name="ollama/mistral",  # Fast local model for tree
+        model_system_prompt="You are an expert in database technologies.",
+        temperature=0.8,
+        tree_degree=3,
+        tree_depth=2,
     )
 
     print("Building tree with Mistral...")
@@ -146,23 +136,21 @@ def example_mixed_models():
 
     # Use a more powerful model for content generation
     engine = DataSetGenerator(
-        args=DataSetGeneratorArguments(
-            instructions="""Create a detailed technical explanation including:
-                          - Core concepts
-                          - SQL examples
-                          - Performance tips
-                          - Use cases""",
-            system_prompt="You are a database expert.",
-            model_name="ollama/llama3",  # More capable model for content
-            prompt_template=None,
-            example_data=None,
-            temperature=0.3,  # Lower temperature for technical accuracy
-            max_retries=3,
-            default_batch_size=5,
-            default_num_examples=3,
-            request_timeout=30,
-            sys_msg=True,
-        )
+        instructions="""Create a detailed technical explanation including:
+                      - Core concepts
+                      - SQL examples
+                      - Performance tips
+                      - Use cases""",
+        system_prompt="You are a database expert.",
+        model_name="ollama/llama3",  # More capable model for content
+        prompt_template=None,
+        example_data=None,
+        temperature=0.3,  # Lower temperature for technical accuracy
+        max_retries=3,
+        default_batch_size=5,
+        default_num_examples=3,
+        request_timeout=30,
+        sys_msg=True,
     )
 
     print("Generating dataset with Llama 3...")

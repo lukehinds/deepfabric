@@ -249,12 +249,12 @@ def deploy_large_scale_generation(config_path, checkpoint_interval=500):
     config = DeepFabricConfig.from_yaml(config_path)
     
     # Load or create topic tree
-    tree = Tree(args=config.get_tree_args())
+    tree = Tree(**config.get_tree_args())
     tree.build()
     tree.save("production_topics.jsonl")
-    
+
     # Create generator with production settings
-    generator = DataSetGenerator(args=config.get_engine_args())
+    generator = DataSetGenerator(**config.get_engine_args())
     
     # Large-scale generation with checkpointing
     dataset_config = config.get_dataset_config()

@@ -2,14 +2,14 @@
 
 The Tree class provides programmatic access to hierarchical topic modeling, enabling systematic exploration of domains through structured branching from root concepts to specific subtopics. This API offers fine-grained control over tree construction, modification, and persistence.
 
-## TreeArguments
+## Tree Configuration
 
-Configuration for tree generation is managed through the TreeArguments dataclass:
+Configuration for tree generation is passed directly to the Tree constructor:
 
 ```python
-from deepfabric import TreeArguments
+from deepfabric import Tree
 
-args = TreeArguments(
+tree = Tree(
     root_prompt="Machine learning fundamentals",
     model_name="openai/gpt-4",
     model_system_prompt="You are creating educational topic structures.",
@@ -38,10 +38,16 @@ args = TreeArguments(
 The Tree class handles construction, manipulation, and persistence of hierarchical topic structures:
 
 ```python
-from deepfabric import Tree, TreeArguments
+from deepfabric import Tree
 
 # Create and build a tree
-tree = Tree(args=TreeArguments(...))
+tree = Tree(
+    root_prompt="Machine learning fundamentals",
+    model_name="openai/gpt-4",
+    tree_degree=4,
+    tree_depth=3,
+    temperature=0.7
+)
 tree.build()
 
 # Access tree structure
@@ -84,7 +90,10 @@ Each line in the output file represents a complete path from root to leaf topic:
 Recreates tree structure from previously saved JSONL files:
 
 ```python
-tree = Tree(args=default_args)
+tree = Tree(
+    root_prompt="Default prompt",
+    model_name="openai/gpt-4"
+)
 tree.load("existing_topics.jsonl")
 ```
 
@@ -129,7 +138,12 @@ breadth = tree.get_average_breadth()
 Build trees incrementally for large structures:
 
 ```python
-tree = Tree(args=args)
+tree = Tree(
+    root_prompt="Complex domain",
+    model_name="openai/gpt-4",
+    tree_degree=4,
+    tree_depth=3
+)
 tree.build_level(0)  # Build root level
 # Inspect and modify if needed
 tree.build_level(1)  # Build next level
@@ -184,19 +198,30 @@ Common patterns for integrating Tree with other components:
 
 ```python
 # Tree to dataset generation
-tree = Tree(args=tree_args)
+tree = Tree(
+    root_prompt="Base concept",
+    model_name="openai/gpt-4",
+    tree_degree=4,
+    tree_depth=3
+)
 tree.build()
 
-generator = DataSetGenerator(args=generator_args)
+generator = DataSetGenerator(
+    instructions="Create educational content",
+    model_name="openai/gpt-4"
+)
 dataset = generator.create_data(topic_model=tree, num_steps=100)
 
 # Multiple tree variants
-base_args = TreeArguments(root_prompt="Base concept", ...)
 variants = []
 
 for degree in [3, 4, 5]:
-    variant_args = base_args.copy(tree_degree=degree)
-    variant_tree = Tree(args=variant_args)
+    variant_tree = Tree(
+        root_prompt="Base concept",
+        model_name="openai/gpt-4",
+        tree_degree=degree,
+        tree_depth=3
+    )
     variant_tree.build()
     variants.append(variant_tree)
 

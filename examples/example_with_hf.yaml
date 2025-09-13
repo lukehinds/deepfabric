@@ -1,22 +1,20 @@
 system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
 
 topic_tree:
-  args:
-    root_prompt: "Capital Cities of the World."
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 3
-    tree_depth: 2
-    temperature: 0.7
-    model_name: "ollama/mistral:latest"
+  root_prompt: "Capital Cities of the World."
+  model_system_prompt: "<system_prompt_placeholder>"
+  tree_degree: 3
+  tree_depth: 2
+  temperature: 0.7
+  model_name: "ollama/mistral:latest"
   save_as: "basic_prompt_Tree.jsonl"
 
 data_engine:
-  args:
-    instructions: "Please provide training examples with questions about capital cities."
-    system_prompt: "<system_prompt_placeholder>"
-    model_name: "ollama/mistral:latest"
-    temperature: 0.9
-    max_retries: 2
+  instructions: "Please provide training examples with questions about capital cities."
+  system_prompt: "<system_prompt_placeholder>"
+  model_name: "ollama/mistral:latest"
+  temperature: 0.9
+  max_retries: 2
 
 dataset:
   creation:

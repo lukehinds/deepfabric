@@ -2,14 +2,14 @@
 
 The DataSetGenerator class transforms topic structures into practical training examples through configurable templates, quality control mechanisms, and batch processing. This API provides comprehensive control over the dataset creation process from topic selection through content validation.
 
-## DataSetGeneratorArguments
+## DataSetGenerator Configuration
 
-Dataset generation configuration is managed through the DataSetGeneratorArguments dataclass:
+Dataset generation configuration is passed directly to the DataSetGenerator constructor:
 
 ```python
-from deepfabric import DataSetGeneratorArguments
+from deepfabric import DataSetGenerator
 
-args = DataSetGeneratorArguments(
+generator = DataSetGenerator(
     instructions="Create detailed explanations with practical examples for intermediate learners.",
     system_prompt="You are an expert instructor creating educational content.",
     model_name="openai/gpt-4",
@@ -44,10 +44,15 @@ args = DataSetGeneratorArguments(
 The DataSetGenerator class orchestrates the conversion from topics to training examples:
 
 ```python
-from deepfabric import DataSetGenerator, DataSetGeneratorArguments, Tree
+from deepfabric import DataSetGenerator, Tree
 
 # Create generator
-generator = DataSetGenerator(args=DataSetGeneratorArguments(...))
+generator = DataSetGenerator(
+    instructions="Create detailed educational content",
+    system_prompt="You are an expert instructor",
+    model_name="openai/gpt-4",
+    temperature=0.8
+)
 
 # Generate dataset from topic model
 dataset = generator.create_data(
@@ -239,20 +244,26 @@ dataset = generator.create_data(topic_model=tree, topic_sampler=custom_sampler)
 Use different models for different types of content:
 
 ```python
-# High-quality model for complex topics
-complex_topics = tree.get_topics_at_depth(3)
-complex_dataset = generator.create_data(
-    topics=complex_topics,
+# High-quality generator for complex topics
+complex_generator = DataSetGenerator(
+    instructions="Create advanced technical content",
     model_name="anthropic/claude-3-opus",
     temperature=0.7
 )
+complex_topics = tree.get_topics_at_depth(3)
+complex_dataset = complex_generator.create_data(
+    topics=complex_topics
+)
 
-# Faster model for simple topics
-simple_topics = tree.get_topics_at_depth(1)
-simple_dataset = generator.create_data(
-    topics=simple_topics,
+# Faster generator for simple topics
+simple_generator = DataSetGenerator(
+    instructions="Create basic explanations",
     model_name="openai/gpt-3.5-turbo",
     temperature=0.8
+)
+simple_topics = tree.get_topics_at_depth(1)
+simple_dataset = simple_generator.create_data(
+    topics=simple_topics
 )
 ```
 
@@ -286,6 +297,10 @@ Comprehensive error handling for robust operation:
 from deepfabric import DataSetGeneratorError, ModelError, ValidationError
 
 try:
+    generator = DataSetGenerator(
+        instructions="Create educational content",
+        model_name="openai/gpt-4"
+    )
     dataset = generator.create_data(topic_model=tree, num_steps=100)
 except ModelError as e:
     print(f"Model API issue: {e}")

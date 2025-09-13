@@ -9,18 +9,16 @@ import sys
 # Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from deepfabric import DataSetGenerator, DataSetGeneratorArguments, Tree, TreeArguments
+from deepfabric import DataSetGenerator, Tree
 
 # Create a topic tree with a simple root
 tree = Tree(
-    args=TreeArguments(
-        root_prompt="Data Science",
-        model_name="ollama/llama3",
-        model_system_prompt="You are a data science expert.",
-        tree_degree=3,
-        tree_depth=2,
-        temperature=0.7,
-    )
+    root_prompt="Data Science",
+    model_name="ollama/llama3",
+    model_system_prompt="You are a data science expert.",
+    tree_degree=3,
+    tree_depth=2,
+    temperature=0.7,
 )
 
 custom_topics = [
@@ -51,33 +49,31 @@ tree.save("custom_data_science_tree.jsonl")
 
 # Create an engine with specific instructions for data science content
 engine = DataSetGenerator(
-    args=DataSetGeneratorArguments(
-        instructions="""Create a comprehensive tutorial that includes:
-                       - Theoretical explanation of the concept
-                       - Mathematical formulation (if applicable)
-                       - Python code implementation using popular libraries
-                       - A practical example with sample data
-                       - Common use cases and applications
-                       - Pros and cons of the approach""",
-        system_prompt="""You are a data science educator with expertise in
-                        machine learning, deep learning, and data engineering.
-                        Provide clear, practical examples using Python.""",
-        model_name="ollama/llama3",
-        prompt_template=None,
-        example_data=None,
-        temperature=0.3,  # Lower temperature for more consistent technical content
-        max_retries=3,
-        default_batch_size=5,
-        default_num_examples=3,
-        request_timeout=30,
-        sys_msg=True,
-    )
+    instructions="""Create a comprehensive tutorial that includes:
+                   - Theoretical explanation of the concept
+                   - Mathematical formulation (if applicable)
+                   - Python code implementation using popular libraries
+                   - A practical example with sample data
+                   - Common use cases and applications
+                   - Pros and cons of the approach""",
+    system_prompt="""You are a data science educator with expertise in
+                    machine learning, deep learning, and data engineering.
+                    Provide clear, practical examples using Python.""",
+    model_name="ollama/llama3",
+    prompt_template=None,
+    example_data=None,
+    temperature=0.3,  # Lower temperature for more consistent technical content
+    max_retries=3,
+    default_batch_size=5,
+    default_num_examples=3,
+    request_timeout=30,
+    sys_msg=True,
 )
 
 # Generate dataset from custom topics
 dataset = engine.create_data(
     num_steps=len(custom_topics),  # One example per topic
-    batch_size=2,  # Process 2 at a time
+    batch_size=2,  # Process 2 at a timeGenerate 3 examples per topic
     topic_model=tree,
     sys_msg=True,  # Include system messages in the dataset
 )

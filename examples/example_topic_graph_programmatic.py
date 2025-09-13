@@ -9,8 +9,8 @@ import sys
 # Add the parent directory to sys.path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from deepfabric import DataSetGenerator, DataSetGeneratorArguments
-from deepfabric.graph import Graph, GraphArguments
+from deepfabric import DataSetGenerator
+from deepfabric.graph import Graph
 
 # Define the system prompt for consistency
 system_prompt = """You are an expert in computer science and software engineering.
@@ -19,13 +19,11 @@ Your responses should be technically accurate, practical, and include real-world
 # Create a topic graph with cross-connections
 print("Building topic graph...")
 graph = Graph(
-    args=GraphArguments(
-        root_prompt="Modern Software Architecture and Design Patterns",
-        model_name="ollama/llama3",  # Change to your preferred model
-        temperature=0.7,
-        graph_degree=3,  # 3 subtopics per node
-        graph_depth=2,  # 2 levels deep
-    )
+    root_prompt="Modern Software Architecture and Design Patterns",
+    model_name="ollama/llama3",  # Change to your preferred model
+    temperature=0.7,
+    graph_degree=3,  # 3 subtopics per node
+    graph_depth=2,  # 2 levels deep
 )
 
 # Build the graph (this will make LLM calls)
@@ -50,25 +48,23 @@ else:
 
 # Create a data engine for generating training data
 engine = DataSetGenerator(
-    args=DataSetGeneratorArguments(
-        instructions="""Create detailed technical explanations that include:
-                       - Core concepts and principles
-                       - Implementation examples in multiple languages
-                       - Best practices and anti-patterns
-                       - Performance considerations
-                       - Real-world use cases
-                       - Common pitfalls and how to avoid them""",
-        system_prompt=system_prompt,
-        model_name="ollama/llama3",
-        prompt_template=None,
-        example_data=None,
-        temperature=0.2,  # Lower temperature for more focused technical content
-        max_retries=3,
-        default_batch_size=5,
-        default_num_examples=3,
-        request_timeout=30,
-        sys_msg=True,
-    )
+    instructions="""Create detailed technical explanations that include:
+                   - Core concepts and principles
+                   - Implementation examples in multiple languages
+                   - Best practices and anti-patterns
+                   - Performance considerations
+                   - Real-world use cases
+                   - Common pitfalls and how to avoid them""",
+    system_prompt=system_prompt,
+    model_name="ollama/llama3",
+    prompt_template=None,
+    example_data=None,
+    temperature=0.2,  # Lower temperature for more focused technical content
+    max_retries=3,
+    default_batch_size=5,
+    default_num_examples=3,
+    request_timeout=30,
+    sys_msg=True,
 )
 
 # Generate dataset using the graph

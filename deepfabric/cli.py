@@ -17,7 +17,7 @@ from .constants import (
 from .factory import create_topic_generator
 from .generator import DataSetGenerator
 from .graph import Graph
-from .tree import Tree, TreeArguments
+from .tree import Tree
 from .tui import get_tui
 from .utils import read_topic_tree_from_jsonl
 
@@ -127,25 +127,21 @@ def generate(  # noqa: PLR0912, PLR0913
             minimal_config = {
                 "system_prompt": system_prompt or "You are a helpful AI assistant.",
                 "topic_tree": {
-                    "args": {
-                        "root_prompt": topic_prompt,
-                        "provider": provider or "gemini",
-                        "model": model or "gemini-2.5-flash-lite",
-                        "temperature": temperature or 0.7,
-                        "tree_degree": tree_degree or 3,
-                        "tree_depth": tree_depth or 3,
-                    },
+                    "root_prompt": topic_prompt,
+                    "provider": provider or "gemini",
+                    "model": model or "gemini-2.5-flash-lite",
+                    "temperature": temperature or 0.7,
+                    "tree_degree": tree_degree or 3,
+                    "tree_depth": tree_depth or 3,
                     "save_as": save_tree or "topic_tree.jsonl",
                 },
                 "data_engine": {
-                    "args": {
-                        "instructions": "Generate diverse and educational examples",
-                        "system_prompt": system_prompt or "You are a helpful AI assistant.",
-                        "provider": provider or "gemini",
-                        "model": model or "gemini-2.5-flash-lite",
-                        "temperature": temperature or 0.9,
-                        "max_retries": 3,
-                    }
+                    "instructions": "Generate diverse and educational examples",
+                    "system_prompt": system_prompt or "You are a helpful AI assistant.",
+                    "provider": provider or "gemini",
+                    "model": model or "gemini-2.5-flash-lite",
+                    "temperature": temperature or 0.9,
+                    "max_retries": 3,
                 },
                 "dataset": {
                     "creation": {
@@ -163,14 +159,12 @@ def generate(  # noqa: PLR0912, PLR0913
             if graph_degree is not None or graph_depth is not None:
                 minimal_config["topic_generator"] = "graph"
                 minimal_config["topic_graph"] = {
-                    "args": {
-                        "root_prompt": topic_prompt,
-                        "provider": provider or "gemini",
-                        "model": model or "gemini-2.5-flash-lite",
-                        "temperature": temperature or 0.7,
-                        "graph_degree": graph_degree or 3,
-                        "graph_depth": graph_depth or 2,
-                    },
+                    "root_prompt": topic_prompt,
+                    "provider": provider or "gemini",
+                    "model": model or "gemini-2.5-flash-lite",
+                    "temperature": temperature or 0.7,
+                    "graph_degree": graph_degree or 3,
+                    "graph_depth": graph_depth or 2,
                     "save_as": save_graph or "topic_graph.json",
                 }
                 # Remove topic_tree from config since we're using graph
@@ -237,7 +231,7 @@ def generate(  # noqa: PLR0912, PLR0913
             if load_tree:
                 tui.info(f"Reading topic tree from JSONL file: {load_tree}")
                 dict_list = read_topic_tree_from_jsonl(load_tree)
-                default_args = TreeArguments(
+                topic_model = Tree(
                     root_prompt="default",
                     model_name=model_name,
                     model_system_prompt="",
@@ -245,12 +239,11 @@ def generate(  # noqa: PLR0912, PLR0913
                     tree_depth=TOPIC_TREE_DEFAULT_DEPTH,
                     temperature=TOPIC_TREE_DEFAULT_TEMPERATURE,
                 )
-                topic_model = Tree(args=default_args)
                 topic_model.from_dict_list(dict_list)
             elif load_graph:
                 tui.info(f"Reading topic graph from JSON file: {load_graph}")
-                graph_args = config.get_topic_graph_args(**graph_overrides)
-                topic_model = Graph.from_json(load_graph, graph_args)
+                graph_params = config.get_topic_graph_params(**graph_overrides)
+                topic_model = Graph.from_json(load_graph, graph_params)
             else:
                 topic_model = create_topic_generator(
                     config, tree_overrides=tree_overrides, graph_overrides=graph_overrides
@@ -297,7 +290,7 @@ def generate(  # noqa: PLR0912, PLR0913
 
         # Create data engine
         try:
-            engine = DataSetGenerator(args=config.get_engine_args(**engine_overrides))
+            engine = DataSetGenerator(**config.get_engine_params(**engine_overrides))
         except Exception as e:
             handle_error(
                 click.get_current_context(), ValueError(f"Error creating data engine: {str(e)}")
@@ -411,15 +404,15 @@ def visualize(graph_file: str, output: str) -> None:
             TOPIC_GRAPH_DEFAULT_DEGREE,
             TOPIC_GRAPH_DEFAULT_DEPTH,
         )
-        from .graph import GraphArguments  # noqa: PLC0415
 
-        args = GraphArguments(
-            root_prompt="placeholder",  # Not needed for visualization
-            model_name="placeholder/model",  # Not needed for visualization
-            graph_degree=graph_data.get("degree", TOPIC_GRAPH_DEFAULT_DEGREE),
-            graph_depth=graph_data.get("depth", TOPIC_GRAPH_DEFAULT_DEPTH),
-            temperature=0.7,  # Default, not used for visualization
-        )
+        # Create parameters for Graph instantiation
+        graph_params = {
+            "root_prompt": "placeholder",  # Not needed for visualization
+            "model_name": "placeholder/model",  # Not needed for visualization
+            "graph_degree": graph_data.get("degree", TOPIC_GRAPH_DEFAULT_DEGREE),
+            "graph_depth": graph_data.get("depth", TOPIC_GRAPH_DEFAULT_DEPTH),
+            "temperature": 0.7,  # Default, not used for visualization
+        }
 
         # Use the Graph.from_json method to properly load the graph structure
         import tempfile  # noqa: PLC0415
@@ -430,7 +423,7 @@ def visualize(graph_file: str, output: str) -> None:
             temp_path = tmp_file.name
 
         try:
-            graph = Graph.from_json(temp_path, args)
+            graph = Graph.from_json(temp_path, graph_params)
         finally:
             import os  # noqa: PLC0415
 
