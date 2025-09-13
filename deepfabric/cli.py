@@ -5,11 +5,8 @@ import tempfile
 from typing import NoReturn
 
 import click
-import yaml
 import litellm
-
-# Suppress LiteLLM debug messages and feedback prompts
-litellm.suppress_debug_info = True
+import yaml
 
 from .config import DeepFabricConfig, construct_model_string
 from .constants import (
@@ -23,6 +20,9 @@ from .graph import Graph
 from .tree import Tree, TreeArguments
 from .tui import get_tui
 from .utils import read_topic_tree_from_jsonl
+
+# Suppress LiteLLM debug messages and feedback prompts
+litellm.suppress_debug_info = True
 
 
 def handle_error(ctx: click.Context, error: Exception) -> NoReturn:  # noqa: ARG001

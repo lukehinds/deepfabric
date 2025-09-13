@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import litellm
 
+from litellm.exceptions import AuthenticationError
 from pydantic import BaseModel, Field, field_validator
 from tqdm.rich import tqdm
 
@@ -27,8 +28,7 @@ from .exceptions import (
 )
 from .prompts import ENGINE_JSON_INSTRUCTIONS, SAMPLE_GENERATION_PROMPT
 from .topic_model import TopicModel
-from .tui import get_tui, get_dataset_tui
-
+from .tui import get_dataset_tui, get_tui
 
 # Handle circular import for type hints
 if TYPE_CHECKING:
@@ -490,8 +490,7 @@ class DataSetGenerator:
                         pbar.update(successful_samples)
 
                     return True  # Success - exit retry loop
-
-            except litellm.AuthenticationError as e:  # noqa: F841
+            except AuthenticationError as e:  # noqa: F841
                 # Handle authentication errors specifically - don't retry, they won't succeed
                 provider = self.model_name.split("/")[0] if "/" in self.model_name else "unknown"
                 error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."

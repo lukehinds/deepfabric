@@ -330,18 +330,12 @@ class Graph(TopicModel):
                 if not tui:  # Only print if no TUI
                     print(f"Attempt {retries + 1}: {last_error}. Retrying...")
 
-            except litellm.AuthenticationError as e:
+            except Exception as e:
                 provider = (
                     self.args.model_name.split("/")[0] if "/" in self.args.model_name else "unknown"
                 )
                 error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."
                 raise RuntimeError(error_msg) from e
-            except Exception as e:
-                last_error = str(e)
-                if not tui:  # Only print if no TUI
-                    print(
-                        f"Error generating subtopics (attempt {retries + 1}/{max_retries}): {last_error}"
-                    )
 
             retries += 1
             if retries < max_retries:
