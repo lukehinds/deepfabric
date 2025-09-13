@@ -18,7 +18,7 @@ tree = Tree(
         model_name="ollama/llama3",  # Change to your model
         model_system_prompt="You are a Python programming instructor.",
         tree_degree=3,  # 3 branches per level
-        tree_depth=2,   # 2 levels deep
+        tree_depth=2,  # 2 levels deep
         temperature=0.7,
     )
 )
@@ -46,9 +46,9 @@ engine = DataSetGenerator(
 
 # Step 3: Generate the dataset
 dataset = engine.create_data(
-    num_steps=5,        # Generate 5 examples
-    batch_size=1,       # One at a time
-    topic_model=tree,   # Use our topic tree
+    num_steps=5,  # Generate 5 examples
+    batch_size=1,  # One at a time
+    topic_model=tree,  # Use our topic tree
 )
 
 # Step 4: Save the dataset

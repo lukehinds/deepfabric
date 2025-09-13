@@ -40,7 +40,7 @@ loaded_graph = Graph.from_json(
         temperature=0.6,
         graph_degree=2,
         graph_depth=2,
-    )
+    ),
 )
 
 print(f"Loaded graph with {len(loaded_graph.nodes)} nodes")
@@ -76,8 +76,8 @@ engine = DataSetGenerator(
 # Generate a new dataset from the loaded graph
 print("\nGenerating new dataset from loaded graph...")
 dataset = engine.create_data(
-    num_steps=5,            # Generate fewer examples this time
-    batch_size=1,           # One at a time
+    num_steps=5,  # Generate fewer examples this time
+    batch_size=1,  # One at a time
     topic_model=loaded_graph,
 )
 

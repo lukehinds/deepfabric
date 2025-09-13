@@ -1,9 +1,11 @@
 import os
 import sys
+import tempfile
 
 from typing import NoReturn
 
 import click
+import litellm
 import yaml
 
 from .config import DeepFabricConfig, construct_model_string
@@ -18,6 +20,9 @@ from .graph import Graph
 from .tree import Tree, TreeArguments
 from .tui import get_tui
 from .utils import read_topic_tree_from_jsonl
+
+# Suppress LiteLLM debug messages and feedback prompts
+litellm.suppress_debug_info = True
 
 
 def handle_error(ctx: click.Context, error: Exception) -> NoReturn:  # noqa: ARG001
@@ -35,7 +40,11 @@ def cli():
 
 
 @cli.command()
-@click.argument("config_file", type=click.Path(exists=True))
+@click.argument("config_file", type=click.Path(exists=True), required=False)
+@click.option("--system-prompt", help="System prompt for the entire pipeline")
+@click.option(
+    "--topic-prompt", help="Topic prompt for tree/graph generation (required if no config)"
+)
 @click.option("--save-tree", help="Override the save path for the tree")
 @click.option(
     "--load-tree",
@@ -64,7 +73,9 @@ def cli():
     help="Include system message in dataset (default: true)",
 )
 def generate(  # noqa: PLR0912, PLR0913
-    config_file: str,
+    config_file: str | None,
+    system_prompt: str | None = None,
+    topic_prompt: str | None = None,
     save_tree: str | None = None,
     load_tree: str | None = None,
     save_graph: str | None = None,
@@ -81,29 +92,113 @@ def generate(  # noqa: PLR0912, PLR0913
     batch_size: int | None = None,
     sys_msg: bool | None = None,
 ) -> None:
-    """Generate training data from a YAML configuration file."""
+    """Generate training data from a YAML configuration file or CLI parameters."""
     try:
-        # Load configuration
-        try:
-            config = DeepFabricConfig.from_yaml(config_file)
-        except FileNotFoundError:
-            handle_error(
-                click.get_current_context(), ValueError(f"Config file not found: {config_file}")
-            )
-        except yaml.YAMLError as e:
-            handle_error(
-                click.get_current_context(), ValueError(f"Invalid YAML in config file: {str(e)}")
-            )
-        except Exception as e:
-            handle_error(
-                click.get_current_context(), ValueError(f"Error loading config file: {str(e)}")
-            )
+        # Load configuration or create minimal config from CLI args
+        if config_file:
+            try:
+                config = DeepFabricConfig.from_yaml(config_file)
+            except FileNotFoundError:
+                handle_error(
+                    click.get_current_context(), ValueError(f"Config file not found: {config_file}")
+                )
+            except yaml.YAMLError as e:
+                handle_error(
+                    click.get_current_context(),
+                    ValueError(f"Invalid YAML in config file: {str(e)}"),
+                )
+            except Exception as e:
+                handle_error(
+                    click.get_current_context(), ValueError(f"Error loading config file: {str(e)}")
+                )
+        else:
+            # No config file provided - validate required CLI parameters
+            if not topic_prompt:
+                handle_error(
+                    click.get_current_context(),
+                    ValueError("--topic-prompt is required when no config file is provided"),
+                )
+
+            # Create minimal configuration from CLI args
+            tui = get_tui()
+            tui.info("No config file provided - using CLI parameters")
+
+            # Create a minimal config dict
+            minimal_config = {
+                "system_prompt": system_prompt or "You are a helpful AI assistant.",
+                "topic_tree": {
+                    "args": {
+                        "root_prompt": topic_prompt,
+                        "provider": provider or "gemini",
+                        "model": model or "gemini-2.5-flash-lite",
+                        "temperature": temperature or 0.7,
+                        "tree_degree": tree_degree or 3,
+                        "tree_depth": tree_depth or 3,
+                    },
+                    "save_as": save_tree or "topic_tree.jsonl",
+                },
+                "data_engine": {
+                    "args": {
+                        "instructions": "Generate diverse and educational examples",
+                        "system_prompt": system_prompt or "You are a helpful AI assistant.",
+                        "provider": provider or "gemini",
+                        "model": model or "gemini-2.5-flash-lite",
+                        "temperature": temperature or 0.9,
+                        "max_retries": 3,
+                    }
+                },
+                "dataset": {
+                    "creation": {
+                        "num_steps": num_steps or 5,
+                        "batch_size": batch_size or 2,
+                        "provider": provider or "gemini",
+                        "model": model or "gemini-2.5-flash-lite",
+                        "sys_msg": sys_msg if sys_msg is not None else True,
+                    },
+                    "save_as": dataset_save_as or "dataset.jsonl",
+                },
+            }
+
+            # If graph parameters provided, switch to graph mode
+            if graph_degree is not None or graph_depth is not None:
+                minimal_config["topic_generator"] = "graph"
+                minimal_config["topic_graph"] = {
+                    "args": {
+                        "root_prompt": topic_prompt,
+                        "provider": provider or "gemini",
+                        "model": model or "gemini-2.5-flash-lite",
+                        "temperature": temperature or 0.7,
+                        "graph_degree": graph_degree or 3,
+                        "graph_depth": graph_depth or 2,
+                    },
+                    "save_as": save_graph or "topic_graph.json",
+                }
+                # Remove topic_tree from config since we're using graph
+                del minimal_config["topic_tree"]
+
+            # Create config object from dict
+
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+                yaml.dump(minimal_config, f)
+                temp_config_path = f.name
+
+            try:
+                config = DeepFabricConfig.from_yaml(temp_config_path)
+            finally:
+                os.unlink(temp_config_path)
+
+        # Apply system prompt override if provided
+        if system_prompt:
+            config.system_prompt = system_prompt
+
         # Get dataset parameters
         dataset_config = config.get_dataset_config()
         dataset_params = dataset_config.get("creation", {})
 
         # Prepare topic tree overrides
         tree_overrides = {}
+        if topic_prompt:
+            tree_overrides["root_prompt"] = topic_prompt
         if provider:
             tree_overrides["provider"] = provider
         if model:
@@ -117,6 +212,8 @@ def generate(  # noqa: PLR0912, PLR0913
 
         # Prepare topic graph overrides
         graph_overrides = {}
+        if topic_prompt:
+            graph_overrides["root_prompt"] = topic_prompt
         if provider:
             graph_overrides["provider"] = provider
         if model:

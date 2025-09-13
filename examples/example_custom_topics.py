@@ -27,7 +27,14 @@ custom_topics = [
     {"path": ["Data Science", "Machine Learning", "Supervised Learning", "Classification"]},
     {"path": ["Data Science", "Machine Learning", "Supervised Learning", "Regression"]},
     {"path": ["Data Science", "Machine Learning", "Unsupervised Learning", "Clustering"]},
-    {"path": ["Data Science", "Machine Learning", "Unsupervised Learning", "Dimensionality Reduction"]},
+    {
+        "path": [
+            "Data Science",
+            "Machine Learning",
+            "Unsupervised Learning",
+            "Dimensionality Reduction",
+        ]
+    },
     {"path": ["Data Science", "Deep Learning", "Neural Networks", "CNNs"]},
     {"path": ["Data Science", "Deep Learning", "Neural Networks", "RNNs"]},
     {"path": ["Data Science", "Deep Learning", "Neural Networks", "Transformers"]},
@@ -70,7 +77,7 @@ engine = DataSetGenerator(
 # Generate dataset from custom topics
 dataset = engine.create_data(
     num_steps=len(custom_topics),  # One example per topic
-    batch_size=2,                  # Process 2 at a time
+    batch_size=2,  # Process 2 at a time
     topic_model=tree,
     sys_msg=True,  # Include system messages in the dataset
 )

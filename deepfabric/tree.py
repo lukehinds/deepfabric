@@ -7,6 +7,7 @@ from typing import Any
 
 import litellm
 
+from litellm.exceptions import APIError, AuthenticationError
 from pydantic import BaseModel, Field, field_validator
 
 from .constants import (
@@ -203,10 +204,9 @@ class Tree(TopicModel):
 
             tui.finish_building(len(self.tree_paths), len(self.failed_generations))
 
-        except Exception as e:
+        except Exception as e:  # noqa: F841
             if tui.progress:
                 tui.progress.stop()
-            tui.tui.error(f"Error building tree: {str(e)}")
             if self.tree_paths:
                 tui.tui.info("Saving partial tree...")
                 self.save("partial_tree.jsonl")
@@ -304,6 +304,17 @@ class Tree(TopicModel):
                 if not tui:  # Only print if no TUI
                     print(f"Attempt {retries + 1}: {last_error}. Retrying...")
 
+            except (AuthenticationError, APIError) as e:
+                provider = self.model_name.split("/")[0] if "/" in self.model_name else "unknown"
+                error_str = str(e).lower()
+                if any(
+                    keyword in error_str
+                    for keyword in ["api_key", "api key", "authentication", "unauthorized"]
+                ):
+                    error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."
+                else:
+                    error_msg = f"API error for provider '{provider}': {str(e)[:100]}..."
+                raise RuntimeError(error_msg) from e
             except Exception as e:
                 last_error = str(e)
                 if not tui:  # Only print if no TUI

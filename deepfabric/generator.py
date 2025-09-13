@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import litellm
 
+from litellm.exceptions import APIError, AuthenticationError
 from pydantic import BaseModel, Field, field_validator
 from tqdm.rich import tqdm
 
@@ -27,7 +28,7 @@ from .exceptions import (
 )
 from .prompts import ENGINE_JSON_INSTRUCTIONS, SAMPLE_GENERATION_PROMPT
 from .topic_model import TopicModel
-from .tui import get_dataset_tui
+from .tui import get_dataset_tui, get_tui
 
 # Handle circular import for type hints
 if TYPE_CHECKING:
@@ -489,7 +490,27 @@ class DataSetGenerator:
                         pbar.update(successful_samples)
 
                     return True  # Success - exit retry loop
+            except (AuthenticationError, APIError) as e:
+                provider = self.model_name.split("/")[0] if "/" in self.model_name else "unknown"
+                error_str = str(e).lower()
+                if any(
+                    keyword in error_str
+                    for keyword in ["api_key", "api key", "authentication", "unauthorized"]
+                ):
+                    error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."
+                else:
+                    error_msg = f"API error for provider '{provider}': {str(e)[:100]}..."
+                self.failed_samples.append(error_msg)
+                self.failure_analysis["authentication_error"].append(error_msg)
 
+                # Use TUI to display error if available
+                try:
+                    tui = get_tui()
+                    tui.error(error_msg)
+                except Exception:
+                    print(f"Authentication Error: {error_msg}")
+
+                return False  # Don't retry authentication errors
             except Exception as e:
                 if attempt == self.args.max_retries - 1:
                     # Don't print here, let TUI or calling code handle final messaging

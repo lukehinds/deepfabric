@@ -24,7 +24,7 @@ graph = Graph(
         model_name="ollama/llama3",  # Change to your preferred model
         temperature=0.7,
         graph_degree=3,  # 3 subtopics per node
-        graph_depth=2,   # 2 levels deep
+        graph_depth=2,  # 2 levels deep
     )
 )
 
@@ -74,8 +74,8 @@ engine = DataSetGenerator(
 # Generate dataset using the graph
 print("\nGenerating dataset from graph...")
 dataset = engine.create_data(
-    num_steps=10,       # Generate 10 examples
-    batch_size=2,       # Process 2 at a time
+    num_steps=10,  # Generate 10 examples
+    batch_size=2,  # Process 2 at a time
     topic_model=graph,  # Use the graph as topic source
 )
 
