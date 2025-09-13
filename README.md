@@ -120,8 +120,6 @@ DeepFabric solves the challenge of creating diverse, high-quality training data 
 
 **Provider Agnostic**: Works seamlessly with OpenAI, Anthropic, Google, Ollama, and any LiteLLM-supported provider. Mix and match models for different stages of generation.
 
-**Production Ready**: Built-in retry logic, JSON validation, and error handling ensure robust dataset generation even with unpredictable LLM outputs.
-
 **Export Anywhere**: Direct integration with Hugging Face Hub, or export to JSONL for use with any training framework.
 
 ## Key Features
