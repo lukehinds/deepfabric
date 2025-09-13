@@ -15,9 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from deepfabric import (
     Dataset,
     DataSetGenerator,
-    DataSetGeneratorArguments,
     Tree,
-    TreeArguments,
 )
 
 # Uncomment to use HuggingFace integration
@@ -125,14 +123,12 @@ def main():
     print("=" * 50)
 
     tree = Tree(
-        args=TreeArguments(
-            root_prompt=ROOT_TOPIC,
-            model_name=MODEL_NAME,
-            model_system_prompt="You are an expert in software architecture and Python.",
-            tree_degree=4,
-            tree_depth=3,
-            temperature=0.7,
-        )
+        root_prompt=ROOT_TOPIC,
+        model_name=MODEL_NAME,
+        model_system_prompt="You are an expert in software architecture and Python.",
+        tree_degree=4,
+        tree_depth=3,
+        temperature=0.7,
     )
 
     try:
@@ -149,27 +145,25 @@ def main():
     print("=" * 50)
 
     engine = DataSetGenerator(
-        args=DataSetGeneratorArguments(
-            instructions="""Create an advanced Python tutorial that includes:
-                          - Design pattern explanation and use cases
-                          - Complete implementation with type hints
-                          - Unit tests using pytest
-                          - Performance considerations
-                          - Real-world application example
-                          - Comparison with alternative approaches""",
-            system_prompt="""You are a senior Python developer and architect.
-                           Your code follows PEP 8, uses type hints, and includes
-                           comprehensive docstrings. You prioritize clean, maintainable code.""",
-            model_name=MODEL_NAME,
-            prompt_template=None,
-            example_data=None,
-            temperature=0.3,
-            max_retries=5,
-            default_batch_size=5,
-            default_num_examples=3,
-            request_timeout=30,
-            sys_msg=True,
-        )
+        instructions="""Create an advanced Python tutorial that includes:
+                      - Design pattern explanation and use cases
+                      - Complete implementation with type hints
+                      - Unit tests using pytest
+                      - Performance considerations
+                      - Real-world application example
+                      - Comparison with alternative approaches""",
+        system_prompt="""You are a senior Python developer and architect.
+                       Your code follows PEP 8, uses type hints, and includes
+                       comprehensive docstrings. You prioritize clean, maintainable code.""",
+        model_name=MODEL_NAME,
+        prompt_template=None,
+        example_data=None,
+        temperature=0.3,
+        max_retries=5,
+        default_batch_size=5,
+        default_num_examples=3,
+        request_timeout=30,
+        sys_msg=True,
     )
 
     # Step 3: Generate and validate dataset
@@ -237,8 +231,8 @@ def main():
         "root_topic": ROOT_TOPIC,
         "model": MODEL_NAME,
         "tree_config": {
-            "degree": tree.args.tree_degree,
-            "depth": tree.args.tree_depth,
+            "degree": tree.tree_degree,
+            "depth": tree.tree_depth,
         },
         "statistics": stats,
         "failed_samples": len(engine.failed_samples),

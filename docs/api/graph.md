@@ -2,14 +2,14 @@
 
 The Graph class provides programmatic access to graph-based topic modeling, enabling complex domain representation through networks of interconnected concepts. This experimental API supports both hierarchical relationships and cross-connections between topics in different branches.
 
-## GraphArguments
+## Graph Configuration
 
-Graph configuration uses the GraphArguments dataclass with parameters similar to trees but extended for graph-specific features:
+Graph configuration is passed directly to the Graph constructor with parameters similar to trees but extended for graph-specific features:
 
 ```python
-from deepfabric import GraphArguments
+from deepfabric import Graph
 
-args = GraphArguments(
+graph = Graph(
     root_prompt="Artificial intelligence research areas",
     model_name="anthropic/claude-3-opus",
     model_system_prompt="You are mapping interconnected research concepts.",
@@ -38,10 +38,16 @@ args = GraphArguments(
 The Graph class manages construction and manipulation of topic graph structures:
 
 ```python
-from deepfabric import Graph, GraphArguments
+from deepfabric import Graph
 
 # Create and build a graph
-graph = Graph(args=GraphArguments(...))
+graph = Graph(
+    root_prompt="Artificial intelligence research areas",
+    model_name="anthropic/claude-3-opus",
+    graph_degree=4,
+    graph_depth=3,
+    temperature=0.8
+)
 graph.build()
 
 # Access graph structure
@@ -96,16 +102,23 @@ Output format includes complete structural information:
 Reconstructs graph from previously saved JSON files:
 
 ```python
-graph = Graph(args=default_args)
+graph = Graph(
+    root_prompt="Default prompt",
+    model_name="anthropic/claude-3-opus"
+)
 graph.load("existing_graph.json")
 ```
 
-#### from_json(filepath: str, args: GraphArguments)
+#### from_json(filepath: str, **kwargs)
 
 Class method for loading graphs with specific configuration:
 
 ```python
-graph = Graph.from_json("saved_graph.json", graph_args)
+graph = Graph.from_json(
+    "saved_graph.json",
+    root_prompt="Research areas",
+    model_name="anthropic/claude-3-opus"
+)
 ```
 
 #### visualize(output_path: str)
@@ -143,7 +156,12 @@ centrality_scores = graph.calculate_centrality()
 Control graph construction through individual phases:
 
 ```python
-graph = Graph(args=args)
+graph = Graph(
+    root_prompt="Complex domain",
+    model_name="anthropic/claude-3-opus",
+    graph_degree=4,
+    graph_depth=3
+)
 graph.build_hierarchical_structure()  # Create tree backbone
 graph.analyze_connections()           # Find potential cross-connections
 graph.create_cross_connections()      # Add lateral relationships
@@ -201,7 +219,11 @@ Graphs integrate seamlessly with dataset generation:
 
 ```python
 # Generate dataset from graph
-generator = DataSetGenerator(args=generator_args)
+generator = DataSetGenerator(
+    instructions="Create interconnected explanations",
+    model_name="anthropic/claude-3-opus",
+    temperature=0.7
+)
 dataset = generator.create_data(
     topic_model=graph,
     num_steps=150,

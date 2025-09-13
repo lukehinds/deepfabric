@@ -8,7 +8,7 @@ from typing import Any
 import litellm
 
 from litellm.exceptions import APIError, AuthenticationError
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from .constants import (
     DEFAULT_MAX_TOKENS,
@@ -53,58 +53,38 @@ def validate_and_clean_response(response_text: str) -> str | list[str] | None:
         return None
 
 
-class TreeArguments(BaseModel):
-    """Arguments for constructing a topic tree."""
+class TreeConfig(BaseModel):
+    """Configuration for constructing a topic tree."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     root_prompt: str = Field(
         ..., min_length=1, description="The initial prompt to start the topic tree"
     )
-    model_system_prompt: str = Field("", description="The system prompt for the model")
+    model_system_prompt: str = Field(default="", description="The system prompt for the model")
     tree_degree: int = Field(
-        TOPIC_TREE_DEFAULT_DEGREE,
+        default=TOPIC_TREE_DEFAULT_DEGREE,
         ge=1,
-        le=50,
+        le=UPPER_TREE_DEGREE,
         description="The branching factor of the tree",
     )
     tree_depth: int = Field(
-        TOPIC_TREE_DEFAULT_DEPTH, ge=1, le=10, description="The depth of the tree"
+        default=TOPIC_TREE_DEFAULT_DEPTH,
+        ge=1,
+        le=UPPER_TREE_DEPTH,
+        description="The depth of the tree",
     )
     model_name: str = Field(
-        TOPIC_TREE_DEFAULT_MODEL,
+        default=TOPIC_TREE_DEFAULT_MODEL,
         min_length=1,
         description="The name of the model to be used",
     )
     temperature: float = Field(
-        TOPIC_TREE_DEFAULT_TEMPERATURE,
+        default=TOPIC_TREE_DEFAULT_TEMPERATURE,
         ge=0.0,
         le=2.0,
         description="Temperature for model generation",
     )
-
-    @field_validator("tree_degree")
-    @classmethod
-    def validate_tree_degree(cls, v):
-        if v <= 0:
-            raise ValueError("positive")
-        if v > UPPER_TREE_DEGREE:
-            raise ValueError("max")
-        return v
-
-    @field_validator("tree_depth")
-    @classmethod
-    def validate_tree_depth(cls, v):
-        if v <= 0:
-            raise ValueError("positive")
-        if v > UPPER_TREE_DEPTH:
-            raise ValueError("max")
-        return v
-
-    @field_validator("model_name")
-    @classmethod
-    def validate_model_name(cls, v):
-        if not v or not v.strip():
-            raise ValueError("required")
-        return v.strip()
 
 
 class TreeValidator:
@@ -153,26 +133,25 @@ class TreeValidator:
 class Tree(TopicModel):
     """A class to represent and build a hierarchical topic tree."""
 
-    def __init__(self, args: TreeArguments):
-        """Initialize the Tree with the given arguments."""
-        if not isinstance(args, TreeArguments):
-            raise TreeError("invalid")
-
+    def __init__(self, **kwargs):
+        """Initialize the Tree with the given parameters."""
         try:
-            # Validate args if it's a dict (for backward compatibility)
-            if isinstance(args, dict):
-                args = TreeArguments(**args)
+            self.config = TreeConfig.model_validate(kwargs)
         except Exception as e:
-            raise TreeError("invalid args") from e  # noqa: TRY003
+            raise TreeError(f"Invalid tree configuration: {str(e)}") from e  # noqa: TRY003
 
         json_instructions = TREE_JSON_INSTRUCTIONS
 
-        self.args = args
-        self.system_prompt = json_instructions + args.model_system_prompt
-        self.temperature = args.temperature
-        self.model_name = args.model_name
-        self.tree_degree = args.tree_degree
-        self.tree_depth = args.tree_depth
+        # Initialize from config
+        self.root_prompt = self.config.root_prompt
+        self.model_system_prompt = self.config.model_system_prompt
+        self.tree_degree = self.config.tree_degree
+        self.tree_depth = self.config.tree_depth
+        self.temperature = self.config.temperature
+        self.model_name = self.config.model_name
+
+        # Derived attributes
+        self.system_prompt = json_instructions + self.config.model_system_prompt
         self.tree_paths: list[list[str]] = []
         self.failed_generations: list[dict[str, Any]] = []
 
@@ -189,14 +168,14 @@ class Tree(TopicModel):
 
         # Initialize TUI
         tui = get_tree_tui()
-        tui.start_building(self.model_name, self.args.tree_depth, self.args.tree_degree)
+        tui.start_building(self.model_name, self.config.tree_depth, self.config.tree_degree)
 
         try:
             self.tree_paths = self.build_subtree(
-                [self.args.root_prompt],
+                [self.config.root_prompt],
                 self.system_prompt,
-                self.args.tree_degree,
-                self.args.tree_depth,
+                self.config.tree_degree,
+                self.config.tree_depth,
                 model_name=self.model_name,
                 tui=tui,
                 current_depth=1,
@@ -436,7 +415,7 @@ class Tree(TopicModel):
             dict: Dictionary containing the tree structure and metadata
         """
         return {
-            "root_prompt": self.args.root_prompt,
+            "root_prompt": self.config.root_prompt,
             "tree_degree": self.tree_degree,
             "tree_depth": self.tree_depth,
             "model_name": self.model_name,
@@ -444,13 +423,13 @@ class Tree(TopicModel):
             "paths": self.tree_paths,
             "failed_generations": self.failed_generations,
             "total_paths": len(self.tree_paths),
-            "args": {
-                "root_prompt": self.args.root_prompt,
-                "model_system_prompt": self.args.model_system_prompt,
-                "tree_degree": self.args.tree_degree,
-                "tree_depth": self.args.tree_depth,
-                "model_name": self.args.model_name,
-                "temperature": self.args.temperature,
+            "config": {
+                "root_prompt": self.config.root_prompt,
+                "model_system_prompt": self.config.model_system_prompt,
+                "tree_degree": self.config.tree_degree,
+                "tree_depth": self.config.tree_depth,
+                "model_name": self.config.model_name,
+                "temperature": self.config.temperature,
             },
         }
 

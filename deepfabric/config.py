@@ -6,9 +6,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from .constants import DEFAULT_MODEL, DEFAULT_PROVIDER, SYSTEM_PROMPT_PLACEHOLDER
 from .exceptions import ConfigurationError
-from .generator import DataSetGeneratorArguments
-from .graph import GraphArguments
-from .tree import TreeArguments
+
+# Config classes are no longer imported directly as they're not used in this module
 
 
 def construct_model_string(provider: str, model: str) -> str:
@@ -59,82 +58,123 @@ class DeepFabricConfig(BaseModel):
                 f"invalid structure: {str(e)}"
             ) from e  # noqa: TRY003
 
-    def get_topic_tree_args(self, **overrides) -> TreeArguments:
-        """Get TreeArguments from config with optional overrides."""
+    def get_topic_tree_params(self, **overrides) -> dict:
+        """Get parameters for Tree instantiation."""
         if not self.topic_tree:
             raise ConfigurationError("missing 'topic_tree' configuration")  # noqa: TRY003
         try:
-            args = self.topic_tree.get("args", {}).copy()
+            # Check for old format with deprecation warning
+            if "args" in self.topic_tree:
+                params = self.topic_tree["args"].copy()
+                print(
+                    "Warning: 'args' wrapper in topic_tree config is deprecated. Please update your config."
+                )
+            else:
+                params = self.topic_tree.copy()
+
+            # Remove non-constructor params
+            params.pop("save_as", None)
 
             # Replace system prompt placeholder
-            if "model_system_prompt" in args and isinstance(args["model_system_prompt"], str):
-                args["model_system_prompt"] = args["model_system_prompt"].replace(
+            if "model_system_prompt" in params and isinstance(params["model_system_prompt"], str):
+                params["model_system_prompt"] = params["model_system_prompt"].replace(
                     SYSTEM_PROMPT_PLACEHOLDER, self.system_prompt
                 )
 
-            # Handle provider and model separately
-            provider = overrides.pop("provider", args.pop("provider", DEFAULT_PROVIDER))
-            model = overrides.pop("model", args.pop("model", DEFAULT_MODEL))
+            # Handle provider and model separately if present
+            provider = overrides.pop("provider", params.pop("provider", None))
+            model = overrides.pop("model", params.pop("model", None))
 
             # Apply remaining overrides
-            args.update(overrides)
+            params.update(overrides)
 
-            # Construct full model string
-            args["model_name"] = construct_model_string(provider, model)
+            # Construct full model string if provider/model were specified
+            if provider and model:
+                params["model_name"] = construct_model_string(provider, model)
+            elif "model_name" not in params:
+                params["model_name"] = construct_model_string(DEFAULT_PROVIDER, DEFAULT_MODEL)
 
-            return TreeArguments(**args)
         except Exception as e:
-            raise ConfigurationError(f"args error: {str(e)}") from e  # noqa: TRY003
+            raise ConfigurationError(f"config error: {str(e)}") from e  # noqa: TRY003
+        else:
+            return params
 
-    def get_topic_graph_args(self, **overrides) -> GraphArguments:
-        """Get GraphArguments from config with optional overrides."""
+    def get_topic_graph_params(self, **overrides) -> dict:
+        """Get parameters for Graph instantiation."""
         if not self.topic_graph:
             raise ConfigurationError("missing 'topic_graph' configuration")  # noqa: TRY003
         try:
-            args = self.topic_graph.get("args", {}).copy()
+            # Check for old format with deprecation warning
+            if "args" in self.topic_graph:
+                params = self.topic_graph["args"].copy()
+                print(
+                    "Warning: 'args' wrapper in topic_graph config is deprecated. Please update your config."
+                )
+            else:
+                params = self.topic_graph.copy()
 
-            # Handle provider and model separately
-            provider = overrides.pop("provider", args.pop("provider", DEFAULT_PROVIDER))
-            model = overrides.pop("model", args.pop("model", DEFAULT_MODEL))
+            # Remove non-constructor params
+            params.pop("save_as", None)
+
+            # Handle provider and model separately if present
+            provider = overrides.pop("provider", params.pop("provider", None))
+            model = overrides.pop("model", params.pop("model", None))
 
             # Apply remaining overrides
-            args.update(overrides)
+            params.update(overrides)
 
-            # Construct full model string
-            args["model_name"] = construct_model_string(provider, model)
+            # Construct full model string if provider/model were specified
+            if provider and model:
+                params["model_name"] = construct_model_string(provider, model)
+            elif "model_name" not in params:
+                params["model_name"] = construct_model_string(DEFAULT_PROVIDER, DEFAULT_MODEL)
 
-            return GraphArguments(**args)
         except Exception as e:
-            raise ConfigurationError(f"args error: {str(e)}") from e  # noqa: TRY003
+            raise ConfigurationError(f"config error: {str(e)}") from e  # noqa: TRY003
+        return params
 
-    def get_engine_args(self, **overrides) -> DataSetGeneratorArguments:
-        """Get DataSetGeneratorArguments from config with optional overrides."""
+    def get_engine_params(self, **overrides) -> dict:
+        """Get parameters for DataSetGenerator instantiation."""
         try:
-            args = self.data_engine.get("args", {}).copy()
+            # Check for old format with deprecation warning
+            if "args" in self.data_engine:
+                params = self.data_engine["args"].copy()
+                print(
+                    "Warning: 'args' wrapper in data_engine config is deprecated. Please update your config."
+                )
+            else:
+                params = self.data_engine.copy()
+
+            # Remove non-constructor params
+            params.pop("save_as", None)
 
             # Replace system prompt placeholder
-            if "system_prompt" in args and isinstance(args["system_prompt"], str):
-                args["system_prompt"] = args["system_prompt"].replace(
+            if "system_prompt" in params and isinstance(params["system_prompt"], str):
+                params["system_prompt"] = params["system_prompt"].replace(
                     SYSTEM_PROMPT_PLACEHOLDER, self.system_prompt
                 )
 
-            # Handle provider and model separately
-            provider = overrides.pop("provider", args.pop("provider", DEFAULT_PROVIDER))
-            model = overrides.pop("model", args.pop("model", DEFAULT_MODEL))
+            # Handle provider and model separately if present
+            provider = overrides.pop("provider", params.pop("provider", None))
+            model = overrides.pop("model", params.pop("model", None))
 
             # Apply remaining overrides
-            args.update(overrides)
+            params.update(overrides)
 
-            # Construct full model string
-            args["model_name"] = construct_model_string(provider, model)
+            # Construct full model string if provider/model were specified
+            if provider and model:
+                params["model_name"] = construct_model_string(provider, model)
+            elif "model_name" not in params:
+                params["model_name"] = construct_model_string(DEFAULT_PROVIDER, DEFAULT_MODEL)
 
             # Get sys_msg from dataset config, defaulting to True
             dataset_config = self.get_dataset_config()
-            args.setdefault("sys_msg", dataset_config.get("creation", {}).get("sys_msg", True))
+            params.setdefault("sys_msg", dataset_config.get("creation", {}).get("sys_msg", True))
 
-            return DataSetGeneratorArguments(**args)
         except Exception as e:
-            raise ConfigurationError(f"args error: {str(e)}") from e  # noqa: TRY003
+            raise ConfigurationError(f"config error: {str(e)}") from e  # noqa: TRY003
+        else:
+            return params
 
     def get_dataset_config(self) -> dict:
         """Get dataset configuration."""

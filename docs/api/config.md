@@ -55,7 +55,7 @@ Enables programmatic configuration construction and dynamic modification.
 
 #### get_tree_args(**overrides)
 
-Extract TreeArguments with optional parameter overrides:
+Extract tree parameters with optional overrides for direct use with Tree constructor:
 
 ```python
 # Basic usage
@@ -74,7 +74,7 @@ Overrides merge with base configuration, enabling parameter experimentation with
 
 #### get_topic_graph_args(**overrides)
 
-Extract GraphArguments for graph-based topic modeling:
+Extract graph parameters for direct use with Graph constructor:
 
 ```python
 graph_args = config.get_topic_graph_args(
@@ -88,7 +88,7 @@ Returns appropriate arguments for Graph class instantiation.
 
 #### get_engine_args(**overrides)
 
-Extract DataSetGeneratorArguments with override support:
+Extract generator parameters for direct use with DataSetGenerator constructor:
 
 ```python
 generator_args = config.get_engine_args(
@@ -156,8 +156,9 @@ config_data = {
 config = DeepFabricConfig.from_dict(config_data)
 
 # Placeholders are resolved automatically
-tree_args = config.get_tree_args()
-assert tree_args.model_system_prompt == "You are an educational content creator."
+tree_params = config.get_tree_args()
+tree = Tree(**tree_params)
+assert tree.model_system_prompt == "You are an educational content creator."
 ```
 
 #### Custom Placeholders
@@ -278,8 +279,9 @@ Modify configuration parameters at runtime:
 config.update_parameter("topic_tree.args.tree_degree", 5)
 config.update_parameter("data_engine.args.temperature", 0.9)
 
-# Updated parameters reflected in subsequent argument extraction
-updated_args = config.get_tree_args()
+# Updated parameters reflected in subsequent parameter extraction
+updated_params = config.get_tree_args()
+updated_tree = Tree(**updated_params)
 ```
 
 ### Error Handling
@@ -291,7 +293,7 @@ from deepfabric import ConfigurationError, ValidationError
 
 try:
     config = DeepFabricConfig.from_yaml("config.yaml")
-    tree_args = config.get_tree_args()
+    tree = Tree(**config.get_tree_args())
 except ConfigurationError as e:
     print(f"Configuration loading failed: {e}")
 except ValidationError as e:
@@ -306,8 +308,8 @@ Common patterns for configuration integration:
 # CLI-style parameter overrides
 def create_generator_with_overrides(config_path, **overrides):
     config = DeepFabricConfig.from_yaml(config_path)
-    generator_args = config.get_engine_args(**overrides)
-    return DataSetGenerator(args=generator_args)
+    generator_params = config.get_engine_args(**overrides)
+    return DataSetGenerator(**generator_params)
 
 generator = create_generator_with_overrides(
     "base_config.yaml",

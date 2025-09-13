@@ -7,7 +7,7 @@ from typing import Any
 import litellm
 
 from litellm.exceptions import APIError, AuthenticationError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .constants import (
     DEFAULT_MAX_TOKENS,
@@ -57,23 +57,29 @@ def validate_graph_response(response_text: str) -> dict[str, Any] | None:
         return None
 
 
-class GraphArguments(BaseModel):
-    """Arguments for constructing a topic graph."""
+class GraphConfig(BaseModel):
+    """Configuration for constructing a topic graph."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     root_prompt: str = Field(
         ..., min_length=1, description="The initial prompt to start the topic graph"
     )
     model_name: str = Field(
-        TOPIC_TREE_DEFAULT_MODEL, min_length=1, description="The name of the model to be used"
+        default=TOPIC_TREE_DEFAULT_MODEL,
+        min_length=1,
+        description="The name of the model to be used",
     )
     temperature: float = Field(
-        TOPIC_TREE_DEFAULT_TEMPERATURE,
+        default=TOPIC_TREE_DEFAULT_TEMPERATURE,
         ge=0.0,
         le=2.0,
         description="Temperature for model generation",
     )
-    graph_degree: int = Field(3, ge=1, le=10, description="The branching factor of the graph")
-    graph_depth: int = Field(2, ge=1, le=5, description="The depth of the graph")
+    graph_degree: int = Field(
+        default=3, ge=1, le=10, description="The branching factor of the graph"
+    )
+    graph_depth: int = Field(default=2, ge=1, le=5, description="The depth of the graph")
 
 
 # Pydantic Models for strict data representation
@@ -120,9 +126,20 @@ class Node:
 class Graph(TopicModel):
     """Represents the topic graph and manages its structure."""
 
-    def __init__(self, args: GraphArguments):
-        self.args = args
-        self.root: Node = Node(args.root_prompt, 0)
+    def __init__(self, **kwargs):
+        try:
+            self.config = GraphConfig.model_validate(kwargs)
+        except Exception as e:
+            raise ValueError(f"Invalid graph configuration: {str(e)}") from e  # noqa: TRY003
+
+        # Initialize from config
+        self.root_prompt = self.config.root_prompt
+        self.model_name = self.config.model_name
+        self.temperature = self.config.temperature
+        self.graph_degree = self.config.graph_degree
+        self.graph_depth = self.config.graph_depth
+
+        self.root: Node = Node(self.config.root_prompt, 0)
         self.nodes: dict[int, Node] = {0: self.root}
         self._next_node_id: int = 1
         self.failed_generations: list[dict[str, Any]] = []
@@ -175,13 +192,13 @@ class Graph(TopicModel):
             raise
 
     @classmethod
-    def from_json(cls, json_path: str, args: GraphArguments) -> "Graph":
+    def from_json(cls, json_path: str, params: dict) -> "Graph":
         """Load a topic graph from a JSON file."""
         with open(json_path) as f:
             data = json.load(f)
 
         graph_model = GraphModel(**data)
-        graph = cls(args)
+        graph = cls(**params)
         graph.nodes = {}
 
         # Create nodes
@@ -222,16 +239,16 @@ class Graph(TopicModel):
         """Builds the graph by iteratively calling the LLM to get subtopics and connections."""
         # Initialize TUI
         tui = get_graph_tui()
-        tui.start_building(self.args.model_name, self.args.graph_depth, self.args.graph_degree)
+        tui.start_building(self.model_name, self.graph_depth, self.graph_degree)
 
         try:
-            for depth in range(self.args.graph_depth):
+            for depth in range(self.graph_depth):
                 leaf_nodes = [node for node in self.nodes.values() if not node.children]
                 tui.start_depth_level(depth + 1, len(leaf_nodes))
 
                 for node in leaf_nodes:
                     subtopics_added, connections_added = self.get_subtopics_and_connections(
-                        node, self.args.graph_degree, tui
+                        node, self.graph_degree, tui
                     )
                     tui.complete_node_expansion(node.topic, subtopics_added, connections_added)
 
@@ -262,9 +279,9 @@ class Graph(TopicModel):
         while retries < max_retries:
             try:
                 completion_args = {
-                    "model": self.args.model_name,
+                    "model": self.model_name,
                     "max_tokens": DEFAULT_MAX_TOKENS,
-                    "temperature": self.args.temperature,
+                    "temperature": self.temperature,
                     "messages": [{"role": "user", "content": prompt}],
                     "response_format": {"type": "json_object"},
                     "stream": False,
@@ -332,9 +349,7 @@ class Graph(TopicModel):
                     print(f"Attempt {retries + 1}: {last_error}. Retrying...")
 
             except (AuthenticationError, APIError) as e:
-                provider = (
-                    self.args.model_name.split("/")[0] if "/" in self.args.model_name else "unknown"
-                )
+                provider = self.model_name.split("/")[0] if "/" in self.model_name else "unknown"
                 # Check if it's an API key related error
                 error_str = str(e).lower()
                 if any(

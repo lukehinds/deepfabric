@@ -8,8 +8,6 @@ import yaml
 
 from deepfabric.config import DeepFabricConfig
 from deepfabric.exceptions import ConfigurationError
-from deepfabric.generator import DataSetGeneratorArguments
-from deepfabric.tree import TreeArguments
 
 
 @pytest.fixture
@@ -130,66 +128,66 @@ def test_load_from_yaml(sample_yaml_file, sample_config_dict):
 
 
 def test_get_topic_tree_args(sample_yaml_file):
-    """Test getting TreeArguments from config."""
+    """Test getting tree arguments from config."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
-    args = config.get_topic_tree_args()
+    args = config.get_topic_tree_params()
 
-    assert isinstance(args, TreeArguments)
-    assert args.root_prompt == "Test root prompt"
-    assert args.model_system_prompt == "Test system prompt"
-    assert args.tree_degree == 3  # noqa: PLR2004
-    assert args.tree_depth == 2  # noqa: PLR2004
-    assert args.temperature == 0.7  # noqa: PLR2004
-    assert args.model_name == "test/model"
+    assert isinstance(args, dict)
+    assert args["root_prompt"] == "Test root prompt"
+    assert args["model_system_prompt"] == "Test system prompt"
+    assert args["tree_degree"] == 3  # noqa: PLR2004
+    assert args["tree_depth"] == 2  # noqa: PLR2004
+    assert args["temperature"] == 0.7  # noqa: PLR2004
+    assert args["model_name"] == "test/model"
 
 
 def test_get_engine_args(sample_yaml_file):
-    """Test getting DataSetGeneratorArguments from config."""
+    """Test getting engine arguments from config."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
-    args = config.get_engine_args()
+    args = config.get_engine_params()
 
-    assert isinstance(args, DataSetGeneratorArguments)
-    assert args.instructions == "Test instructions"
-    assert args.system_prompt == "Test system prompt"
-    assert args.model_name == "test/model"
-    assert args.temperature == 0.9  # noqa: PLR2004
-    assert args.max_retries == 2  # noqa: PLR2004
-    assert args.sys_msg is True  # Default from dataset config
+    assert isinstance(args, dict)
+    assert args["instructions"] == "Test instructions"
+    assert args["system_prompt"] == "Test system prompt"
+    assert args["model_name"] == "test/model"
+    assert args["temperature"] == 0.9  # noqa: PLR2004
+    assert args["max_retries"] == 2  # noqa: PLR2004
+    assert args["sys_msg"] is True  # Default from dataset config
 
 
 def test_get_engine_args_no_sys_msg(sample_yaml_file_no_sys_msg):
-    """Test getting DataSetGeneratorArguments without sys_msg setting."""
+    """Test getting engine arguments without sys_msg setting."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file_no_sys_msg)
-    args = config.get_engine_args()
+    args = config.get_engine_params()
 
-    assert isinstance(args, DataSetGeneratorArguments)
-    assert args.sys_msg is True  # Default value when not specified
+    assert isinstance(args, dict)
+    assert args["sys_msg"] is True  # Default value when not specified
 
 
 def test_get_topic_tree_args_with_overrides(sample_yaml_file):
-    """Test getting TreeArguments with overrides."""
+    """Test getting tree arguments with overrides."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
-    args = config.get_topic_tree_args(
+    args = config.get_topic_tree_params(
         provider="override",
         model="model",
         temperature=0.5,
     )
 
-    assert args.model_name == "override/model"
-    assert args.temperature == 0.5  # noqa: PLR2004
+    assert args["model_name"] == "override/model"
+    assert args["temperature"] == 0.5  # noqa: PLR2004
 
 
 def test_get_engine_args_with_overrides(sample_yaml_file):
-    """Test getting DataSetGeneratorArguments with overrides."""
+    """Test getting engine arguments with overrides."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
-    args = config.get_engine_args(
+    args = config.get_engine_params(
         provider="override",
         model="model",
         temperature=0.5,
     )
 
-    assert args.model_name == "override/model"
-    assert args.temperature == 0.5  # noqa: PLR2004
+    assert args["model_name"] == "override/model"
+    assert args["temperature"] == 0.5  # noqa: PLR2004
 
 
 def test_get_dataset_config(sample_yaml_file, sample_config_dict):

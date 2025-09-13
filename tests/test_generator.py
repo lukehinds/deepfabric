@@ -3,34 +3,36 @@ from unittest.mock import MagicMock, patch
 import pytest  # type: ignore
 
 from deepfabric.exceptions import DataSetGeneratorError
-from deepfabric.generator import Dataset, DataSetGenerator, DataSetGeneratorArguments
+from deepfabric.generator import Dataset, DataSetGenerator
 
 
 @pytest.fixture
 def engine_args():
-    return DataSetGeneratorArguments(
-        instructions="Test instructions",
-        system_prompt="Test system prompt",
-        model_name="test-model",
-        prompt_template=None,
-        example_data=None,
-        temperature=0.7,
-        max_retries=3,
-        default_batch_size=5,
-        default_num_examples=3,
-        request_timeout=30,
-        sys_msg=True,
-    )
+    return {
+        "instructions": "Test instructions",
+        "system_prompt": "Test system prompt",
+        "model_name": "test-model",
+        "prompt_template": None,
+        "example_data": None,
+        "temperature": 0.7,
+        "max_retries": 3,
+        "default_batch_size": 5,
+        "default_num_examples": 3,
+        "request_timeout": 30,
+        "sys_msg": True,
+    }
 
 
 @pytest.fixture
 def data_engine(engine_args):
-    return DataSetGenerator(engine_args)
+    return DataSetGenerator(**engine_args)
 
 
 def test_engine_initialization(engine_args):
-    engine = DataSetGenerator(engine_args)
-    assert engine.args == engine_args
+    engine = DataSetGenerator(**engine_args)
+    assert engine.config.instructions == engine_args["instructions"]
+    assert engine.config.system_prompt == engine_args["system_prompt"]
+    assert engine.config.model_name == engine_args["model_name"]
     assert isinstance(engine.dataset, Dataset)
     assert engine.failed_samples == []
 
@@ -106,7 +108,7 @@ def test_create_data_with_sys_msg_default(mock_batch_completion, data_engine):
     assert len(dataset.samples) == 1
     assert len(dataset.samples[0]["messages"]) == 3  # noqa: PLR2004
     assert dataset.samples[0]["messages"][0]["role"] == "system"
-    assert dataset.samples[0]["messages"][0]["content"] == data_engine.args.system_prompt
+    assert dataset.samples[0]["messages"][0]["content"] == data_engine.config.system_prompt
 
 
 @patch("deepfabric.generator.litellm.batch_completion")
@@ -142,7 +144,7 @@ def test_create_data_without_sys_msg(mock_batch_completion, data_engine):
 @patch("deepfabric.generator.litellm.batch_completion")
 def test_create_data_sys_msg_override(mock_batch_completion):
     # Create engine with sys_msg=False
-    args = DataSetGeneratorArguments(
+    engine = DataSetGenerator(
         instructions="Test instructions",
         system_prompt="Test system prompt",
         model_name="test-model",
@@ -155,7 +157,6 @@ def test_create_data_sys_msg_override(mock_batch_completion):
         request_timeout=30,
         sys_msg=False,  # Default to False
     )
-    engine = DataSetGenerator(args)
 
     # Mock valid JSON response
     mock_batch_completion.return_value = [
@@ -193,13 +194,13 @@ def test_build_prompt(data_engine):
 
 def test_build_system_prompt(data_engine):
     system_prompt = data_engine.build_system_prompt()
-    assert system_prompt == data_engine.args.system_prompt
+    assert system_prompt == data_engine.config.system_prompt
 
 
 def test_build_custom_instructions_text(data_engine):
     instructions_text = data_engine.build_custom_instructions_text()
     assert "<instructions>" in instructions_text
-    assert data_engine.args.instructions in instructions_text
+    assert data_engine.config.instructions in instructions_text
 
 
 def test_build_examples_text_no_examples(data_engine):

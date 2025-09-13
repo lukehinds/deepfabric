@@ -111,12 +111,20 @@ deepfabric generate \
 # Or use a config file for complex setups
 deepfabric start config.yaml
 ```
+Or take a look at [examples](./examples/).
 
 ## Why DeepFabric?
 
-DeepFabric solves the challenge of creating diverse, high-quality training data at scale. Here's what makes it powerful:
+DeepFabric solves the challenge of creating diverse, high-quality training data at scale
 
-**Hierarchical Topic Generation**: Automatically explores related subtopics from a single root prompt, ensuring comprehensive coverage of your domain.
+## I heard that Synthetic Data is inferior to Human curated / labelled data
+
+That used to be the view, but no longer is, well especially when it comes to model training. Views changed when Deepseek first released,
+where the Deepseek whitepaper outlined how the model had been exclusively trained with synthetics using a process termed 'distilation'. 
+
+Since then many other models have followed suit, including most recently Phi-4.
+
+**Hierarchical Topic Generation**: Automatically explores related subtopics from a single root prompt, ensuring comprehensive coverage of your domain, with high diversity, no duplication - without losing domain specificity.
 
 **Provider Agnostic**: Works seamlessly with OpenAI, Anthropic, Google, Ollama, and any LiteLLM-supported provider. Mix and match models for different stages of generation.
 
@@ -130,7 +138,7 @@ DeepFabric can generate topics using two approaches:
 
 **Topic Trees**: Traditional hierarchical structure where each topic branches into subtopics, perfect for well-organized domains.
 
-**Topic Graphs** (Experimental): Advanced DAG-based structure allowing cross-connections between topics, ideal for complex domains with interconnected concepts.
+**Topic Graphs** (Experimental): DAG-based structure allowing cross-connections between topics, ideal for complex domains with interconnected concepts.
 
 <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/f6ac2717a99b1ae1963aedeb099ad75bb30170e8/assets/graph.svg" width="100%" height="100%"/>
 
@@ -140,12 +148,11 @@ Example graph configuration:
 topic_generator: graph  # Use 'tree' for traditional hierarchy
 
 topic_graph:
-  args:
-    root_prompt: "Modern Software Architecture"
-    provider: "ollama"
-    model: "llama3"
-    graph_degree: 3    # Subtopics per node
-    graph_depth: 3     # Graph depth
+  root_prompt: "Modern Software Architecture"
+  provider: "ollama"
+  model: "llama3"
+  graph_degree: 3    # Subtopics per node
+  graph_depth: 3     # Graph depth
   save_as: "architecture_graph.json"
 ```
 
@@ -155,14 +162,12 @@ Leverage different LLMs for different tasks. Use GPT-4 for complex topic generat
 
 ```yaml
 topic_tree:
-  args:
-    provider: "openai"
-    model: "gpt-4"  # High quality for topic structure
+  provider: "openai"
+  model: "gpt-4"  # High quality for topic structure
 
 data_engine:
-  args:
-    provider: "ollama"
-    model: "mixtral"  # Fast and efficient for bulk generation
+  provider: "ollama"
+  model: "mixtral"  # Fast and efficient for bulk generation
 ```
 
 ### Automatic Dataset Upload
@@ -217,22 +222,20 @@ DeepFabric uses YAML configuration files for maximum flexibility. Here's a compl
 system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
 
 topic_tree:
-  args:
-    root_prompt: "Capital Cities of the World."
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 3
-    tree_depth: 2
-    temperature: 0.7
-    model_name: "ollama/mistral:latest"
+  root_prompt: "Capital Cities of the World."
+  model_system_prompt: "<system_prompt_placeholder>"
+  tree_degree: 3
+  tree_depth: 2
+  temperature: 0.7
+  model_name: "ollama/mistral:latest"
   save_as: "basic_prompt_Tree.jsonl"
 
 data_engine:
-  args:
-    instructions: "Please provide training examples with questions about capital cities."
-    system_prompt: "<system_prompt_placeholder>"
-    model_name: "ollama/mistral:latest"
-    temperature: 0.9
-    max_retries: 2
+  instructions: "Please provide training examples with questions about capital cities."
+  system_prompt: "<system_prompt_placeholder>"
+  model_name: "ollama/mistral:latest"
+  temperature: 0.9
+  max_retries: 2
 
 dataset:
   creation:
@@ -344,28 +347,24 @@ DeepFabric automatically creates dataset cards with generation metadata, tags yo
 For advanced use cases, use DeepFabric as a Python library:
 
 ```python
-from deepfabric import DataSetGenerator, DataSetGeneratorArguments, Tree, TreeArguments
+from deepfabric import DataSetGenerator, Tree
 
 tree = Tree(
-    args=TreeArguments(
-        root_prompt="Creative Writing Prompts",
-        model_system_prompt=system_prompt,
-        tree_degree=5,
-        tree_depth=4,
-        temperature=0.9,
-        model_name="ollama/llama3"
-    )
+    root_prompt="Creative Writing Prompts",
+    model_system_prompt=system_prompt,
+    tree_degree=5,
+    tree_depth=4,
+    temperature=0.9,
+    model_name="ollama/llama3"
 )
 
 engine = DataSetGenerator(
-    args=DataSetGeneratorArguments(
-        instructions="Generate creative writing prompts and example responses.",
-        system_prompt="You are a creative writing instructor providing writing prompts and example responses.",
-        model_name="ollama/llama3",
-        temperature=0.9,
-        max_retries=2,
-        sys_msg=True,  # Include system message in dataset (default: true)
-    )
+    instructions="Generate creative writing prompts and example responses.",
+    system_prompt="You are a creative writing instructor providing writing prompts and example responses.",
+    model_name="ollama/llama3",
+    temperature=0.9,
+    max_retries=2,
+    sys_msg=True,  # Include system message in dataset (default: true)
 )
 ```
 
@@ -378,18 +377,16 @@ Combine different models for optimal results:
 ```yaml
 # Stage 1: High-quality topic generation with GPT-4
 topic_tree:
-  args:
-    provider: "openai"
-    model: "gpt-4"
-    temperature: 0.7
-    tree_depth: 4
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.7
+  tree_depth: 4
 
 # Stage 2: Fast bulk generation with Mixtral
 data_engine:
-  args:
-    provider: "ollama"
-    model: "mixtral"
-    temperature: 0.9
+  provider: "ollama"
+  model: "mixtral"
+  temperature: 0.9
 
 # Stage 3: Final dataset with efficient model
 dataset:
@@ -408,26 +405,23 @@ Create specialized datasets for any domain:
 # Medical Q&A Dataset
 system_prompt: "You are a medical professional providing accurate health information."
 topic_tree:
-  args:
-    root_prompt: "Common Medical Conditions and Treatments"
-    tree_degree: 5
-    tree_depth: 3
+  root_prompt: "Common Medical Conditions and Treatments"
+  tree_degree: 5
+  tree_depth: 3
 
 # Code Generation Dataset
 system_prompt: "You are an expert programmer."
 topic_tree:
-  args:
-    root_prompt: "Data Structures and Algorithms in Python"
-    tree_degree: 4
-    tree_depth: 3
+  root_prompt: "Data Structures and Algorithms in Python"
+  tree_degree: 4
+  tree_depth: 3
 
 # Creative Writing Dataset
 system_prompt: "You are a creative writing instructor."
 topic_tree:
-  args:
-    root_prompt: "Science Fiction Story Elements"
-    tree_degree: 6
-    tree_depth: 2
+  root_prompt: "Science Fiction Story Elements"
+  tree_degree: 6
+  tree_depth: 2
 ```
 
 ### Output Format

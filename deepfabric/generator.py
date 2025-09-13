@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import litellm
 
 from litellm.exceptions import APIError, AuthenticationError
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 from tqdm.rich import tqdm
 
 from .constants import (
@@ -56,84 +56,66 @@ def validate_json_response(json_str: str, schema: dict[str, Any] | None = None) 
         return None
 
 
-class DataSetGeneratorArguments(BaseModel):
-    """Arguments for configuring the data engine."""
+class DataSetGeneratorConfig(BaseModel):
+    """Configuration for the data engine."""
 
-    instructions: str = Field("", description="Additional instructions for data generation")
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    instructions: str = Field(default="", description="Additional instructions for data generation")
     system_prompt: str = Field(..., min_length=1, description="System prompt for the model")
     model_name: str = Field(..., min_length=1, description="Name of the model to use")
-    prompt_template: str | None = Field(None, description="Custom prompt template")
-    example_data: Dataset | None = Field(None, description="Example dataset for few-shot learning")
+    prompt_template: str | None = Field(default=None, description="Custom prompt template")
+    example_data: Dataset | None = Field(
+        default=None, description="Example dataset for few-shot learning"
+    )
     temperature: float = Field(
-        ENGINE_DEFAULT_TEMPERATURE,
+        default=ENGINE_DEFAULT_TEMPERATURE,
         ge=0.0,
         le=2.0,
         description="Temperature for model generation",
     )
     max_retries: int = Field(
-        DEFAULT_MAX_RETRIES,
+        default=DEFAULT_MAX_RETRIES,
         ge=1,
         le=10,
         description="Maximum number of retries for failed requests",
     )
     default_batch_size: int = Field(
-        ENGINE_DEFAULT_BATCH_SIZE,
+        default=ENGINE_DEFAULT_BATCH_SIZE,
         ge=1,
         le=100,
         description="Default batch size for generation",
     )
     default_num_examples: int = Field(
-        ENGINE_DEFAULT_NUM_EXAMPLES,
+        default=ENGINE_DEFAULT_NUM_EXAMPLES,
         ge=0,
         le=10,
         description="Default number of examples to include",
     )
     request_timeout: int = Field(
-        DEFAULT_REQUEST_TIMEOUT, ge=5, le=300, description="Request timeout in seconds"
+        default=DEFAULT_REQUEST_TIMEOUT, ge=5, le=300, description="Request timeout in seconds"
     )
-    sys_msg: bool = Field(True, description="Whether to include system message in dataset")
-
-    class Config:
-        arbitrary_types_allowed = True  # Allow Dataset type
-
-    @field_validator("model_name")
-    @classmethod
-    def validate_model_name(cls, v):
-        if not v or not v.strip():
-            raise ValueError("required")
-        return v.strip()
-
-    @field_validator("system_prompt")
-    @classmethod
-    def validate_system_prompt(cls, v):
-        if not v or not v.strip():
-            raise ValueError("required")
-        return v.strip()
+    sys_msg: bool = Field(default=True, description="Whether to include system message in dataset")
 
 
 class DataSetGenerator:
-    def __init__(self, args: DataSetGeneratorArguments):
-        """Initialize DataSetGenerator with validated arguments."""
-        if not isinstance(args, DataSetGeneratorArguments):
-            try:
-                # Handle dict input for backward compatibility
-                if isinstance(args, dict):
-                    args = DataSetGeneratorArguments(**args)
-                else:
-                    raise DataSetGeneratorError("invalid")  # noqa: TRY301
-            except Exception as e:
-                raise DataSetGeneratorError("invalid") from e
+    def __init__(self, **kwargs):
+        """Initialize DataSetGenerator with parameters."""
+        try:
+            self.config = DataSetGeneratorConfig.model_validate(kwargs)
+        except Exception as e:
+            raise DataSetGeneratorError(f"Invalid generator configuration: {str(e)}") from e  # noqa: TRY003
 
-        self.args = args
-        self.model_name = args.model_name
+        # Initialize from config
+        self.model_name = self.config.model_name
         self.dataset = Dataset()
         self.failed_samples = []
         self.failure_analysis = {category: [] for category in ERROR_CATEGORIES}
 
         # Store original system prompt for dataset inclusion
-        self.original_system_prompt = args.system_prompt
+        self.original_system_prompt = self.config.system_prompt
         # Use ENGINE_JSON_INSTRUCTIONS only for generation prompt
-        self.generation_system_prompt = ENGINE_JSON_INSTRUCTIONS + args.system_prompt
+        self.generation_system_prompt = ENGINE_JSON_INSTRUCTIONS + self.config.system_prompt
 
     def _validate_create_data_params(
         self,
@@ -281,7 +263,7 @@ class DataSetGenerator:
         completion_args = {
             "model": self.model_name,
             "messages": [[{"role": "user", "content": p}] for p in prompts],
-            "temperature": self.args.temperature,
+            "temperature": self.config.temperature,
             "stream": False,  # Ensure we get complete responses
         }
         return litellm.batch_completion(**completion_args)
@@ -350,8 +332,8 @@ class DataSetGenerator:
         if not self.model_name:
             raise DataSetGeneratorError("")
 
-        # Use provided sys_msg or fall back to args.sys_msg
-        include_sys_msg = sys_msg if sys_msg is not None else self.args.sys_msg
+        # Use provided sys_msg or fall back to config.sys_msg
+        include_sys_msg = sys_msg if sys_msg is not None else self.config.sys_msg
 
         # Prepare topic paths and adjust num_steps if necessary
         topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
@@ -464,7 +446,7 @@ class DataSetGenerator:
         pbar=None,
     ) -> bool:
         """Process a batch with retry logic."""
-        for attempt in range(self.args.max_retries):
+        for attempt in range(self.config.max_retries):
             try:
                 responses = self._handle_batch_completion(prompts)
                 samples, failed_responses = self._process_batch_responses(
@@ -512,7 +494,7 @@ class DataSetGenerator:
 
                 return False  # Don't retry authentication errors
             except Exception as e:
-                if attempt == self.args.max_retries - 1:
+                if attempt == self.config.max_retries - 1:
                     # Don't print here, let TUI or calling code handle final messaging
                     self.failed_samples.append(str(e))
                     failure_type = self.analyze_failure(str(e), error=e)
@@ -558,15 +540,15 @@ class DataSetGenerator:
         return self.original_system_prompt
 
     def build_custom_instructions_text(self) -> str:
-        if self.args.instructions is None:
+        if self.config.instructions is None or self.config.instructions == "":
             return ""
-        return f"\nHere are additional instructions:\n<instructions>\n{self.args.instructions}\n</instructions>\n"
+        return f"\nHere are additional instructions:\n<instructions>\n{self.config.instructions}\n</instructions>\n"
 
     def build_examples_text(self, num_example_demonstrations: int):
-        if self.args.example_data is None or num_example_demonstrations == 0:
+        if self.config.example_data is None or num_example_demonstrations == 0:
             return ""
         # Bandit: not a security function
-        examples = random.sample(self.args.example_data.samples, num_example_demonstrations)  # nosec
+        examples = random.sample(self.config.example_data.samples, num_example_demonstrations)  # nosec
         examples_text = "Here are output examples:\n\n"
         examples_text += "\n".join(f"Example {i + 1}: \n\n{ex}\n" for i, ex in enumerate(examples))
         return f"\nHere are output examples:\n<examples>\n{examples_text}\n</examples>\n"

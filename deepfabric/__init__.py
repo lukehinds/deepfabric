@@ -14,16 +14,19 @@ from .exceptions import (
     TreeError,
     ValidationError,
 )
-from .generator import DataSetGenerator, DataSetGeneratorArguments
-from .tree import Tree, TreeArguments
+from .generator import DataSetGenerator, DataSetGeneratorConfig
+from .graph import Graph, GraphConfig
+from .tree import Tree, TreeConfig
 
 __version__ = "0.1.0"
 
 __all__ = [
     "Tree",
-    "TreeArguments",
+    "TreeConfig",
+    "Graph",
+    "GraphConfig",
     "DataSetGenerator",
-    "DataSetGeneratorArguments",
+    "DataSetGeneratorConfig",
     "Dataset",
     "DeepFabricConfig",
     "cli",
