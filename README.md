@@ -49,7 +49,7 @@
 
 ## Quickstart
 
-Get up and running in under 2 minutes:
+Get up and running in under 60 seconds:
 
 ### 1. Install DeepFabric
 
@@ -57,54 +57,31 @@ Get up and running in under 2 minutes:
 pip install deepfabric
 ```
 
-### 2. Create Your First Dataset
-
-Create a file `quickstart.yaml`:
-
-```yaml
-system_prompt: "You are a helpful AI assistant specializing in Python programming."
-
-topic_tree:
-  args:
-    root_prompt: "Python Programming Best Practices"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 3
-    tree_depth: 2
-    temperature: 0.7
-    provider: "openai"
-    model: "gpt-3.5-turbo"
-  save_as: "topics.jsonl"
-
-data_engine:
-  args:
-    instructions: "Generate Q&A pairs about Python programming concepts."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "openai"
-    model: "gpt-3.5-turbo"
-    temperature: 0.9
-    max_retries: 2
-
-dataset:
-  creation:
-    num_steps: 10
-    batch_size: 2
-    provider: "openai"
-    model: "gpt-3.5-turbo"
-  save_as: "python_dataset.jsonl"
-```
-
-### 3. Generate Your Dataset
+### 2. Generate Your First Dataset
 
 ```bash
+# Set your API key (or use Ollama for local generation)
 export OPENAI_API_KEY="your-api-key"
-deepfabric start quickstart.yaml
+
+# Generate a dataset with a single command
+deepfabric generate \
+  --provider openai \
+  --model gpt-4o \
+  --tree-depth 3 \
+  --tree-degree 3 \
+  --num-steps 9 \
+  --batch-size 1 \
+  --topic-prompt "Python Programming Best Practices"
 ```
 
-That's it! You've just created your first synthetic dataset with 20 high-quality training examples.
+That's it! DeepFabric will automatically:
+- Generate a hierarchical topic tree (3 levels deep, 3 branches per level)
+- Create 9 diverse Q&A pairs across the generated topics
+- Save your dataset to `dataset.jsonl`
 
-### 4. Use Your Dataset
+### 3. Use Your Dataset
 
-Your dataset is saved as `python_dataset.jsonl` in the standard format ready for fine-tuning:
+Your dataset is ready for fine-tuning in the standard format:
 
 ```json
 {
@@ -114,6 +91,25 @@ Your dataset is saved as `python_dataset.jsonl` in the standard format ready for
     {"role": "assistant", "content": "A decorator is a design pattern..."}
   ]
 }
+```
+
+### 4. Want More Control?
+
+Generate larger datasets with different models:
+
+```bash
+# Use Ollama for local generation
+deepfabric generate \
+  --provider ollama \
+  --model llama3 \
+  --tree-depth 4 \
+  --tree-degree 5 \
+  --num-steps 100 \
+  --batch-size 5 \
+  --topic-prompt "Machine Learning Fundamentals"
+
+# Or use a config file for complex setups
+deepfabric start config.yaml
 ```
 
 ## Why DeepFabric?
@@ -508,10 +504,3 @@ make all    # Complete workflow
 
 Apache 2.0 - See [LICENSE](LICENSE) for details.
 
-## Acknowledgments
-
-DeepFabric (formerly Promptwright) is built on the shoulders of giants:
-
-- [LiteLLM](https://github.com/BerriAI/litellm) for unified LLM provider access
-- [Pydantic](https://pydantic-docs.helpmanual.io/) for robust data validation
-- The open-source community for continuous feedback and contributions
