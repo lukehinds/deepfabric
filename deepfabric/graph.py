@@ -238,10 +238,9 @@ class Graph(TopicModel):
 
             tui.finish_building(len(self.failed_generations))
 
-        except Exception as e:
+        except Exception as e: # noqa: F841
             if tui.progress:
                 tui.progress.stop()
-            tui.tui.error(f"Error building graph: {str(e)}")
             raise
 
     def get_subtopics_and_connections(  # noqa: PLR0912
@@ -331,6 +330,12 @@ class Graph(TopicModel):
                 if not tui:  # Only print if no TUI
                     print(f"Attempt {retries + 1}: {last_error}. Retrying...")
 
+            except litellm.AuthenticationError as e:
+                provider = (
+                    self.args.model_name.split("/")[0] if "/" in self.args.model_name else "unknown"
+                )
+                error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."
+                raise RuntimeError(error_msg) from e
             except Exception as e:
                 last_error = str(e)
                 if not tui:  # Only print if no TUI

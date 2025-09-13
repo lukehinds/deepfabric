@@ -27,7 +27,8 @@ from .exceptions import (
 )
 from .prompts import ENGINE_JSON_INSTRUCTIONS, SAMPLE_GENERATION_PROMPT
 from .topic_model import TopicModel
-from .tui import get_dataset_tui
+from .tui import get_tui, get_dataset_tui
+
 
 # Handle circular import for type hints
 if TYPE_CHECKING:
@@ -490,6 +491,21 @@ class DataSetGenerator:
 
                     return True  # Success - exit retry loop
 
+            except litellm.AuthenticationError as e:
+                # Handle authentication errors specifically - don't retry, they won't succeed
+                provider = self.model_name.split("/")[0] if "/" in self.model_name else "unknown"
+                error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."
+                self.failed_samples.append(error_msg)
+                self.failure_analysis["authentication_error"].append(error_msg)
+
+                # Use TUI to display error if available
+                try:
+                    tui = get_tui()
+                    tui.error(error_msg)
+                except Exception:
+                    print(f"Authentication Error: {error_msg}")
+
+                return False  # Don't retry authentication errors
             except Exception as e:
                 if attempt == self.args.max_retries - 1:
                     # Don't print here, let TUI or calling code handle final messaging
