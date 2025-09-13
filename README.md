@@ -1,11 +1,9 @@
 <div align="center">
-  <h1>DeepFabric</h1>
-  <h3>Generate High-Quality Synthetic Datasets at Scale</h3>
-
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-dark.png">
     <img alt="Deepfabric logo" src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png" width="486px" height="130px" style="max-width: 100%;">
   </picture>
+  <h3>Generate High-Quality Synthetic Datasets at Scale</h3>
 
   <!-- CTA Buttons -->
   <p>
