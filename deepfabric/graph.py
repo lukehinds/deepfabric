@@ -6,6 +6,7 @@ from typing import Any
 
 import litellm
 
+from litellm.exceptions import APIError, AuthenticationError
 from pydantic import BaseModel, Field
 
 from .constants import (
@@ -330,12 +331,26 @@ class Graph(TopicModel):
                 if not tui:  # Only print if no TUI
                     print(f"Attempt {retries + 1}: {last_error}. Retrying...")
 
-            except Exception as e:
+            except (AuthenticationError, APIError) as e:
                 provider = (
                     self.args.model_name.split("/")[0] if "/" in self.args.model_name else "unknown"
                 )
-                error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."
+                # Check if it's an API key related error
+                error_str = str(e).lower()
+                if any(
+                    keyword in error_str
+                    for keyword in ["api_key", "api key", "authentication", "unauthorized"]
+                ):
+                    error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."
+                else:
+                    error_msg = f"API error for provider '{provider}': {str(e)[:100]}..."
                 raise RuntimeError(error_msg) from e
+            except Exception as e:
+                last_error = str(e)
+                if not tui:  # Only print if no TUI
+                    print(
+                        f"Error generating subtopics (attempt {retries + 1}/{max_retries}): {last_error}"
+                    )
 
             retries += 1
             if retries < max_retries:
