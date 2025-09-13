@@ -62,17 +62,16 @@ class CustomDatasetValidator:
 
         return {
             "total_samples": len(dataset.samples),
-            "avg_messages_per_sample": sum(message_counts) / len(message_counts) if message_counts else 0,
+            "avg_messages_per_sample": sum(message_counts) / len(message_counts)
+            if message_counts
+            else 0,
             "estimated_total_tokens": total_tokens,
             "avg_tokens_per_sample": total_tokens / len(dataset.samples) if dataset.samples else 0,
         }
 
 
 def create_filtered_dataset(
-    topic_tree: Tree,
-    engine: DataSetGenerator,
-    num_steps: int,
-    min_quality_threshold: float = 0.8
+    topic_tree: Tree, engine: DataSetGenerator, num_steps: int, min_quality_threshold: float = 0.8
 ) -> Dataset:
     """Create a dataset with quality filtering."""
 
@@ -180,10 +179,7 @@ def main():
 
     try:
         dataset = create_filtered_dataset(
-            topic_tree=tree,
-            engine=engine,
-            num_steps=20,
-            min_quality_threshold=0.7
+            topic_tree=tree, engine=engine, num_steps=20, min_quality_threshold=0.7
         )
     except Exception as e:
         print(f"❌ Error generating dataset: {e}")

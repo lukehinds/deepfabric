@@ -238,7 +238,7 @@ class Graph(TopicModel):
 
             tui.finish_building(len(self.failed_generations))
 
-        except Exception as e: # noqa: F841
+        except Exception as e:  # noqa: F841
             if tui.progress:
                 tui.progress.stop()
             raise

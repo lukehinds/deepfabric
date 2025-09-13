@@ -491,7 +491,7 @@ class DataSetGenerator:
 
                     return True  # Success - exit retry loop
 
-            except litellm.AuthenticationError as e:
+            except litellm.AuthenticationError as e:  # noqa: F841
                 # Handle authentication errors specifically - don't retry, they won't succeed
                 provider = self.model_name.split("/")[0] if "/" in self.model_name else "unknown"
                 error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."
