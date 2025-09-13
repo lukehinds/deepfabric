@@ -1,12 +1,12 @@
 <div align="center">
-  <h1>DeepFabric - Synthetic Dataset Generation</h1>
-  <h3>Model Distillation, Agent / Model Evaluations, and Statistical Research</h3>
-  
+  <h1>DeepFabric</h1>
+  <h3>Generate High-Quality Synthetic Datasets at Scale</h3>
+
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-dark.png">
     <img alt="Deepfabric logo" src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png" width="800px" style="max-width: 100%;">
   </picture>
-  
+
   <!-- CTA Buttons -->
   <p>
     <a href="https://github.com/lukehinds/deepfabric/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">
@@ -39,101 +39,185 @@
   <br/>
 </div>
 
-Generate complex Graph or Tree seeded Synthetic Datasets with DeepFabric (formerly known as promptwright)
+**DeepFabric** is a powerful Python library and CLI for generating synthetic datasets using LLMs. Whether you're building teacher-student distillation pipelines, creating evaluation datasets for models and agents, or conducting research that requires diverse training data, DeepFabric streamlines the entire process from topic generation to dataset export, with an option to push direct to Hugging Face.
 
-DeepFabric is a library / CLI that offers a flexible and easy-to-use set of interfaces, enabling
-users the ability to generate prompt led synthetic datasets. This makes it suitable for a wide range
-of applications, from Teacher-Student distillation, generation of Model / Agent Evals, or general datasets
-used for research purposes.
+## See It In Action
 
-## Topic Graphs (Experimental)
+<div align="center">
+  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="DeepFabric Demo" width="100%" style="max-width: 800px;">
+</div>
+
+## Quickstart
+
+Get up and running in under 2 minutes:
+
+### 1. Install DeepFabric
+
+```bash
+pip install deepfabric
+```
+
+### 2. Create Your First Dataset
+
+Create a file `quickstart.yaml`:
+
+```yaml
+system_prompt: "You are a helpful AI assistant specializing in Python programming."
+
+topic_tree:
+  args:
+    root_prompt: "Python Programming Best Practices"
+    model_system_prompt: "<system_prompt_placeholder>"
+    tree_degree: 3
+    tree_depth: 2
+    temperature: 0.7
+    provider: "openai"
+    model: "gpt-3.5-turbo"
+  save_as: "topics.jsonl"
+
+data_engine:
+  args:
+    instructions: "Generate Q&A pairs about Python programming concepts."
+    system_prompt: "<system_prompt_placeholder>"
+    provider: "openai"
+    model: "gpt-3.5-turbo"
+    temperature: 0.9
+    max_retries: 2
+
+dataset:
+  creation:
+    num_steps: 10
+    batch_size: 2
+    provider: "openai"
+    model: "gpt-3.5-turbo"
+  save_as: "python_dataset.jsonl"
+```
+
+### 3. Generate Your Dataset
+
+```bash
+export OPENAI_API_KEY="your-api-key"
+deepfabric start quickstart.yaml
+```
+
+That's it! You've just created your first synthetic dataset with 20 high-quality training examples.
+
+### 4. Use Your Dataset
+
+Your dataset is saved as `python_dataset.jsonl` in the standard format ready for fine-tuning:
+
+```json
+{
+  "messages": [
+    {"role": "system", "content": "You are a helpful AI assistant..."},
+    {"role": "user", "content": "What is a Python decorator?"},
+    {"role": "assistant", "content": "A decorator is a design pattern..."}
+  ]
+}
+```
+
+## Why DeepFabric?
+
+DeepFabric solves the challenge of creating diverse, high-quality training data at scale. Here's what makes it powerful:
+
+**Hierarchical Topic Generation**: Automatically explores related subtopics from a single root prompt, ensuring comprehensive coverage of your domain.
+
+**Provider Agnostic**: Works seamlessly with OpenAI, Anthropic, Google, Ollama, and any LiteLLM-supported provider. Mix and match models for different stages of generation.
+
+**Production Ready**: Built-in retry logic, JSON validation, and error handling ensure robust dataset generation even with unpredictable LLM outputs.
+
+**Export Anywhere**: Direct integration with Hugging Face Hub, or export to JSONL for use with any training framework.
+
+## Key Features
+
+### Topic Trees and Graphs
+
+DeepFabric can generate topics using two approaches:
+
+**Topic Trees**: Traditional hierarchical structure where each topic branches into subtopics, perfect for well-organized domains.
+
+**Topic Graphs** (Experimental): Advanced DAG-based structure allowing cross-connections between topics, ideal for complex domains with interconnected concepts.
 
 <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/f6ac2717a99b1ae1963aedeb099ad75bb30170e8/assets/graph.svg" width="100%" height="100%"/>
 
-DeepFabric now includes an experimental **Topic Graph** feature that extends beyond traditional hierarchical topic trees to support **cross-connections** between topics. 
+Example graph configuration:
 
-The Topic Graph uses a directed acyclic graph (DAG) in place of the Topic Tree. It allows for more complex and realistic relationships between topics,
-where a topic can have multiple parent topics and more connection density. This system is introduced as an experimental feature, designed to co-exist with the current `Tree` implementation,
-allowing for a gradual transition and comparative analysis.
-
-### Usage
-
-**YAML Configuration:**
 ```yaml
-# Enable graph mode
-topic_generator: graph
+topic_generator: graph  # Use 'tree' for traditional hierarchy
 
 topic_graph:
   args:
     root_prompt: "Modern Software Architecture"
     provider: "ollama"
     model: "llama3"
-    temperature: 0.7
     graph_degree: 3    # Subtopics per node
     graph_depth: 3     # Graph depth
-  save_as: "software_graph.json"
+  save_as: "architecture_graph.json"
 ```
 
-**Programmatic Usage:**
-```python
-from deepfabric.topic_graph import Graph, GraphArguments
+### Multi-Provider Support
 
-graph = Graph(
-    args=GraphArguments(
-        root_prompt="Machine Learning Fundamentals",
-        model_name="ollama/llama3",
-        temperature=0.7,
-        graph_degree=3,
-        graph_depth=2,
-    )
-)
+Leverage different LLMs for different tasks. Use GPT-4 for complex topic generation, then switch to a faster model like Mixtral for bulk data creation:
 
-graph.build()
-graph.save("ml_graph.json")
+```yaml
+topic_tree:
+  args:
+    provider: "openai"
+    model: "gpt-4"  # High quality for topic structure
 
-# Optional: Generate visualization
-graph.visualize("ml_graph")  # Creates ml_graph.svg
+data_engine:
+  args:
+    provider: "ollama"
+    model: "mixtral"  # Fast and efficient for bulk generation
 ```
 
-## Getting Started
+### Automatic Dataset Upload
 
-### Prerequisites
+Push your datasets directly to Hugging Face Hub with automatic dataset cards:
 
-- Python 3.11+
-- uv (for dependency management)
-- (Optional) Hugging Face account and API token for dataset upload
+```bash
+deepfabric start config.yaml --hf-repo username/my-dataset --hf-token $HF_TOKEN
+```
 
-### Installation
+## Installation
 
-#### pip
+### Requirements
 
-You can install DeepFabric using pip:
+Python 3.11 or higher
+
+### Install from PyPI
 
 ```bash
 pip install deepfabric
 ```
 
-#### Development Installation
-
-To install the prerequisites, you can use the following commands:
+### Install from Source
 
 ```bash
-# Install uv if you haven't already
+git clone https://github.com/lukehinds/deepfabric.git
+cd deepfabric
+pip install -e .
+```
+
+### Development Setup
+
+For contributors and developers:
+
+```bash
+# Install uv for dependency management
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install deepfabric and its dependencies
+# Clone and setup development environment
 git clone https://github.com/lukehinds/deepfabric.git
 cd deepfabric
 uv sync --all-extras
 ```
 
-### Usage
+## Usage Guide
 
-DeepFabric offers two ways to define and run your generation tasks:
+### Configuration-Based Approach (Recommended)
 
-#### 1. Using YAML Configuration (Recommended)
-
-Create a YAML file defining your generation task:
+DeepFabric uses YAML configuration files for maximum flexibility. Here's a complete example:
 
 ```yaml
 system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
@@ -201,92 +285,69 @@ deepfabric start config.yaml \
   --hf-tags tag1 --hf-tags tag2
 ```
 
-#### Provider Integration
+### Supported Providers
 
-DeepFabric uses LiteLLM to interface with LLM providers. You can specify the
-provider in the provider, model section in your config or code:
+DeepFabric supports all LiteLLM providers. Here are the most common:
 
+**OpenAI**
 ```yaml
-provider: "openai"  # LLM provider
-    model: "gpt-4-1106-preview"  # Model name
+provider: "openai"
+model: "gpt-4-turbo-preview"
+# Set: export OPENAI_API_KEY="your-key"
 ```
 
-Choose any of the listed providers [here](https://docs.litellm.ai/docs/providers/)
-and following the same naming convention.
-
-e.g.
-
-The LiteLLM convention for Google Gemini would is:
-
-```python
-from litellm import completion
-import os
-
-os.environ['GEMINI_API_KEY'] = ""
-response = completion(
-    model="gemini/gemini-pro", 
-    messages=[{"role": "user", "content": "write code for saying hi from LiteLLM"}]
-)
-```
-
-In DeepFabric, you would specify the provider as `gemini` and the model as `gemini-pro`.
-
+**Anthropic**
 ```yaml
-provider: "gemini"  # LLM provider
-    model: "gemini-pro"  # Model name
+provider: "anthropic"
+model: "claude-3-opus-20240229"
+# Set: export ANTHROPIC_API_KEY="your-key"
 ```
 
-For Ollama, you would specify the provider as `ollama` and the model as `mistral`
-and so on.
-
+**Google**
 ```yaml
-provider: "ollama"  # LLM provider
-    model: "mistral:latest"  # Model name
+provider: "gemini"
+model: "gemini-pro"
+# Set: export GEMINI_API_KEY="your-key"
 ```
 
-##### API Keys
+**Ollama (Local)**
+```yaml
+provider: "ollama"
+model: "llama3:latest"
+# No API key needed
+```
 
-You can set the API key for the provider in the environment variable. The key
-should be set as `PROVIDER_API_KEY`. For example, for OpenAI, you would set the
-API key as `OPENAI_API_KEY`.
+**Azure OpenAI**
+```yaml
+provider: "azure"
+model: "your-deployment-name"
+# Set: export AZURE_API_KEY="your-key"
+# Set: export AZURE_API_BASE="your-endpoint"
+```
+
+For a complete list of providers and models, see the [LiteLLM documentation](https://docs.litellm.ai/docs/providers/).
+
+### Hugging Face Hub Integration
+
+Share your datasets with the community:
 
 ```bash
-export OPENAI_API_KEY
-```
-
-Again, refer to the [LiteLLM documentation](https://docs.litellm.ai/docs/providers/)
-for more information on setting up the API keys.
-
-#### Hugging Face Hub Integration
-
-DeepFabric supports automatic dataset upload to the Hugging Face Hub with the following features:
-
-1. **Dataset Upload**: Upload your generated dataset directly to Hugging Face Hub
-2. **Dataset Cards**: Automatically creates and updates dataset cards
-3. **Automatic Tags**: Adds "deepfabric" and "synthetic" tags automatically
-4. **Custom Tags**: Support for additional custom tags
-5. **Flexible Authentication**: HF token can be provided via:
-   - CLI option: `--hf-token your-token`
-   - Environment variable: `export HF_TOKEN=your-token`
-   - YAML configuration: `huggingface.token`
-
-Example using environment variable:
-```bash
+# Using environment variable
 export HF_TOKEN=your-token
-deepfabric start config.yaml --hf-repo username/dataset-name
+deepfabric start config.yaml --hf-repo username/my-dataset
+
+# Or pass token directly
+deepfabric start config.yaml \
+  --hf-repo username/my-dataset \
+  --hf-token your-token \
+  --hf-tags "gpt4" --hf-tags "chemistry"
 ```
 
-Or pass it in as a CLI option:
-```bash
-deepfabric start config.yaml --hf-repo username/dataset-name --hf-token your-token
-```
+DeepFabric automatically creates dataset cards with generation metadata, tags your dataset appropriately, and handles the upload process.
 
-#### 2. Using Python Code
+### Programmatic API
 
-You can also create generation tasks programmatically using Python code. There
-are several examples in the `examples` directory that demonstrate this approach.
-
-Example Python usage:
+For advanced use cases, use DeepFabric as a Python library:
 
 ```python
 from deepfabric import DataSetGenerator, DataSetGeneratorArguments, Tree, TreeArguments
@@ -314,102 +375,143 @@ engine = DataSetGenerator(
 )
 ```
 
-### Development
+## Advanced Examples
 
-The project uses Poetry for dependency management. Here are some common development commands:
+### Multi-Stage Generation Pipeline
+
+Combine different models for optimal results:
+
+```yaml
+# Stage 1: High-quality topic generation with GPT-4
+topic_tree:
+  args:
+    provider: "openai"
+    model: "gpt-4"
+    temperature: 0.7
+    tree_depth: 4
+
+# Stage 2: Fast bulk generation with Mixtral
+data_engine:
+  args:
+    provider: "ollama"
+    model: "mixtral"
+    temperature: 0.9
+
+# Stage 3: Final dataset with efficient model
+dataset:
+  creation:
+    provider: "openai"
+    model: "gpt-3.5-turbo"
+    num_steps: 100
+    batch_size: 5
+```
+
+### Domain-Specific Datasets
+
+Create specialized datasets for any domain:
+
+```yaml
+# Medical Q&A Dataset
+system_prompt: "You are a medical professional providing accurate health information."
+topic_tree:
+  args:
+    root_prompt: "Common Medical Conditions and Treatments"
+    tree_degree: 5
+    tree_depth: 3
+
+# Code Generation Dataset
+system_prompt: "You are an expert programmer."
+topic_tree:
+  args:
+    root_prompt: "Data Structures and Algorithms in Python"
+    tree_degree: 4
+    tree_depth: 3
+
+# Creative Writing Dataset
+system_prompt: "You are a creative writing instructor."
+topic_tree:
+  args:
+    root_prompt: "Science Fiction Story Elements"
+    tree_degree: 6
+    tree_depth: 2
+```
+
+### Output Format
+
+DeepFabric generates datasets in the standard conversational format:
+
+```json
+{
+  "messages": [
+    {"role": "system", "content": "System prompt..."},
+    {"role": "user", "content": "User question..."},
+    {"role": "assistant", "content": "Assistant response..."}
+  ]
+}
+```
+
+Control system message inclusion with the `sys_msg` parameter:
+
+```yaml
+dataset:
+  creation:
+    sys_msg: false  # Omit system messages for certain training scenarios
+```
+
+
+## Development
+
+### Running Tests
 
 ```bash
-# Install dependencies including development dependencies
-make install
-
-# Format code
-make format
-
-# Run linting
-make lint
-
-# Run tests
 make test
-
-# Run security checks
-make security
-
-# Build the package
-make build
-
-# Run all checks and build
-make all
+# or
+uv run pytest
 ```
 
-### Prompt Output Examples
+### Code Quality
 
-With sys_msg=true (default):
-```json
-{
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are tasked with designing an immersive virtual reality experience that transports users to a fantastical world of wonder."
-    },
-    {
-      "role": "user",
-      "content": "Create a descriptive passage about a character discovering their hidden talents."
-    },
-    {
-      "role": "assistant",
-      "content": "As she stared at the canvas, Emma's fingers hovered above the paintbrushes, as if hesitant to unleash the colors that had been locked within her. The strokes began with bold abandon, swirling blues and greens merging into a mesmerizing dance of light and shadow. With each passing moment, she felt herself becoming the art – her very essence seeping onto the canvas like watercolors in a spring storm. The world around her melted away, leaving only the vibrant symphony of color and creation."
-    }
-  ]
-}
+```bash
+make format  # Format with black and ruff
+make lint    # Run linting checks
+make security  # Security analysis with bandit
 ```
 
-With sys_msg=false:
-```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Create a descriptive passage about a character discovering their hidden talents."
-    },
-    {
-      "role": "assistant",
-      "content": "As she stared at the canvas, Emma's fingers hovered above the paintbrushes, as if hesitant to unleash the colors that had been locked within her. The strokes began with bold abandon, swirling blues and greens merging into a mesmerizing dance of light and shadow. With each passing moment, she felt herself becoming the art – her very essence seeping onto the canvas like watercolors in a spring storm. The world around her melted away, leaving only the vibrant symphony of color and creation."
-    }
-  ]
-}
+### Building
+
+```bash
+make build  # Clean, test, and build package
+make all    # Complete workflow
 ```
 
+## Best Practices
 
-## Unpredictable Behavior
+**Start Small**: Begin with a small `num_steps` value to test your configuration before scaling up.
 
-The library is designed to generate synthetic data based on the prompts and instructions
-provided. The quality of the generated data is dependent on the quality of the prompts
-and the model used. The library does not guarantee the quality of the generated data.
+**Temperature Tuning**: Use lower temperatures (0.3-0.7) for factual content, higher (0.7-1.0) for creative tasks.
 
-Large Language Models can sometimes generate unpredictable or inappropriate
-content and the authors of this library are not responsible for the content
-generated by the models. We recommend reviewing the generated data before using it
-in any production environment.
+**Iterative Refinement**: Review initial outputs and adjust your prompts and instructions accordingly.
 
-Large Language Models also have the potential to fail to stick with the behavior
-defined by the prompt around JSON formatting, and may generate invalid JSON. This
-is a known issue with the underlying model and not the library. We handle these
-errors by retrying the generation process and filtering out invalid JSON. The 
-failure rate is low, but it can happen. We report on each failure within a final
-summary.
+**Model Selection**: Use more capable models for topic generation, then switch to faster models for bulk data creation.
 
-## Promptwright
+**Validation**: Always validate a sample of your dataset before using it for training.
 
-The project was renamed and also happened in sync with a large refactor. The last
-release of what we promptwright was made at v1.50 which is now under the branch `archive`
+## Community and Support
 
-I will make sure any security issues or nasty bugs are backported, but I won't be pushing
-to pypi under the old promptwright name anymore.
+**Discord**: Join our community for discussions and support: [discord.gg/pPcjYzGvbS](https://discord.gg/pPcjYzGvbS)
 
-## Contributing
+**Issues**: Report bugs or request features: [GitHub Issues](https://github.com/lukehinds/deepfabric/issues)
 
-If something here could be improved, please open an issue or submit a pull request.
+**Contributing**: We welcome contributions! Check out our [good first issues](https://github.com/lukehinds/deepfabric/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) to get started.
 
-### License
+## License
 
-This project is licensed under the Apache 2 License. See the `LICENSE` file for more details.
+Apache 2.0 - See [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+DeepFabric (formerly Promptwright) is built on the shoulders of giants:
+
+- [LiteLLM](https://github.com/BerriAI/litellm) for unified LLM provider access
+- [Pydantic](https://pydantic-docs.helpmanual.io/) for robust data validation
+- The open-source community for continuous feedback and contributions
