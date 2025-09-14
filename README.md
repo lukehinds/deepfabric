@@ -39,10 +39,8 @@
 
 **Deepfabric** is a powerful Python library and CLI for generating synthetic datasets using LLMs. Suitabl for building teacher-student distillation pipelines, creating evaluation datasets for models and agents, or conducting research that requires diverse training data, Deepfabric streamlines the entire process from topic generation to dataset export. It can be used as an individual CLI tool, config driven with YAML, or imported as a library to use within your own ML pipelines"
 
-## See It In Action
-
 <div align="center">
-  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="Deepfabric Demo" width="100%" style="max-width: 800px;">
+  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="Deepfabric Demo" width="80%" style="max-width: 700px;">
 </div>
 
 ## Quick
