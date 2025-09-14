@@ -62,7 +62,13 @@ class DataSetGeneratorConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     instructions: str = Field(default="", description="Additional instructions for data generation")
-    system_prompt: str = Field(..., min_length=1, description="System prompt for the model")
+    generation_system_prompt: str = Field(
+        ..., min_length=1, description="System prompt for content generation"
+    )
+    dataset_system_prompt: str | None = Field(
+        None,
+        description="System prompt that goes into the final dataset (falls back to generation_system_prompt if not provided)",
+    )
     model_name: str = Field(..., min_length=1, description="Name of the model to use")
     prompt_template: str | None = Field(default=None, description="Custom prompt template")
     example_data: Dataset | None = Field(
@@ -112,10 +118,12 @@ class DataSetGenerator:
         self.failed_samples = []
         self.failure_analysis = {category: [] for category in ERROR_CATEGORIES}
 
-        # Store original system prompt for dataset inclusion
-        self.original_system_prompt = self.config.system_prompt
-        # Use ENGINE_JSON_INSTRUCTIONS only for generation prompt
-        self.generation_system_prompt = ENGINE_JSON_INSTRUCTIONS + self.config.system_prompt
+        # Store dataset system prompt for dataset inclusion (with fallback)
+        self.dataset_system_prompt = (
+            self.config.dataset_system_prompt or self.config.generation_system_prompt
+        )
+        # Use ENGINE_JSON_INSTRUCTIONS + generation prompt for content generation
+        self.generation_prompt = ENGINE_JSON_INSTRUCTIONS + self.config.generation_system_prompt
 
     def _validate_create_data_params(
         self,
@@ -240,7 +248,7 @@ class DataSetGenerator:
                         0,
                         {
                             "role": "system",
-                            "content": self.original_system_prompt,
+                            "content": self.dataset_system_prompt,
                         },
                     )
 
@@ -526,9 +534,7 @@ class DataSetGenerator:
         num_example_demonstrations: int,
         subtopics_list: list[str] | None = None,
     ) -> str:
-        prompt = data_creation_prompt.replace(
-            "{{{{system_prompt}}}}", self.generation_system_prompt
-        )
+        prompt = data_creation_prompt.replace("{{{{system_prompt}}}}", self.generation_prompt)
         prompt = prompt.replace("{{{{instructions}}}}", self.build_custom_instructions_text())
         prompt = prompt.replace(
             "{{{{examples}}}}", self.build_examples_text(num_example_demonstrations)
@@ -537,7 +543,7 @@ class DataSetGenerator:
 
     def build_system_prompt(self):
         """Return the original system prompt for dataset inclusion."""
-        return self.original_system_prompt
+        return self.dataset_system_prompt
 
     def build_custom_instructions_text(self) -> str:
         if self.config.instructions is None or self.config.instructions == "":

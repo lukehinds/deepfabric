@@ -11,7 +11,7 @@ from deepfabric import DataSetGenerator
 
 generator = DataSetGenerator(
     instructions="Create detailed explanations with practical examples for intermediate learners.",
-    system_prompt="You are an expert instructor creating educational content.",
+    generation_system_prompt="You are an expert instructor creating educational content.",
     model_name="openai/gpt-4",
     temperature=0.8,
     max_retries=3,
@@ -25,7 +25,7 @@ generator = DataSetGenerator(
 
 **instructions** (str): Core guidance for content generation specifying format, complexity, target audience, and quality expectations.
 
-**system_prompt** (str): System prompt providing behavioral context for the generation model.
+**generation_system_prompt** (str): System prompt providing behavioral context for the generation model.
 
 **model_name** (str): LiteLLM-compatible model specification in `provider/model` format.
 
@@ -49,7 +49,7 @@ from deepfabric import DataSetGenerator, Tree
 # Create generator
 generator = DataSetGenerator(
     instructions="Create detailed educational content",
-    system_prompt="You are an expert instructor",
+    generation_system_prompt="You are an expert instructor",
     model_name="openai/gpt-4",
     temperature=0.8
 )

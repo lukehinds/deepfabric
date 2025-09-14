@@ -9,16 +9,14 @@ Understanding the configuration format enables sophisticated customization of th
 The configuration file contains four primary sections, each controlling a different aspect of the generation process:
 
 ```yaml
-system_prompt: "Global system prompt available to all components"
+dataset_system_prompt: "Global system prompt available to all components"
 
 topic_tree:
-  args:
-    # Topic tree generation parameters
+  # Topic tree generation parameters
   save_as: "output_file.jsonl"
 
 data_engine:
-  args:
-    # Dataset generation parameters
+  # Dataset generation parameters
 
 dataset:
   creation:
@@ -36,18 +34,16 @@ This structure separates concerns while enabling parameter sharing through the p
 
 ## System Prompt Integration
 
-The `system_prompt` field provides a global prompt that can be referenced throughout your configuration using the `<system_prompt_placeholder>` marker. This approach ensures consistency across components while enabling centralized prompt management.
+The `dataset_system_prompt` field provides a template prompt that can be copied to other sections in your configuration. Users should specify system prompts directly in each section where they want them to ensure clarity and maintainability.
 
 ```yaml
-system_prompt: "You are an expert data scientist creating educational content for machine learning practitioners."
+dataset_system_prompt: "You are an expert data scientist creating educational content for machine learning practitioners."
 
 topic_tree:
-  args:
-    model_system_prompt: "<system_prompt_placeholder>"
+  topic_system_prompt: "You are an expert data scientist creating educational content for machine learning practitioners."
 
 data_engine:
-  args:
-    system_prompt: "<system_prompt_placeholder>"
+  generation_system_prompt: "You are an expert data scientist creating educational content for machine learning practitioners."
 ```
 
 The placeholder substitution occurs at runtime, allowing you to modify the global behavior by changing a single line rather than updating multiple sections throughout your configuration.
@@ -61,18 +57,17 @@ The topic tree section controls the hierarchical expansion of your root prompt i
 
 ```yaml
 topic_tree:
-  args:
-    root_prompt: "Machine learning fundamentals for data scientists"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 4      # Subtopics per node
-    tree_depth: 3       # Maximum tree depth
-    temperature: 0.7    # Generation creativity
-    provider: "openai"  # Model provider
-    model: "gpt-4"      # Specific model
+  topic_prompt: "Machine learning fundamentals for data scientists"
+  topic_system_prompt: "You are an expert data scientist creating educational content for machine learning practitioners."
+  degree: 4      # Subtopics per node
+  depth: 3       # Maximum tree depth
+  temperature: 0.7    # Generation creativity
+  provider: "openai"  # Model provider
+  model: "gpt-4"      # Specific model
   save_as: "ml_topics.jsonl"
 ```
 
-The `tree_degree` parameter controls breadth while `tree_depth` controls depth, allowing you to balance comprehensive coverage with generation time. Higher degree values create more subtopics per level, while greater depth values enable more detailed exploration of each subtopic.
+The `degree` parameter controls breadth while `depth` controls depth, allowing you to balance comprehensive coverage with generation time. Higher degree values create more subtopics per level, while greater depth values enable more detailed exploration of each subtopic.
 
 Temperature affects the creativity and diversity of topic generation. Lower values produce more predictable, conventional topics, while higher values encourage more creative and unexpected connections.
 
@@ -82,16 +77,15 @@ The data engine transforms topics into actual training examples using configurab
 
 ```yaml
 data_engine:
-  args:
-    instructions: "Create a practical code example with detailed explanation"
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "anthropic"
-    model: "claude-3-sonnet"
-    temperature: 0.8
-    max_retries: 3
-    request_timeout: 30
-    default_batch_size: 5
-    default_num_examples: 3
+  instructions: "Create a practical code example with detailed explanation"
+  generation_system_prompt: "You are an expert data scientist creating educational content for machine learning practitioners."
+  provider: "anthropic"
+  model: "claude-3-sonnet"
+  temperature: 0.8
+  max_retries: 3
+  request_timeout: 30
+  default_batch_size: 5
+  default_num_examples: 3
 ```
 
 The `instructions` field guides the generation process, specifying the type and format of content to create. This field accepts detailed specifications about output format, complexity level, target audience, and quality criteria.
@@ -123,14 +117,12 @@ DeepFabric supports any LiteLLM-compatible provider through consistent configura
 
 ```yaml
 topic_tree:
-  args:
-    provider: "openai"
-    model: "gpt-3.5-turbo"    # Fast, cost-effective for topic generation
+  provider: "openai"
+  model: "gpt-3.5-turbo"    # Fast, cost-effective for topic generation
 
 data_engine:
-  args:
-    provider: "anthropic"
-    model: "claude-3-opus"    # High-quality for content generation
+  provider: "anthropic"
+  model: "claude-3-opus"    # High-quality for content generation
 ```
 
 Provider authentication occurs through environment variables following the pattern `{PROVIDER}_API_KEY`. For example, OpenAI requires `OPENAI_API_KEY` while Anthropic requires `ANTHROPIC_API_KEY`.
@@ -171,9 +163,8 @@ Maintain separate configurations for different environments or use cases:
 ```yaml
 # development.yaml - Fast iteration
 topic_tree:
-  args:
-    tree_depth: 2
-    tree_degree: 3
+  depth: 2
+  degree: 3
 dataset:
   creation:
     num_steps: 10
@@ -182,9 +173,8 @@ dataset:
 
 # production.yaml - Comprehensive generation
 topic_tree:
-  args:
-    tree_depth: 4
-    tree_degree: 5
+  depth: 4
+  degree: 5
 dataset:
   creation:
     num_steps: 1000

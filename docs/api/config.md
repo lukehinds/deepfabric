@@ -36,13 +36,11 @@ Create configuration from Python dictionaries:
 
 ```python
 config_data = {
-    "system_prompt": "Custom system prompt",
+    "dataset_system_prompt": "Custom system prompt",
     "topic_tree": {
-        "args": {
-            "root_prompt": "Programming concepts",
-            "tree_degree": 4,
-            "tree_depth": 2
-        }
+    "topic_prompt": "Programming concepts",
+    "degree": 4,
+    "depth": 2
     }
 }
 
@@ -63,7 +61,7 @@ tree_args = config.get_tree_args()
 
 # With overrides
 tree_args = config.get_tree_args(
-    tree_degree=5,
+    degree=5,
     temperature=0.9,
     provider="anthropic",
     model="claude-3-opus"
@@ -78,8 +76,8 @@ Extract graph parameters for direct use with Graph constructor:
 
 ```python
 graph_args = config.get_topic_graph_args(
-    graph_degree=4,
-    graph_depth=3,
+    degree=4,
+    depth=3,
     temperature=0.8
 )
 ```
@@ -135,20 +133,20 @@ The configuration system supports placeholder substitution for parameter reuse:
 
 #### System Prompt Placeholders
 
-The `<system_prompt_placeholder>` enables reuse of global system prompts:
+System prompts should be specified directly in each section where they're needed:
 
 ```python
 # Configuration with placeholder
 config_data = {
-    "system_prompt": "You are an educational content creator.",
+    "dataset_system_prompt": "You are an educational content creator.",
     "topic_tree": {
         "args": {
-            "model_system_prompt": "<system_prompt_placeholder>"
+            "topic_system_prompt": "You are an educational content creator."
         }
     },
     "data_engine": {
         "args": {
-            "system_prompt": "<system_prompt_placeholder>"
+            "generation_system_prompt": "You are an educational content creator."
         }
     }
 }
@@ -158,7 +156,7 @@ config = DeepFabricConfig.from_dict(config_data)
 # Placeholders are resolved automatically
 tree_params = config.get_tree_args()
 tree = Tree(**tree_params)
-assert tree.model_system_prompt == "You are an educational content creator."
+assert tree.topic_system_prompt == "You are an educational content creator."
 ```
 
 #### Custom Placeholders
@@ -276,7 +274,7 @@ config.inject_environment_variables()
 Modify configuration parameters at runtime:
 
 ```python
-config.update_parameter("topic_tree.args.tree_degree", 5)
+config.update_parameter("topic_tree.args.degree", 5)
 config.update_parameter("data_engine.args.temperature", 0.9)
 
 # Updated parameters reflected in subsequent parameter extraction

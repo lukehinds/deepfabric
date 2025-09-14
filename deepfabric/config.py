@@ -1,10 +1,10 @@
-from typing import Any, Literal
+from typing import Any
 
 import yaml
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
-from .constants import DEFAULT_MODEL, DEFAULT_PROVIDER, SYSTEM_PROMPT_PLACEHOLDER
+from .constants import DEFAULT_MODEL, DEFAULT_PROVIDER
 from .exceptions import ConfigurationError
 
 # Config classes are no longer imported directly as they're not used in this module
@@ -18,22 +18,15 @@ def construct_model_string(provider: str, model: str) -> str:
 class DeepFabricConfig(BaseModel):
     """Configuration for DeepFabric tasks."""
 
-    topic_generator: Literal["tree", "graph"] = Field(
-        "tree", description="The type of topic model to use."
+    dataset_system_prompt: str | None = Field(
+        None,
+        description="System prompt that goes into the final dataset as the system message (falls back to generation_system_prompt if not provided)",
     )
-    system_prompt: str = Field(..., min_length=1, description="System prompt for the model")
     topic_tree: dict[str, Any] | None = Field(None, description="Topic tree configuration")
     topic_graph: dict[str, Any] | None = Field(None, description="Topic graph configuration")
     data_engine: dict[str, Any] = Field(..., description="Data engine configuration")
     dataset: dict[str, Any] = Field(..., description="Dataset configuration")
     huggingface: dict[str, Any] | None = Field(None, description="Hugging Face configuration")
-
-    @field_validator("system_prompt")
-    @classmethod
-    def validate_system_prompt(cls, v):
-        if not v or not v.strip():
-            raise ValueError("required")
-        return v.strip()
 
     @classmethod
     def from_yaml(cls, yaml_path: str) -> "DeepFabricConfig":
@@ -74,12 +67,6 @@ class DeepFabricConfig(BaseModel):
 
             # Remove non-constructor params
             params.pop("save_as", None)
-
-            # Replace system prompt placeholder
-            if "model_system_prompt" in params and isinstance(params["model_system_prompt"], str):
-                params["model_system_prompt"] = params["model_system_prompt"].replace(
-                    SYSTEM_PROMPT_PLACEHOLDER, self.system_prompt
-                )
 
             # Handle provider and model separately if present
             provider = overrides.pop("provider", params.pop("provider", None))
@@ -148,12 +135,6 @@ class DeepFabricConfig(BaseModel):
             # Remove non-constructor params
             params.pop("save_as", None)
 
-            # Replace system prompt placeholder
-            if "system_prompt" in params and isinstance(params["system_prompt"], str):
-                params["system_prompt"] = params["system_prompt"].replace(
-                    SYSTEM_PROMPT_PLACEHOLDER, self.system_prompt
-                )
-
             # Handle provider and model separately if present
             provider = overrides.pop("provider", params.pop("provider", None))
             model = overrides.pop("model", params.pop("model", None))
@@ -170,6 +151,11 @@ class DeepFabricConfig(BaseModel):
             # Get sys_msg from dataset config, defaulting to True
             dataset_config = self.get_dataset_config()
             params.setdefault("sys_msg", dataset_config.get("creation", {}).get("sys_msg", True))
+
+            # Set the dataset_system_prompt for the data engine, fall back to generation_system_prompt
+            dataset_prompt = self.dataset_system_prompt or params.get("generation_system_prompt")
+            if dataset_prompt:
+                params.setdefault("dataset_system_prompt", dataset_prompt)
 
         except Exception as e:
             raise ConfigurationError(f"config error: {str(e)}") from e  # noqa: TRY003

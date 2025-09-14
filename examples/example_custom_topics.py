@@ -13,11 +13,11 @@ from deepfabric import DataSetGenerator, Tree
 
 # Create a topic tree with a simple root
 tree = Tree(
-    root_prompt="Data Science",
-    model_name="ollama/llama3",
-    model_system_prompt="You are a data science expert.",
-    tree_degree=3,
-    tree_depth=2,
+    topic_prompt="Data Science",
+    model_name="ollama/qwen3:8b",
+    topic_system_prompt="You are a data science expert.",
+    degree=3,
+    depth=2,
     temperature=0.7,
 )
 
@@ -56,10 +56,10 @@ engine = DataSetGenerator(
                    - A practical example with sample data
                    - Common use cases and applications
                    - Pros and cons of the approach""",
-    system_prompt="""You are a data science educator with expertise in
+    generation_system_prompt="""You are a data science educator with expertise in
                     machine learning, deep learning, and data engineering.
                     Provide clear, practical examples using Python.""",
-    model_name="ollama/llama3",
+    model_name="ollama/qwen3:8b",
     prompt_template=None,
     example_data=None,
     temperature=0.3,  # Lower temperature for more consistent technical content

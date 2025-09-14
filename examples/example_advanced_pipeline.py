@@ -77,7 +77,7 @@ def create_filtered_dataset(
     print(f"Generating {num_steps} samples...")
     dataset = engine.create_data(
         num_steps=num_steps,
-        batch_size=5,
+        batch_size=1,  # Use batch size of 1 to match num_steps exactly
         topic_model=topic_tree,
     )
 
@@ -111,7 +111,7 @@ def main():
 
     # Configuration
     ROOT_TOPIC = "Advanced Python Design Patterns and Architecture"  # noqa: N806
-    MODEL_NAME = "ollama/llama3"  # Change to your model  # noqa: N806
+    MODEL_NAME = "openai/gpt-4o"  # Change to your model  # noqa: N806
     OUTPUT_DIR = "output"  # noqa: N806
 
     # Create output directory
@@ -123,11 +123,11 @@ def main():
     print("=" * 50)
 
     tree = Tree(
-        root_prompt=ROOT_TOPIC,
+        topic_prompt=ROOT_TOPIC,
         model_name=MODEL_NAME,
-        model_system_prompt="You are an expert in software architecture and Python.",
-        tree_degree=4,
-        tree_depth=3,
+        topic_system_prompt="You are an expert in software architecture and Python.",
+        degree=4,
+        depth=2,
         temperature=0.7,
     )
 
@@ -152,7 +152,7 @@ def main():
                       - Performance considerations
                       - Real-world application example
                       - Comparison with alternative approaches""",
-        system_prompt="""You are a senior Python developer and architect.
+        generation_system_prompt="""You are a senior Python developer and architect.
                        Your code follows PEP 8, uses type hints, and includes
                        comprehensive docstrings. You prioritize clean, maintainable code.""",
         model_name=MODEL_NAME,
@@ -160,11 +160,14 @@ def main():
         example_data=None,
         temperature=0.3,
         max_retries=5,
-        default_batch_size=5,
+        default_batch_size=3,
         default_num_examples=3,
         request_timeout=30,
         sys_msg=True,
     )
+
+    # Debug: Check what dataset_system_prompt is being used
+    print(f"Dataset system prompt: {engine.dataset_system_prompt}")
 
     # Step 3: Generate and validate dataset
     print("\n" + "=" * 50)
@@ -173,7 +176,7 @@ def main():
 
     try:
         dataset = create_filtered_dataset(
-            topic_tree=tree, engine=engine, num_steps=20, min_quality_threshold=0.7
+            topic_tree=tree, engine=engine, num_steps=15, min_quality_threshold=0.7
         )
     except Exception as e:
         print(f"❌ Error generating dataset: {e}")
@@ -231,8 +234,8 @@ def main():
         "root_topic": ROOT_TOPIC,
         "model": MODEL_NAME,
         "tree_config": {
-            "degree": tree.tree_degree,
-            "depth": tree.tree_depth,
+            "degree": tree.degree,
+            "depth": tree.depth,
         },
         "statistics": stats,
         "failed_samples": len(engine.failed_samples),

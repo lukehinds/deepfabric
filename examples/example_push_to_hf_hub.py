@@ -11,10 +11,10 @@ def main():
     print("deepfabric - Uploading to Hugging Face Hub")
     print("============================================")
 
-    dataset_file = "my_dataset.jsonl"
+    dataset_file = "web_dev_tutorials_v2.jsonl"
 
     # Upload the dataset to Hugging Face Hub
-    hf_dataset_repo = "huggingface_username/my_dataset"
+    hf_dataset_repo = "lukehinds/test-deepfabric-dataset"
     jsonl_file_path = dataset_file
 
     # Get the Hugging Face authentication token from env

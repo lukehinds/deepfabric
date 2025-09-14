@@ -62,10 +62,8 @@ Fine-tune topic generation behavior through command-line parameters:
 
 ```bash
 deepfabric generate config.yaml \
-  --tree-degree 5 \
-  --tree-depth 4 \
-  --graph-degree 4 \
-  --graph-depth 3 \
+  --degree 5 \
+  --depth 4 \
   --temperature 0.7
 ```
 
@@ -107,8 +105,8 @@ deepfabric generate research-dataset.yaml \
   --dataset-save-as research_examples.jsonl \
   --provider anthropic \
   --model claude-3-opus \
-  --tree-degree 4 \
-  --tree-depth 3 \
+  --degree 4 \
+  --depth 3 \
   --num-steps 200 \
   --batch-size 8 \
   --temperature 0.8 \

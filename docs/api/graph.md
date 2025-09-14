@@ -10,26 +10,26 @@ Graph configuration is passed directly to the Graph constructor with parameters 
 from deepfabric import Graph
 
 graph = Graph(
-    root_prompt="Artificial intelligence research areas",
+    topic_prompt="Artificial intelligence research areas",
     model_name="anthropic/claude-3-opus",
-    model_system_prompt="You are mapping interconnected research concepts.",
-    graph_degree=4,        # Connections per node
-    graph_depth=3,         # Maximum distance from root
+    topic_system_prompt="You are mapping interconnected research concepts.",
+    degree=4,        # Connections per node
+    depth=3,         # Maximum distance from root
     temperature=0.8        # Higher creativity for connections
 )
 ```
 
 ### Parameters
 
-**root_prompt** (str): Central concept from which the graph expands. Should support rich interconnections.
+**topic_prompt** (str): Central concept from which the graph expands. Should support rich interconnections.
 
 **model_name** (str): LiteLLM-compatible model specification. Higher-capability models often produce better cross-connections.
 
-**model_system_prompt** (str): System prompt guiding both hierarchical and lateral relationship generation.
+**topic_system_prompt** (str): System prompt guiding both hierarchical and lateral relationship generation.
 
-**graph_degree** (int): Maximum connections per node, including both children and cross-connections.
+**degree** (int): Maximum connections per node, including both children and cross-connections.
 
-**graph_depth** (int): Maximum shortest-path distance from root to any node.
+**depth** (int): Maximum shortest-path distance from root to any node.
 
 **temperature** (float): Controls creativity in connection generation. Higher values encourage more diverse relationships.
 
@@ -42,10 +42,10 @@ from deepfabric import Graph
 
 # Create and build a graph
 graph = Graph(
-    root_prompt="Artificial intelligence research areas",
+    topic_prompt="Artificial intelligence research areas",
     model_name="anthropic/claude-3-opus",
-    graph_degree=4,
-    graph_depth=3,
+    degree=4,
+    depth=3,
     temperature=0.8
 )
 graph.build()
@@ -103,7 +103,7 @@ Reconstructs graph from previously saved JSON files:
 
 ```python
 graph = Graph(
-    root_prompt="Default prompt",
+    topic_prompt="Default prompt",
     model_name="anthropic/claude-3-opus"
 )
 graph.load("existing_graph.json")
@@ -116,7 +116,7 @@ Class method for loading graphs with specific configuration:
 ```python
 graph = Graph.from_json(
     "saved_graph.json",
-    root_prompt="Research areas",
+    topic_prompt="Research areas",
     model_name="anthropic/claude-3-opus"
 )
 ```
@@ -157,10 +157,10 @@ Control graph construction through individual phases:
 
 ```python
 graph = Graph(
-    root_prompt="Complex domain",
+    topic_prompt="Complex domain",
     model_name="anthropic/claude-3-opus",
-    graph_degree=4,
-    graph_depth=3
+    degree=4,
+    depth=3
 )
 graph.build_hierarchical_structure()  # Create tree backbone
 graph.analyze_connections()           # Find potential cross-connections

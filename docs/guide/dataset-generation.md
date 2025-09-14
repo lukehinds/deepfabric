@@ -22,16 +22,15 @@ Dataset generation is controlled through comprehensive configuration options:
 
 ```yaml
 data_engine:
-  args:
-    instructions: "Create a detailed explanation with practical examples suitable for intermediate learners."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "openai"
-    model: "gpt-4"
-    temperature: 0.8
-    max_retries: 3
-    request_timeout: 30
-    default_batch_size: 5
-    default_num_examples: 3
+  instructions: "Create a detailed explanation with practical examples suitable for intermediate learners."
+  generation_system_prompt: "You are an expert instructor providing clear, comprehensive explanations with practical examples and detailed guidance."
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.8
+  max_retries: 3
+  request_timeout: 30
+  default_batch_size: 5
+  default_num_examples: 3
 
 dataset:
   creation:

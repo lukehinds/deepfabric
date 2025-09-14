@@ -10,26 +10,26 @@ Configuration for tree generation is passed directly to the Tree constructor:
 from deepfabric import Tree
 
 tree = Tree(
-    root_prompt="Machine learning fundamentals",
+    topic_prompt="Machine learning fundamentals",
     model_name="openai/gpt-4",
-    model_system_prompt="You are creating educational topic structures.",
-    tree_degree=4,         # Subtopics per node
-    tree_depth=3,          # Maximum depth
+    topic_system_prompt="You are creating educational topic structures.",
+    degree=4,         # Subtopics per node
+    depth=3,          # Maximum depth
     temperature=0.7        # Generation creativity
 )
 ```
 
 ### Parameters
 
-**root_prompt** (str): The central concept from which the tree expands. This should be broad enough to support meaningful subdivision while specific enough to maintain focus.
+**topic_prompt** (str): The central concept from which the tree expands. This should be broad enough to support meaningful subdivision while specific enough to maintain focus.
 
 **model_name** (str): LiteLLM-compatible model specification in `provider/model` format.
 
-**model_system_prompt** (str): System prompt providing context for topic generation behavior.
+**topic_system_prompt** (str): System prompt providing context for topic generation behavior.
 
-**tree_degree** (int): Number of subtopics generated for each node. Higher values create broader exploration.
+**degree** (int): Number of subtopics generated for each node. Higher values create broader exploration.
 
-**tree_depth** (int): Maximum levels from root to leaves. Deeper trees enable more detailed exploration.
+**depth** (int): Maximum levels from root to leaves. Deeper trees enable more detailed exploration.
 
 **temperature** (float): Controls creativity in topic generation. Range 0.0-2.0, typically 0.6-0.9.
 
@@ -42,10 +42,10 @@ from deepfabric import Tree
 
 # Create and build a tree
 tree = Tree(
-    root_prompt="Machine learning fundamentals",
+    topic_prompt="Machine learning fundamentals",
     model_name="openai/gpt-4",
-    tree_degree=4,
-    tree_depth=3,
+    degree=4,
+    depth=3,
     temperature=0.7
 )
 tree.build()
@@ -91,7 +91,7 @@ Recreates tree structure from previously saved JSONL files:
 
 ```python
 tree = Tree(
-    root_prompt="Default prompt",
+    topic_prompt="Default prompt",
     model_name="openai/gpt-4"
 )
 tree.load("existing_topics.jsonl")
@@ -139,10 +139,10 @@ Build trees incrementally for large structures:
 
 ```python
 tree = Tree(
-    root_prompt="Complex domain",
+    topic_prompt="Complex domain",
     model_name="openai/gpt-4",
-    tree_degree=4,
-    tree_depth=3
+    degree=4,
+    depth=3
 )
 tree.build_level(0)  # Build root level
 # Inspect and modify if needed
@@ -199,10 +199,10 @@ Common patterns for integrating Tree with other components:
 ```python
 # Tree to dataset generation
 tree = Tree(
-    root_prompt="Base concept",
+    topic_prompt="Base concept",
     model_name="openai/gpt-4",
-    tree_degree=4,
-    tree_depth=3
+    degree=4,
+    depth=3
 )
 tree.build()
 
@@ -217,10 +217,10 @@ variants = []
 
 for degree in [3, 4, 5]:
     variant_tree = Tree(
-        root_prompt="Base concept",
+        topic_prompt="Base concept",
         model_name="openai/gpt-4",
-        tree_degree=degree,
-        tree_depth=3
+        degree=degree,
+        depth=3
     )
     variant_tree.build()
     variants.append(variant_tree)

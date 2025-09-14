@@ -39,10 +39,10 @@ config = DeepFabricConfig.from_yaml("config.yaml")
 
 # Programmatic configuration
 tree = Tree(
-    root_prompt="Machine Learning Concepts",
+    topic_prompt="Machine Learning Concepts",
     model_name="openai/gpt-4",
-    tree_degree=4,
-    tree_depth=3,
+    degree=4,
+    depth=3,
     temperature=0.7
 )
 ```
@@ -56,10 +56,10 @@ The standard generation workflow follows a consistent pattern across all API usa
 ```python
 # 1. Create topic model
 tree = Tree(
-    root_prompt="Machine Learning Concepts",
+    topic_prompt="Machine Learning Concepts",
     model_name="openai/gpt-4",
-    tree_degree=4,
-    tree_depth=3,
+    degree=4,
+    depth=3,
     temperature=0.7
 )
 tree.build()

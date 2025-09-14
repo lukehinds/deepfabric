@@ -20,14 +20,13 @@ A typical topic tree configuration demonstrates the key parameters:
 
 ```yaml
 topic_tree:
-  args:
-    root_prompt: "Modern software development practices"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 4      # Four subtopics per node
-    tree_depth: 3       # Three levels deep
-    temperature: 0.7    # Balanced creativity
-    provider: "openai"
-    model: "gpt-4"
+  topic_prompt: "Modern software development practices"
+  topic_system_prompt: "You are an expert knowledge organizer creating comprehensive topic structures for educational and professional content. You provide well-structured, logically connected topic hierarchies with clear relationships and thorough coverage."
+  degree: 4      # Four subtopics per node
+  depth: 3       # Three levels deep
+  temperature: 0.7    # Balanced creativity
+  provider: "openai"
+  model: "gpt-4"
   save_as: "software_topics.jsonl"
 ```
 

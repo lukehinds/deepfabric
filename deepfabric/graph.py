@@ -62,8 +62,11 @@ class GraphConfig(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    root_prompt: str = Field(
+    topic_prompt: str = Field(
         ..., min_length=1, description="The initial prompt to start the topic graph"
+    )
+    topic_system_prompt: str = Field(
+        default="", description="System prompt for topic exploration and generation"
     )
     model_name: str = Field(
         default=TOPIC_TREE_DEFAULT_MODEL,
@@ -76,10 +79,8 @@ class GraphConfig(BaseModel):
         le=2.0,
         description="Temperature for model generation",
     )
-    graph_degree: int = Field(
-        default=3, ge=1, le=10, description="The branching factor of the graph"
-    )
-    graph_depth: int = Field(default=2, ge=1, le=5, description="The depth of the graph")
+    degree: int = Field(default=3, ge=1, le=10, description="The branching factor of the graph")
+    depth: int = Field(default=2, ge=1, le=5, description="The depth of the graph")
 
 
 # Pydantic Models for strict data representation
@@ -133,13 +134,14 @@ class Graph(TopicModel):
             raise ValueError(f"Invalid graph configuration: {str(e)}") from e  # noqa: TRY003
 
         # Initialize from config
-        self.root_prompt = self.config.root_prompt
+        self.topic_prompt = self.config.topic_prompt
+        self.model_system_prompt = self.config.topic_system_prompt
         self.model_name = self.config.model_name
         self.temperature = self.config.temperature
-        self.graph_degree = self.config.graph_degree
-        self.graph_depth = self.config.graph_depth
+        self.degree = self.config.degree
+        self.depth = self.config.depth
 
-        self.root: Node = Node(self.config.root_prompt, 0)
+        self.root: Node = Node(self.config.topic_prompt, 0)
         self.nodes: dict[int, Node] = {0: self.root}
         self._next_node_id: int = 1
         self.failed_generations: list[dict[str, Any]] = []
@@ -239,16 +241,16 @@ class Graph(TopicModel):
         """Builds the graph by iteratively calling the LLM to get subtopics and connections."""
         # Initialize TUI
         tui = get_graph_tui()
-        tui.start_building(self.model_name, self.graph_depth, self.graph_degree)
+        tui.start_building(self.model_name, self.depth, self.degree)
 
         try:
-            for depth in range(self.graph_depth):
+            for depth in range(self.depth):
                 leaf_nodes = [node for node in self.nodes.values() if not node.children]
                 tui.start_depth_level(depth + 1, len(leaf_nodes))
 
                 for node in leaf_nodes:
                     subtopics_added, connections_added = self.get_subtopics_and_connections(
-                        node, self.graph_degree, tui
+                        node, self.degree, tui
                     )
                     tui.complete_node_expansion(node.topic, subtopics_added, connections_added)
 
