@@ -174,18 +174,9 @@ Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way t
 
 <img src="/assets/star.gif" width="40%" height="40%"/>
 
-## FAQ
-
-## I heard that Synthetic Data is inferior to Human curated / labelled data
-
-That used to be the view, but no longer is, especially when it comes to model fine-tuning of SLMs. Views shifted when Deepseek first released r1,
-trained largley on synthetics using a process termed 'distilation'. 
-
-Since then many other models have followed suit, including most recently Phi-4, to quote the whitepaper "Synthetic data constitutes the bulk of the training data for phi-4".
-
 ## Roadmap
 
-### Outlines
+### Better Structured Formatting
 
 Introduce Outlines as an LLM replacement, and make use of its structured ouput support
 
@@ -202,5 +193,15 @@ formatters:
   config:
     instruction_field: "query"
 ```
+
+### More Conversations Types
+
+We will be introducing, multi-turn, reasoning, chain-of-thought etc.
+
+### Kaggel Support
+
+Push to Kaggel
+
+
 
 
