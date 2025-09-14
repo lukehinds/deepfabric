@@ -16,6 +16,7 @@ nav:
     - Topic Trees: guide/topic-trees.md
     - Topic Graphs: guide/topic-graphs.md
     - Dataset Generation: guide/dataset-generation.md
+    - System Prompts: guide/system-prompts.md
     - Provider Integration: guide/provider-integration.md
   - CLI Reference:
     - Overview: cli/index.md

@@ -198,9 +198,9 @@ dataset_system_prompt: "You are a senior Python developer specializing in web fr
 ### Complete Configuration Examples
 
 See our example configurations for different domains:
-- [`example-specialized-prompts.yaml`](../examples/example-specialized-prompts.yaml) - Different prompts per stage
-- [`example-domain-specific-prompts.yaml`](../examples/example-domain-specific-prompts.yaml) - Medical domain specialization
-- [`example-mixed-prompts.yaml`](../examples/example-mixed-prompts.yaml) - Combining consistent and custom prompts
+- [`example-specialized-prompts.yaml`](https://github.com/lukehinds/deepfabric/blob/main/examples/example-specialized-prompts.yaml) - Different prompts per stage
+- [`example-domain-specific-prompts.yaml`](https://github.com/lukehinds/deepfabric/blob/main/examples/example-domain-specific-prompts.yaml) - Medical domain specialization
+- [`example-mixed-prompts.yaml`](https://github.com/lukehinds/deepfabric/blob/main/examples/example-mixed-prompts.yaml) - Combining consistent and custom prompts
 
 ### Quick Reference Templates
 
