@@ -37,13 +37,17 @@
   <br/>
 </div>
 
-**Deepfabric** is a powerful Python library and CLI for generating synthetic datasets using LLMs. Suitabl for building teacher-student distillation pipelines, creating evaluation datasets for models and agents, or conducting research that requires diverse training data, Deepfabric streamlines the entire process from topic generation to dataset export. It can be used as an individual CLI tool, config driven with YAML, or imported as a library to use within your own ML pipelines"
+**Deepfabric** is an SDK and CLI tool that leverages large language models to generate high-quality synthetic datasets. It's designed for researchers and developers building teacher-student distillation pipelines, creating evaluation benchmarks for models and agents, or conducting research requiring diverse training data.
+
+The key innovation lies in Deepfabric's graph and tree-based architecture, which uses structured topic nodes as generation seeds. This approach ensures the creation of datasets that are both highly diverse and domain-specific, while minimizing redundancy and duplication across generated samples.
+
+## See It In Action
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="Deepfabric Demo" width="80%" style="max-width: 700px;">
 </div>
 
-## Quick
+## Quickstart
 
 Get up and running in under 60 seconds:
 
@@ -172,11 +176,9 @@ Since then many other models have followed suit, including most recently Phi-4, 
 
 Deepfabric can generate topics using two approaches:
 
-**Topic Trees**: Traditional hierarchical structure where each topic branches into subtopics, perfect for well-organized domains.
-
 **Topic Graphs** (Experimental): DAG-based structure allowing cross-connections between topics, ideal for complex domains with interconnected concepts.
 
-<img src="https://raw.githubusercontent.com/lukehinds/deepfabric/f6ac2717a99b1ae1963aedeb099ad75bb30170e8/assets/graph.svg" width="100%" height="100%"/>
+**Topic Trees**: Traditional hierarchical structure where each topic branches into subtopics, perfect for well-organized domains.
 
 ### Multi-Provider Support
 
