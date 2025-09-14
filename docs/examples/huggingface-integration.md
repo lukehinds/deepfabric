@@ -8,27 +8,25 @@ Simple dataset upload with automatic documentation:
 
 ```yaml
 # basic-hf-upload.yaml
-system_prompt: "You are creating educational programming content for computer science students."
+dataset_system_prompt: "You are creating educational programming content for computer science students."
 
 topic_tree:
-  args:
-    root_prompt: "Python programming fundamentals for beginners"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 4
-    tree_depth: 2
-    temperature: 0.7
-    provider: "openai"
-    model: "gpt-3.5-turbo"
+  topic_prompt: "Python programming fundamentals for beginners"
+  topic_system_prompt: "You are creating educational programming content for computer science students."
+  degree: 4
+  depth: 2
+  temperature: 0.7
+  provider: "openai"
+  model: "gpt-3.5-turbo"
   save_as: "python_basics_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Create clear, beginner-friendly programming examples with step-by-step explanations and practical exercises."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "openai"
-    model: "gpt-4"
-    temperature: 0.8
-    max_retries: 3
+  instructions: "Create clear, beginner-friendly programming examples with step-by-step explanations and practical exercises."
+  generation_system_prompt: "You are creating educational programming content for computer science students."
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.8
+  max_retries: 3
 
 dataset:
   creation:
@@ -66,27 +64,25 @@ Organize related datasets in a single repository with different components:
 
 ```yaml
 # comprehensive-ml-course.yaml
-system_prompt: "You are creating a comprehensive machine learning curriculum with theoretical foundations and practical applications."
+dataset_system_prompt: "You are creating a comprehensive machine learning curriculum with theoretical foundations and practical applications."
 
 topic_tree:
-  args:
-    root_prompt: "Machine learning concepts from basics to advanced applications"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 5
-    tree_depth: 3
-    temperature: 0.7
-    provider: "anthropic"
-    model: "claude-3-sonnet"
+  topic_prompt: "Machine learning concepts from basics to advanced applications"
+  topic_system_prompt: "You are creating a comprehensive machine learning curriculum with theoretical foundations and practical applications."
+  degree: 5
+  depth: 3
+  temperature: 0.7
+  provider: "anthropic"
+  model: "claude-3-sonnet"
   save_as: "ml_course_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Create detailed explanations with mathematical foundations, practical examples, and real-world applications suitable for undergraduate and graduate students."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "anthropic"
-    model: "claude-3-opus"
-    temperature: 0.8
-    max_retries: 3
+  instructions: "Create detailed explanations with mathematical foundations, practical examples, and real-world applications suitable for undergraduate and graduate students."
+  generation_system_prompt: "You are creating a comprehensive machine learning curriculum with theoretical foundations and practical applications."
+  provider: "anthropic"
+  model: "claude-3-opus"
+  temperature: 0.8
+  max_retries: 3
 
 dataset:
   creation:
@@ -119,7 +115,7 @@ deepfabric generate comprehensive-ml-course.yaml
 deepfabric generate comprehensive-ml-course.yaml \
   --dataset-save-as "ml_fundamentals.jsonl" \
   --num-steps 150 \
-  --tree-depth 2
+  --depth 2
 
 deepfabric generate comprehensive-ml-course.yaml \
   --dataset-save-as "ml_advanced_topics.jsonl" \
@@ -146,28 +142,26 @@ Professional dataset publishing with comprehensive documentation:
 
 ```yaml
 # enterprise-customer-support.yaml
-system_prompt: "You are creating professional customer support training data that demonstrates excellence in customer service across various industries and scenarios."
+dataset_system_prompt: "You are creating professional customer support training data that demonstrates excellence in customer service across various industries and scenarios."
 
 topic_tree:
-  args:
-    root_prompt: "Customer support excellence across industries: retail, technology, healthcare, finance, and services"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 5
-    tree_depth: 4
-    temperature: 0.8
-    provider: "openai"
-    model: "gpt-4"
+  topic_prompt: "Customer support excellence across industries: retail, technology, healthcare, finance, and services"
+  topic_system_prompt: "You are creating professional customer support training data that demonstrates excellence in customer service across various industries and scenarios."
+  degree: 5
+  depth: 4
+  temperature: 0.8
+  provider: "openai"
+  model: "gpt-4"
   save_as: "customer_support_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Create realistic, professional customer service interactions demonstrating empathy, problem-solving skills, and industry-specific knowledge. Include complex scenarios, difficult customers, and exemplary resolution techniques."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "anthropic"
-    model: "claude-3-opus"
-    temperature: 0.8
-    max_retries: 5
-    request_timeout: 60
+  instructions: "Create realistic, professional customer service interactions demonstrating empathy, problem-solving skills, and industry-specific knowledge. Include complex scenarios, difficult customers, and exemplary resolution techniques."
+  generation_system_prompt: "You are creating professional customer support training data that demonstrates excellence in customer service across various industries and scenarios."
+  provider: "anthropic"
+  model: "claude-3-opus"
+  temperature: 0.8
+  max_retries: 5
+  request_timeout: 60
 
 dataset:
   creation:
@@ -315,29 +309,26 @@ Academic dataset publication with detailed provenance and methodology documentat
 
 ```yaml
 # research-nlp-dataset.yaml
-system_prompt: "You are creating research-quality natural language processing datasets with focus on linguistic diversity, theoretical soundness, and reproducibility."
+dataset_system_prompt: "You are creating research-quality natural language processing datasets with focus on linguistic diversity, theoretical soundness, and reproducibility."
 
-topic_generator: graph
-
+# Auto-detects graph mode since topic_graph section is present
 topic_graph:
-  args:
-    root_prompt: "Natural language processing research areas: syntax, semantics, pragmatics, computational linguistics, and applications"
-    model_system_prompt: "<system_prompt_placeholder>"
-    graph_degree: 4
-    graph_depth: 3
-    temperature: 0.8
-    provider: "anthropic"
-    model: "claude-3-opus"
+  topic_prompt: "Natural language processing research areas: syntax, semantics, pragmatics, computational linguistics, and applications"
+  topic_system_prompt: "You are creating research-quality natural language processing datasets with focus on linguistic diversity, theoretical soundness, and reproducibility."
+  degree: 4
+  depth: 3
+  temperature: 0.8
+  provider: "anthropic"
+  model: "claude-3-opus"
   save_as: "nlp_research_graph.json"
 
 data_engine:
-  args:
-    instructions: "Create academically rigorous natural language processing examples with theoretical grounding, citing relevant literature where appropriate, and demonstrating complex linguistic phenomena suitable for graduate-level research."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "openai"
-    model: "gpt-4"
-    temperature: 0.7
-    max_retries: 5
+  instructions: "Create academically rigorous natural language processing examples with theoretical grounding, citing relevant literature where appropriate, and demonstrating complex linguistic phenomena suitable for graduate-level research."
+  generation_system_prompt: "You are creating research-quality natural language processing datasets with focus on linguistic diversity, theoretical soundness, and reproducibility."
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.7
+  max_retries: 5
 
 dataset:
   creation:
@@ -411,27 +402,25 @@ Open-source community dataset with broad accessibility:
 
 ```yaml
 # community-programming-help.yaml
-system_prompt: "You are creating community-driven programming help content that demonstrates collaborative problem-solving, mentoring approaches, and inclusive technical communication."
+dataset_system_prompt: "You are creating community-driven programming help content that demonstrates collaborative problem-solving, mentoring approaches, and inclusive technical communication."
 
 topic_tree:
-  args:
-    root_prompt: "Programming help and mentorship across languages, frameworks, and skill levels"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 6
-    tree_depth: 3
-    temperature: 0.8
-    provider: "openai"
-    model: "gpt-4"
+  topic_prompt: "Programming help and mentorship across languages, frameworks, and skill levels"
+  topic_system_prompt: "You are creating community-driven programming help content that demonstrates collaborative problem-solving, mentoring approaches, and inclusive technical communication."
+  degree: 6
+  depth: 3
+  temperature: 0.8
+  provider: "openai"
+  model: "gpt-4"
   save_as: "programming_help_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Create supportive, educational programming discussions that demonstrate effective mentoring, inclusive language, and collaborative problem-solving approaches suitable for diverse technical communities."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "openai"
-    model: "gpt-4"
-    temperature: 0.8
-    max_retries: 3
+  instructions: "Create supportive, educational programming discussions that demonstrate effective mentoring, inclusive language, and collaborative problem-solving approaches suitable for diverse technical communities."
+  generation_system_prompt: "You are creating community-driven programming help content that demonstrates collaborative problem-solving, mentoring approaches, and inclusive technical communication."
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.8
+  max_retries: 3
 
 dataset:
   creation:

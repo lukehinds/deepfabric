@@ -34,7 +34,7 @@ DeepFabric is a Python library for generating synthetic datasets using LLM provi
 ## Core Architecture
 
 ### Configuration System
-- YAML-based configuration with `<system_prompt_placeholder>` substitution
+- YAML-based configuration with direct system prompt specification
 - Separate provider/model specification that gets combined into LiteLLM format
 - CLI supports extensive parameter overrides
 
@@ -72,7 +72,7 @@ The `sys_msg` parameter controls whether system messages are included in the fin
 
 ### YAML Structure
 ```yaml
-system_prompt: "..."
+dataset_system_prompt: "..."
 topic_tree:
   args: {...}
   save_as: "file.jsonl"

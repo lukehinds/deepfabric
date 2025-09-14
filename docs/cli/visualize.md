@@ -51,7 +51,7 @@ The command automatically appends `.svg` to the output filename, creating scalab
 
 The generated diagrams use distinct visual elements to represent different aspects of the graph structure:
 
-**Node Representation** displays topics as labeled boxes with the topic prompt text, sized according to their position in the hierarchy.
+**Node Representation** displays topics as labeled boxes with the seed prompt text, sized according to their position in the hierarchy.
 
 **Hierarchical Edges** appear as solid lines connecting parent topics to their direct children, showing the primary organizational structure.
 

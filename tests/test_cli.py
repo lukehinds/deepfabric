@@ -22,13 +22,13 @@ def cli_runner():
 def sample_yaml_content():
     """Sample YAML content for testing."""
     return """
-system_prompt: "Test system prompt"
+dataset_system_prompt: "Test system prompt"
 topic_tree:
   args:
-    root_prompt: "Test root prompt"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 3
-    tree_depth: 2
+    topic_prompt: "Test root prompt"
+    topic_system_prompt: "Test system prompt"
+    degree: 3
+    depth: 2
     temperature: 0.7
     provider: "test"
     model: "model"
@@ -36,7 +36,7 @@ topic_tree:
 data_engine:
   args:
     instructions: "Test instructions"
-    system_prompt: "<system_prompt_placeholder>"
+    generation_system_prompt: "Test system prompt"
     provider: "test"
     model: "model"
     temperature: 0.9
@@ -56,13 +56,13 @@ dataset:
 def sample_yaml_content_no_sys_msg():
     """Sample YAML content without sys_msg setting."""
     return """
-system_prompt: "Test system prompt"
+dataset_system_prompt: "Test system prompt"
 topic_tree:
   args:
-    root_prompt: "Test root prompt"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 3
-    tree_depth: 2
+    topic_prompt: "Test root prompt"
+    topic_system_prompt: "Test system prompt"
+    degree: 3
+    depth: 2
     temperature: 0.7
     provider: "test"
     model: "model"
@@ -70,7 +70,7 @@ topic_tree:
 data_engine:
   args:
     instructions: "Test instructions"
-    system_prompt: "<system_prompt_placeholder>"
+    generation_system_prompt: "Test system prompt"
     provider: "test"
     model: "model"
     temperature: 0.9
@@ -257,9 +257,9 @@ def test_generate_command_with_overrides(
             "model",
             "--temperature",
             "0.5",
-            "--tree-degree",
+            "--degree",
             "4",
-            "--tree-depth",
+            "--depth",
             "3",
             "--num-steps",
             "10",

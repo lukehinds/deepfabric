@@ -16,6 +16,7 @@ from .exceptions import (
 )
 from .generator import DataSetGenerator, DataSetGeneratorConfig
 from .graph import Graph, GraphConfig
+from .hf_hub import HFUploader
 from .tree import Tree, TreeConfig
 
 __version__ = "0.1.0"
@@ -29,6 +30,7 @@ __all__ = [
     "DataSetGeneratorConfig",
     "Dataset",
     "DeepFabricConfig",
+    "HFUploader",
     "cli",
     # Exceptions
     "DeepFabricError",

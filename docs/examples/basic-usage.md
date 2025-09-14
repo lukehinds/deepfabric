@@ -10,27 +10,25 @@ This example generates a dataset about basic programming concepts using a straig
 
 ```yaml
 # programming-basics.yaml
-system_prompt: "You are a programming instructor creating educational content for beginners."
+dataset_system_prompt: "You are a programming instructor creating educational content for beginners."
 
 topic_tree:
-  args:
-    root_prompt: "Basic programming concepts for new developers"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 3
-    tree_depth: 2
-    temperature: 0.7
-    provider: "openai"
-    model: "gpt-3.5-turbo"
+  topic_prompt: "Basic programming concepts for new developers"
+  topic_system_prompt: "You are a programming instructor creating educational content for beginners."
+  degree: 3
+  depth: 2
+  temperature: 0.7
+  provider: "openai"
+  model: "gpt-3.5-turbo"
   save_as: "programming_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Create a clear explanation with a simple code example that a beginner could understand and follow."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "openai"
-    model: "gpt-3.5-turbo"
-    temperature: 0.8
-    max_retries: 3
+  instructions: "Create a clear explanation with a simple code example that a beginner could understand and follow."
+  generation_system_prompt: "You are a programming instructor creating educational content for beginners."
+  provider: "openai"
+  model: "gpt-3.5-turbo"
+  temperature: 0.8
+  max_retries: 3
 
 dataset:
   creation:
@@ -56,27 +54,25 @@ For development environments or privacy-sensitive applications, this example use
 
 ```yaml
 # local-development.yaml
-system_prompt: "You are a senior developer creating code examples and explanations for team documentation."
+dataset_system_prompt: "You are a senior developer creating code examples and explanations for team documentation."
 
 topic_tree:
-  args:
-    root_prompt: "Software development best practices"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 4
-    tree_depth: 2
-    temperature: 0.6
-    provider: "ollama"
-    model: "codellama"
+  topic_prompt: "Software development best practices"
+  topic_system_prompt: "You are a senior developer creating code examples and explanations for team documentation."
+  degree: 4
+  depth: 2
+  temperature: 0.6
+  provider: "ollama"
+  model: "codellama"
   save_as: "dev_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Provide a practical code example with explanation of why this approach is considered a best practice."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "ollama"
-    model: "codellama"
-    temperature: 0.7
-    max_retries: 2
+  instructions: "Provide a practical code example with explanation of why this approach is considered a best practice."
+  generation_system_prompt: "You are a senior developer creating code examples and explanations for team documentation."
+  provider: "ollama"
+  model: "codellama"
+  temperature: 0.7
+  max_retries: 2
 
 dataset:
   creation:
@@ -99,27 +95,25 @@ This example demonstrates generating content across multiple related domains usi
 
 ```yaml
 # research-dataset.yaml
-system_prompt: "You are a research assistant creating comprehensive educational content for graduate-level study."
+dataset_system_prompt: "You are a research assistant creating comprehensive educational content for graduate-level study."
 
 topic_tree:
-  args:
-    root_prompt: "Machine learning and artificial intelligence research areas"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 5
-    tree_depth: 3
-    temperature: 0.8
-    provider: "anthropic"
-    model: "claude-3-sonnet"
+  topic_prompt: "Machine learning and artificial intelligence research areas"
+  topic_system_prompt: "You are a research assistant creating comprehensive educational content for graduate-level study."
+  degree: 5
+  depth: 3
+  temperature: 0.8
+  provider: "anthropic"
+  model: "claude-3-sonnet"
   save_as: "research_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Create a detailed explanation suitable for graduate students, including current research trends and practical applications."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "anthropic"
-    model: "claude-3-sonnet"
-    temperature: 0.7
-    max_retries: 3
+  instructions: "Create a detailed explanation suitable for graduate students, including current research trends and practical applications."
+  generation_system_prompt: "You are a research assistant creating comprehensive educational content for graduate-level study."
+  provider: "anthropic"
+  model: "claude-3-sonnet"
+  temperature: 0.7
+  max_retries: 3
 
 dataset:
   creation:
@@ -139,27 +133,25 @@ This example focuses on creating conversational training data with natural dialo
 
 ```yaml
 # conversation-dataset.yaml
-system_prompt: "You are a helpful assistant engaging in natural, informative conversations."
+dataset_system_prompt: "You are a helpful assistant engaging in natural, informative conversations."
 
 topic_tree:
-  args:
-    root_prompt: "Everyday topics for natural conversation"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 4
-    tree_depth: 2
-    temperature: 0.9
-    provider: "openai"
-    model: "gpt-4"
+  topic_prompt: "Everyday topics for natural conversation"
+  topic_system_prompt: "You are a helpful assistant engaging in natural, informative conversations."
+  degree: 4
+  depth: 2
+  temperature: 0.9
+  provider: "openai"
+  model: "gpt-4"
   save_as: "conversation_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Create a natural conversation exchange that demonstrates helpful, engaging dialogue about this topic."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "openai"
-    model: "gpt-4"
-    temperature: 0.8
-    max_retries: 3
+  instructions: "Create a natural conversation exchange that demonstrates helpful, engaging dialogue about this topic."
+  generation_system_prompt: "You are a helpful assistant engaging in natural, informative conversations."
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.8
+  max_retries: 3
 
 dataset:
   creation:
@@ -179,27 +171,25 @@ For rapid experimentation and testing, this minimal configuration generates smal
 
 ```yaml
 # prototype.yaml
-system_prompt: "You are creating test examples for development."
+dataset_system_prompt: "You are creating test examples for development."
 
 topic_tree:
-  args:
-    root_prompt: "Basic test concepts"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 2
-    tree_depth: 1
-    temperature: 0.5
-    provider: "openai"
-    model: "gpt-3.5-turbo"
+  topic_prompt: "Basic test concepts"
+  topic_system_prompt: "You are creating test examples for development."
+  degree: 2
+  depth: 1
+  temperature: 0.5
+  provider: "openai"
+  model: "gpt-3.5-turbo"
   save_as: "test_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Create a simple example for testing purposes."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "openai"
-    model: "gpt-3.5-turbo"
-    temperature: 0.5
-    max_retries: 2
+  instructions: "Create a simple example for testing purposes."
+  generation_system_prompt: "You are creating test examples for development."
+  provider: "openai"
+  model: "gpt-3.5-turbo"
+  temperature: 0.5
+  max_retries: 2
 
 dataset:
   creation:

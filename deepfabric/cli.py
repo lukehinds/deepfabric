@@ -41,56 +41,63 @@ def cli():
 
 @cli.command()
 @click.argument("config_file", type=click.Path(exists=True), required=False)
-@click.option("--system-prompt", help="System prompt for the entire pipeline")
 @click.option(
-    "--topic-prompt", help="Topic prompt for tree/graph generation (required if no config)"
+    "--dataset-system-prompt", help="System prompt for final dataset (if sys_msg is true)"
 )
-@click.option("--save-tree", help="Override the save path for the tree")
+@click.option("--topic-prompt", help="Starting topic/seed for tree/graph generation")
+@click.option("--topic-system-prompt", help="System prompt for tree/graph topic generation")
+@click.option("--generation-system-prompt", help="System prompt for dataset content generation")
+@click.option("--save-tree", help="Save path for the tree")
 @click.option(
     "--load-tree",
     type=click.Path(exists=True),
     help="Path to the JSONL file containing the tree.",
 )
-@click.option("--save-graph", help="Override the save path for the graph")
+@click.option("--save-graph", help="Save path for the graph")
 @click.option(
     "--load-graph",
     type=click.Path(exists=True),
     help="Path to the JSON file containing the graph.",
 )
-@click.option("--dataset-save-as", help="Override the save path for the dataset")
-@click.option("--provider", help="Override the LLM provider (e.g., ollama)")
-@click.option("--model", help="Override the model name (e.g., mistral:latest)")
-@click.option("--temperature", type=float, help="Override the temperature")
-@click.option("--tree-degree", type=int, help="Override the tree degree")
-@click.option("--tree-depth", type=int, help="Override the tree depth")
-@click.option("--graph-degree", type=int, help="Override the graph degree")
-@click.option("--graph-depth", type=int, help="Override the graph depth")
-@click.option("--num-steps", type=int, help="Override number of generation steps")
-@click.option("--batch-size", type=int, help="Override batch size")
+@click.option("--dataset-save-as", help="Save path for the dataset")
+@click.option("--provider", help="LLM provider (e.g., ollama)")
+@click.option("--model", help="Model name (e.g., mistral:latest)")
+@click.option("--temperature", type=float, help="Temperature setting")
+@click.option("--degree", type=int, help="Degree (branching factor)")
+@click.option("--depth", type=int, help="Depth setting")
+@click.option("--num-steps", type=int, help="Number of generation steps")
+@click.option("--batch-size", type=int, help="Batch size")
 @click.option(
     "--sys-msg",
     type=bool,
     help="Include system message in dataset (default: true)",
 )
+@click.option(
+    "--mode",
+    type=click.Choice(["tree", "graph"]),
+    default="tree",
+    help="Topic generation mode (default: tree)",
+)
 def generate(  # noqa: PLR0912, PLR0913
     config_file: str | None,
-    system_prompt: str | None = None,
+    dataset_system_prompt: str | None = None,
     topic_prompt: str | None = None,
+    topic_system_prompt: str | None = None,
+    generation_system_prompt: str | None = None,
     save_tree: str | None = None,
     load_tree: str | None = None,
     save_graph: str | None = None,
     load_graph: str | None = None,
-    graph_degree: int | None = None,
-    graph_depth: int | None = None,
     dataset_save_as: str | None = None,
     provider: str | None = None,
     model: str | None = None,
     temperature: float | None = None,
-    tree_degree: int | None = None,
-    tree_depth: int | None = None,
+    degree: int | None = None,
+    depth: int | None = None,
     num_steps: int | None = None,
     batch_size: int | None = None,
     sys_msg: bool | None = None,
+    mode: str = "tree",
 ) -> None:
     """Generate training data from a YAML configuration file or CLI parameters."""
     try:
@@ -124,20 +131,13 @@ def generate(  # noqa: PLR0912, PLR0913
             tui.info("No config file provided - using CLI parameters")
 
             # Create a minimal config dict
+            # Use generation_system_prompt as fallback for dataset_system_prompt if not provided
+            default_prompt = generation_system_prompt or "You are a helpful AI assistant."
             minimal_config = {
-                "system_prompt": system_prompt or "You are a helpful AI assistant.",
-                "topic_tree": {
-                    "root_prompt": topic_prompt,
-                    "provider": provider or "gemini",
-                    "model": model or "gemini-2.5-flash-lite",
-                    "temperature": temperature or 0.7,
-                    "tree_degree": tree_degree or 3,
-                    "tree_depth": tree_depth or 3,
-                    "save_as": save_tree or "topic_tree.jsonl",
-                },
+                "dataset_system_prompt": dataset_system_prompt,  # Can be None, will fall back in config
                 "data_engine": {
                     "instructions": "Generate diverse and educational examples",
-                    "system_prompt": system_prompt or "You are a helpful AI assistant.",
+                    "generation_system_prompt": default_prompt,
                     "provider": provider or "gemini",
                     "model": model or "gemini-2.5-flash-lite",
                     "temperature": temperature or 0.9,
@@ -155,20 +155,27 @@ def generate(  # noqa: PLR0912, PLR0913
                 },
             }
 
-            # If graph parameters provided, switch to graph mode
-            if graph_degree is not None or graph_depth is not None:
-                minimal_config["topic_generator"] = "graph"
+            # Add topic generation config based on mode parameter
+            if mode == "graph":
                 minimal_config["topic_graph"] = {
-                    "root_prompt": topic_prompt,
+                    "topic_prompt": topic_prompt,
                     "provider": provider or "gemini",
                     "model": model or "gemini-2.5-flash-lite",
                     "temperature": temperature or 0.7,
-                    "graph_degree": graph_degree or 3,
-                    "graph_depth": graph_depth or 2,
+                    "degree": degree or 3,
+                    "depth": depth or 2,
                     "save_as": save_graph or "topic_graph.json",
                 }
-                # Remove topic_tree from config since we're using graph
-                del minimal_config["topic_tree"]
+            else:  # mode == "tree" (default)
+                minimal_config["topic_tree"] = {
+                    "topic_prompt": topic_prompt,
+                    "provider": provider or "gemini",
+                    "model": model or "gemini-2.5-flash-lite",
+                    "temperature": temperature or 0.7,
+                    "degree": degree or 3,
+                    "depth": depth or 3,
+                    "save_as": save_tree or "topic_tree.jsonl",
+                }
 
             # Create config object from dict
 
@@ -181,9 +188,9 @@ def generate(  # noqa: PLR0912, PLR0913
             finally:
                 os.unlink(temp_config_path)
 
-        # Apply system prompt override if provided
-        if system_prompt:
-            config.system_prompt = system_prompt
+        # Apply dataset system prompt override if provided
+        if dataset_system_prompt:
+            config.dataset_system_prompt = dataset_system_prompt
 
         # Get dataset parameters
         dataset_config = config.get_dataset_config()
@@ -192,32 +199,36 @@ def generate(  # noqa: PLR0912, PLR0913
         # Prepare topic tree overrides
         tree_overrides = {}
         if topic_prompt:
-            tree_overrides["root_prompt"] = topic_prompt
+            tree_overrides["topic_prompt"] = topic_prompt
+        if topic_system_prompt:
+            tree_overrides["topic_system_prompt"] = topic_system_prompt
         if provider:
             tree_overrides["provider"] = provider
         if model:
             tree_overrides["model"] = model
         if temperature:
             tree_overrides["temperature"] = temperature
-        if tree_degree:
-            tree_overrides["tree_degree"] = tree_degree
-        if tree_depth:
-            tree_overrides["tree_depth"] = tree_depth
+        if degree:
+            tree_overrides["degree"] = degree
+        if depth:
+            tree_overrides["depth"] = depth
 
         # Prepare topic graph overrides
         graph_overrides = {}
         if topic_prompt:
-            graph_overrides["root_prompt"] = topic_prompt
+            graph_overrides["topic_prompt"] = topic_prompt
+        if topic_system_prompt:
+            graph_overrides["topic_system_prompt"] = topic_system_prompt
         if provider:
             graph_overrides["provider"] = provider
         if model:
             graph_overrides["model"] = model
         if temperature:
             graph_overrides["temperature"] = temperature
-        if graph_degree:
-            graph_overrides["graph_degree"] = graph_degree
-        if graph_depth:
-            graph_overrides["graph_depth"] = graph_depth
+        if degree:
+            graph_overrides["degree"] = degree
+        if depth:
+            graph_overrides["depth"] = depth
 
         # Construct model name
         model_name = construct_model_string(
@@ -232,11 +243,11 @@ def generate(  # noqa: PLR0912, PLR0913
                 tui.info(f"Reading topic tree from JSONL file: {load_tree}")
                 dict_list = read_topic_tree_from_jsonl(load_tree)
                 topic_model = Tree(
-                    root_prompt="default",
+                    topic_prompt="default",
                     model_name=model_name,
-                    model_system_prompt="",
-                    tree_degree=TOPIC_TREE_DEFAULT_DEGREE,
-                    tree_depth=TOPIC_TREE_DEFAULT_DEPTH,
+                    topic_system_prompt="",
+                    degree=TOPIC_TREE_DEFAULT_DEGREE,
+                    depth=TOPIC_TREE_DEFAULT_DEPTH,
                     temperature=TOPIC_TREE_DEFAULT_TEMPERATURE,
                 )
                 topic_model.from_dict_list(dict_list)
@@ -281,6 +292,8 @@ def generate(  # noqa: PLR0912, PLR0913
 
         # Prepare engine overrides
         engine_overrides = {}
+        if generation_system_prompt:
+            engine_overrides["generation_system_prompt"] = generation_system_prompt
         if provider:
             engine_overrides["provider"] = provider
         if model:
@@ -407,10 +420,10 @@ def visualize(graph_file: str, output: str) -> None:
 
         # Create parameters for Graph instantiation
         graph_params = {
-            "root_prompt": "placeholder",  # Not needed for visualization
+            "topic_prompt": "placeholder",  # Not needed for visualization
             "model_name": "placeholder/model",  # Not needed for visualization
-            "graph_degree": graph_data.get("degree", TOPIC_GRAPH_DEFAULT_DEGREE),
-            "graph_depth": graph_data.get("depth", TOPIC_GRAPH_DEFAULT_DEPTH),
+            "degree": graph_data.get("degree", TOPIC_GRAPH_DEFAULT_DEGREE),
+            "depth": graph_data.get("depth", TOPIC_GRAPH_DEFAULT_DEPTH),
             "temperature": 0.7,  # Default, not used for visualization
         }
 
@@ -452,9 +465,10 @@ def validate(config_file: str) -> None:  # noqa: PLR0912
         errors = []
         warnings = []
 
-        # Check for system prompt
-        if not config.system_prompt:
-            warnings.append("No system_prompt defined")
+        # Check for system prompt (with fallback check)
+        engine_params = config.get_engine_params()
+        if not config.dataset_system_prompt and not engine_params.get("generation_system_prompt"):
+            warnings.append("No dataset_system_prompt or generation_system_prompt defined")
 
         # Check for either topic_tree or topic_graph
         if not config.topic_tree and not config.topic_graph:
@@ -499,12 +513,12 @@ def validate(config_file: str) -> None:  # noqa: PLR0912
         if config.topic_tree:
             tree_args = config.topic_tree.get("args", {})
             tui.info(
-                f"Topic Tree: depth={tree_args.get('tree_depth', 'default')}, degree={tree_args.get('tree_degree', 'default')}"
+                f"Topic Tree: depth={tree_args.get('depth', 'default')}, degree={tree_args.get('degree', 'default')}"
             )
         if config.topic_graph:
             graph_args = config.topic_graph.get("args", {})
             tui.info(
-                f"Topic Graph: depth={graph_args.get('graph_depth', 'default')}, degree={graph_args.get('graph_degree', 'default')}"
+                f"Topic Graph: depth={graph_args.get('depth', 'default')}, degree={graph_args.get('degree', 'default')}"
             )
 
         dataset_params = config.get_dataset_config().get("creation", {})
@@ -572,7 +586,7 @@ def info() -> None:
             tui.console.print(f"  [yellow]{var}[/yellow] - {desc}")
 
         tui.console.print(
-            "\n🔗 For more information, visit: [link]https://github.com/stacklok/deepfabric[/link]"
+            "\n🔗 For more information, visit: [link]https://github.com/RedDotRocket/deepfabric[/link]"
         )
 
     except Exception as e:

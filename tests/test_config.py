@@ -14,13 +14,13 @@ from deepfabric.exceptions import ConfigurationError
 def sample_config_dict():
     """Sample configuration dictionary for testing."""
     return {
-        "system_prompt": "Test system prompt",
+        "dataset_system_prompt": "Test system prompt",
         "topic_tree": {
             "args": {
-                "root_prompt": "Test root prompt",
-                "model_system_prompt": "<system_prompt_placeholder>",
-                "tree_degree": 3,
-                "tree_depth": 2,
+                "topic_prompt": "Test root prompt",
+                "topic_system_prompt": "Test system prompt",
+                "degree": 3,
+                "depth": 2,
                 "temperature": 0.7,
                 "provider": "test",
                 "model": "model",
@@ -30,7 +30,7 @@ def sample_config_dict():
         "data_engine": {
             "args": {
                 "instructions": "Test instructions",
-                "system_prompt": "<system_prompt_placeholder>",
+                "generation_system_prompt": "Test system prompt",
                 "provider": "test",
                 "model": "model",
                 "temperature": 0.9,
@@ -54,13 +54,13 @@ def sample_config_dict():
 def sample_config_dict_no_sys_msg():
     """Sample configuration dictionary without sys_msg setting."""
     return {
-        "system_prompt": "Test system prompt",
+        "dataset_system_prompt": "Test system prompt",
         "topic_tree": {
             "args": {
-                "root_prompt": "Test root prompt",
-                "model_system_prompt": "<system_prompt_placeholder>",
-                "tree_degree": 3,
-                "tree_depth": 2,
+                "topic_prompt": "Test root prompt",
+                "topic_system_prompt": "Test system prompt",
+                "degree": 3,
+                "depth": 2,
                 "temperature": 0.7,
                 "provider": "test",
                 "model": "model",
@@ -70,7 +70,7 @@ def sample_config_dict_no_sys_msg():
         "data_engine": {
             "args": {
                 "instructions": "Test instructions",
-                "system_prompt": "<system_prompt_placeholder>",
+                "generation_system_prompt": "Test system prompt",
                 "provider": "test",
                 "model": "model",
                 "temperature": 0.9,
@@ -121,7 +121,7 @@ def test_load_from_yaml(sample_yaml_file, sample_config_dict):
     """Test loading configuration from YAML file."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
 
-    assert config.system_prompt == sample_config_dict["system_prompt"]
+    assert config.dataset_system_prompt == sample_config_dict["dataset_system_prompt"]
     assert config.topic_tree == sample_config_dict["topic_tree"]
     assert config.data_engine == sample_config_dict["data_engine"]
     assert config.dataset == sample_config_dict["dataset"]
@@ -133,10 +133,10 @@ def test_get_topic_tree_args(sample_yaml_file):
     args = config.get_topic_tree_params()
 
     assert isinstance(args, dict)
-    assert args["root_prompt"] == "Test root prompt"
-    assert args["model_system_prompt"] == "Test system prompt"
-    assert args["tree_degree"] == 3  # noqa: PLR2004
-    assert args["tree_depth"] == 2  # noqa: PLR2004
+    assert args["topic_prompt"] == "Test root prompt"
+    assert args["topic_system_prompt"] == "Test system prompt"
+    assert args["degree"] == 3  # noqa: PLR2004
+    assert args["depth"] == 2  # noqa: PLR2004
     assert args["temperature"] == 0.7  # noqa: PLR2004
     assert args["model_name"] == "test/model"
 
@@ -148,7 +148,7 @@ def test_get_engine_args(sample_yaml_file):
 
     assert isinstance(args, dict)
     assert args["instructions"] == "Test instructions"
-    assert args["system_prompt"] == "Test system prompt"
+    assert args["generation_system_prompt"] == "Test system prompt"
     assert args["model_name"] == "test/model"
     assert args["temperature"] == 0.9  # noqa: PLR2004
     assert args["max_retries"] == 2  # noqa: PLR2004

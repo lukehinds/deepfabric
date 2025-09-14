@@ -1,21 +1,21 @@
 # Example configuration for topic tree generation
-system_prompt: "You are an expert in creating comprehensive knowledge trees."
+# System prompt should be specific to your domain and desired output style
+dataset_system_prompt: "You are a senior software architect and computer science educator with 15+ years of experience. You provide comprehensive, technically accurate explanations with practical examples that demonstrate real-world applications. Your responses include concrete code samples, best practices, and common pitfalls to avoid."
 
-# Topic tree configuration (default when topic_generator is not specified)
 topic_tree:
-  root_prompt: "Programming paradigms, languages, design patterns, data structures, architecture, algorithms, and their practical implementations across different programming languages with idiomatic specific examples"
+  topic_prompt: "Programming paradigms, languages, design patterns, data structures, architecture, algorithms, and their practical implementations across different programming languages with idiomatic specific examples"
   provider: "gemini"                               # Optional: overrides the main provider
   model: "gemini-2.5-flash-lite"                  # Optional: overrides the main model
-  model_system_prompt: "<system_prompt_placeholder>" # System prompt for tree generation
+  topic_system_prompt: "You are a senior software architect and computer science educator with 15+ years of experience. You provide comprehensive, technically accurate explanations with practical examples that demonstrate real-world applications. Your responses include concrete code samples, best practices, and common pitfalls to avoid." # System prompt for tree generation
   temperature: 0.7                                # Temperature for generation (0.0-2.0)
-  tree_degree: 3                                  # Number of branches per node
-  tree_depth: 3                                   # Depth of the tree
+  degree: 2                                  # Number of branches per node
+  depth: 2                                   # Depth of the tree
   save_as: "programming_tree.jsonl"                 # Where to save the tree
 
 # Data engine configuration
 data_engine:
   instructions: "Generate diverse programming examples"
-  system_prompt: "<system_prompt_placeholder>"
+  generation_system_prompt: "You are a senior software architect and computer science educator specializing in creating educational programming content. Generate detailed, practical examples with working code snippets, real-world applications, and clear explanations that help developers understand both theory and implementation."
   provider: "gemini"
   model: "gemini-2.5-flash-lite"
   temperature: 0.9
@@ -24,8 +24,8 @@ data_engine:
 # Dataset configuration
 dataset:
   creation:
-    num_steps: 5
-    batch_size: 5
+    num_steps: 4
+    batch_size: 1
     provider: "gemini"
     model: "gemini-2.5-flash-lite"
     sys_msg: true

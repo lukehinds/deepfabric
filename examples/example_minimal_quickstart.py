@@ -13,11 +13,11 @@ from deepfabric import DataSetGenerator, Tree
 
 # Step 1: Create a topic tree
 tree = Tree(
-    root_prompt="Python programming fundamentals",
-    model_name="ollama/llama3",  # Change to your model
-    model_system_prompt="You are a Python programming instructor.",
-    tree_degree=3,  # 3 branches per level
-    tree_depth=2,  # 2 levels deep
+    topic_prompt="Python programming fundamentals",
+    model_name="ollama/qwen3:8b",  # Change to your model
+    topic_system_prompt="You are a Python programming instructor.",
+    degree=3,  # 3 branches per level
+    depth=2,  # 2 levels deep
     temperature=0.7,
 )
 
@@ -28,8 +28,8 @@ tree.save("python_topics.jsonl")
 # Step 2: Create a data engine
 engine = DataSetGenerator(
     instructions="Create a Python code example with explanation",
-    system_prompt="You are a Python programming instructor.",
-    model_name="ollama/llama3",
+    generation_system_prompt="You are a Python programming instructor.",
+    model_name="ollama/qwen3:8b",
     temperature=0.7,
     max_retries=3,
     sys_msg=True,

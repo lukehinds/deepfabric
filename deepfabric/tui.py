@@ -75,16 +75,16 @@ class TreeBuildingTUI:
         self.current_depth = 0
         self.max_depth = 0
 
-    def start_building(self, model_name: str, tree_depth: int, tree_degree: int) -> None:
+    def start_building(self, model_name: str, depth: int, degree: int) -> None:
         """Start the tree building process."""
-        self.max_depth = tree_depth
+        self.max_depth = depth
 
         # Show header
         header = self.tui.create_header(
             "DeepFabric Tree Generation", f"Building hierarchical topic structure with {model_name}"
         )
         self.console.print(header)
-        self.console.print(f"Configuration: depth={tree_depth}, degree={tree_degree}")
+        self.console.print(f"Configuration: depth={depth}, degree={degree}")
         self.console.print()
 
         # Create simple progress display with indeterminate progress
@@ -96,7 +96,7 @@ class TreeBuildingTUI:
         )
 
         self.progress.start()
-        self.overall_task = self.progress.add_task(f"Building topic tree (depth 1/{tree_depth})")
+        self.overall_task = self.progress.add_task(f"Building topic tree (depth 1/{depth})")
 
     def start_depth_level(self, depth: int) -> None:
         """Update progress for new depth level."""
@@ -149,7 +149,7 @@ class GraphBuildingTUI:
         self.edges_count = 0
         self.failed_attempts = 0
 
-    def start_building(self, model_name: str, graph_depth: int, graph_degree: int) -> None:
+    def start_building(self, model_name: str, depth: int, degree: int) -> None:
         """Start the graph building process."""
         # Show header
         header = self.tui.create_header(
@@ -157,7 +157,7 @@ class GraphBuildingTUI:
             f"Building interconnected topic structure with {model_name}",
         )
         self.console.print(header)
-        self.console.print(f"Configuration: depth={graph_depth}, degree={graph_degree}")
+        self.console.print(f"Configuration: depth={depth}, degree={degree}")
         self.console.print()
 
         # Create simple progress display
@@ -171,7 +171,7 @@ class GraphBuildingTUI:
         )
 
         self.progress.start()
-        self.overall_task = self.progress.add_task("  Building topic graph", total=graph_depth)
+        self.overall_task = self.progress.add_task("  Building topic graph", total=depth)
 
     def start_depth_level(self, depth: int, leaf_count: int) -> None:
         """Update for new depth level."""

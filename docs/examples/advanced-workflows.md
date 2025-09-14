@@ -8,29 +8,27 @@ This workflow uses different model providers optimized for different stages of t
 
 ```yaml
 # multi-provider-pipeline.yaml
-system_prompt: "You are creating comprehensive educational content for software engineering professionals."
+dataset_system_prompt: "You are creating comprehensive educational content for software engineering professionals."
 
 # Fast, economical topic generation
 topic_tree:
-  args:
-    root_prompt: "Advanced software engineering practices"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 5
-    tree_depth: 3
-    temperature: 0.7
-    provider: "openai"
-    model: "gpt-3.5-turbo"
+  topic_prompt: "Advanced software engineering practices"
+  topic_system_prompt: "You are creating comprehensive educational content for software engineering professionals."
+  degree: 5
+  depth: 3
+  temperature: 0.7
+  provider: "openai"
+  model: "gpt-3.5-turbo"
   save_as: "engineering_topics.jsonl"
 
 # High-quality content generation
 data_engine:
-  args:
-    instructions: "Create detailed, practical explanations with real-world examples and code samples suitable for senior developers."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "anthropic"
-    model: "claude-3-opus"
-    temperature: 0.8
-    max_retries: 5
+  instructions: "Create detailed, practical explanations with real-world examples and code samples suitable for senior developers."
+  generation_system_prompt: "You are creating comprehensive educational content for software engineering professionals."
+  provider: "anthropic"
+  model: "claude-3-opus"
+  temperature: 0.8
+  max_retries: 5
 
 # Balanced final generation
 dataset:
@@ -51,29 +49,25 @@ Advanced topic graph generation with comprehensive analysis and visualization:
 
 ```yaml
 # research-graph-analysis.yaml
-system_prompt: "You are mapping the interconnected landscape of machine learning research areas with focus on practical applications and theoretical foundations."
-
-topic_generator: graph
+dataset_system_prompt: "You are mapping the interconnected landscape of machine learning research areas with focus on practical applications and theoretical foundations."
 
 topic_graph:
-  args:
-    root_prompt: "Machine learning research and applications in industry"
-    model_system_prompt: "<system_prompt_placeholder>"
-    graph_degree: 4
-    graph_depth: 4
-    temperature: 0.8
-    provider: "anthropic"
-    model: "claude-3-opus"
+  topic_prompt: "Machine learning research and applications in industry"
+  topic_system_prompt: "You are mapping the interconnected landscape of machine learning research areas with focus on practical applications and theoretical foundations."
+  degree: 4
+  depth: 4
+  temperature: 0.8
+  provider: "anthropic"
+  model: "claude-3-opus"
   save_as: "ml_research_graph.json"
 
 data_engine:
-  args:
-    instructions: "Create comprehensive research summaries with current trends, practical applications, and technical depth appropriate for graduate-level study."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "openai"
-    model: "gpt-4"
-    temperature: 0.7
-    max_retries: 3
+  instructions: "Create comprehensive research summaries with current trends, practical applications, and technical depth appropriate for graduate-level study."
+  generation_system_prompt: "You are mapping the interconnected landscape of machine learning research areas with focus on practical applications and theoretical foundations."
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.7
+  max_retries: 3
 
 dataset:
   creation:
@@ -115,28 +109,26 @@ Sophisticated quality control through validation, filtering, and iterative refin
 
 ```yaml
 # quality-controlled-generation.yaml
-system_prompt: "You are creating high-quality technical documentation with emphasis on accuracy, clarity, and practical utility."
+dataset_system_prompt: "You are creating high-quality technical documentation with emphasis on accuracy, clarity, and practical utility."
 
 topic_tree:
-  args:
-    root_prompt: "Modern web development frameworks and best practices"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 4
-    tree_depth: 3
-    temperature: 0.6  # Lower temperature for consistency
-    provider: "openai"
-    model: "gpt-4"
+  topic_prompt: "Modern web development frameworks and best practices"
+  topic_system_prompt: "You are creating high-quality technical documentation with emphasis on accuracy, clarity, and practical utility."
+  degree: 4
+  depth: 3
+  temperature: 0.6  # Lower temperature for consistency
+  provider: "openai"
+  model: "gpt-4"
   save_as: "webdev_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Create technically accurate documentation with working code examples, best practices, and common pitfalls. Include version-specific information and real-world usage patterns."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "anthropic"
-    model: "claude-3-opus"
-    temperature: 0.7
-    max_retries: 5
-    request_timeout: 60  # Extended timeout for quality
+  instructions: "Create technically accurate documentation with working code examples, best practices, and common pitfalls. Include version-specific information and real-world usage patterns."
+  generation_system_prompt: "You are creating high-quality technical documentation with emphasis on accuracy, clarity, and practical utility."
+  provider: "anthropic"
+  model: "claude-3-opus"
+  temperature: 0.7
+  max_retries: 5
+  request_timeout: 60  # Extended timeout for quality
 
 dataset:
   creation:
@@ -190,28 +182,26 @@ Configuration for generating large datasets with resource management and checkpo
 
 ```yaml
 # production-scale-dataset.yaml
-system_prompt: "You are creating comprehensive training data for customer service AI systems, focusing on natural conversation patterns and helpful problem-solving approaches."
+dataset_system_prompt: "You are creating comprehensive training data for customer service AI systems, focusing on natural conversation patterns and helpful problem-solving approaches."
 
 topic_tree:
-  args:
-    root_prompt: "Customer service scenarios across different industries and interaction types"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 6  # Broad coverage
-    tree_depth: 4   # Deep exploration
-    temperature: 0.8
-    provider: "openai"
-    model: "gpt-4"
+  topic_prompt: "Customer service scenarios across different industries and interaction types"
+  topic_system_prompt: "You are creating comprehensive training data for customer service AI systems, focusing on natural conversation patterns and helpful problem-solving approaches."
+  degree: 6  # Broad coverage
+  depth: 4   # Deep exploration
+  temperature: 0.8
+  provider: "openai"
+  model: "gpt-4"
   save_as: "customer_service_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Create realistic customer service conversations showing empathetic, helpful responses to various customer needs, complaints, and inquiries. Include diverse customer personalities and complex problem-solving scenarios."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "openai"
-    model: "gpt-4"
-    temperature: 0.8
-    max_retries: 5
-    request_timeout: 45
+  instructions: "Create realistic customer service conversations showing empathetic, helpful responses to various customer needs, complaints, and inquiries. Include diverse customer personalities and complex problem-solving scenarios."
+  generation_system_prompt: "You are creating comprehensive training data for customer service AI systems, focusing on natural conversation patterns and helpful problem-solving approaches."
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.8
+  max_retries: 5
+  request_timeout: 45
 
 dataset:
   creation:

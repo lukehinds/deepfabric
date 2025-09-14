@@ -71,15 +71,13 @@ DeepFabric supports using different providers for different components, enabling
 ```yaml
 # Fast, cost-effective topic generation
 topic_tree:
-  args:
-    provider: "openai"
-    model: "gpt-3.5-turbo"
+  provider: "openai"
+  model: "gpt-3.5-turbo"
 
 # High-quality dataset generation
 data_engine:
-  args:
-    provider: "anthropic"
-    model: "claude-3-opus"
+  provider: "anthropic"
+  model: "claude-3-opus"
 
 # Different model for final dataset creation
 dataset:

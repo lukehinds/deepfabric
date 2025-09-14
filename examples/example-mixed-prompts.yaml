@@ -1,0 +1,33 @@
+# Example showing mix of placeholder and custom prompts
+dataset_system_prompt: "You are a software engineering expert with deep knowledge of modern development practices."
+
+# Use placeholder for topic generation (inherit main prompt)
+topic_tree:
+  topic_prompt "Software architecture patterns and design principles"
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.7
+  degree: 4
+  depth: 3
+  # Using the same prompt as the main system prompt for consistency
+  topic_system_prompt: "You are a software engineering expert with deep knowledge of modern development practices."
+  save_as: "architecture_topics.jsonl"
+
+# Custom prompt for data engine (specialized for code generation)
+data_engine:
+  instructions: "Generate practical code examples and architectural discussions"
+  provider: "anthropic"
+  model: "claude-3-opus"
+  temperature: 0.8
+  max_retries: 3
+  # Custom prompt optimized for code generation and technical discussion
+  generation_system_prompt: "You are a principal software engineer and technical lead specializing in system design. Provide detailed architectural explanations with working code examples, discuss trade-offs between different approaches, include performance considerations, and demonstrate patterns with real-world scenarios. Always include complete, runnable code snippets that follow best practices."
+
+dataset:
+  creation:
+    num_steps: 30
+    batch_size: 4
+    provider: "openai"
+    model: "gpt-4"
+    sys_msg: true
+  save_as: "architecture_code_dataset.jsonl"

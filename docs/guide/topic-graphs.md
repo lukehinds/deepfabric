@@ -15,22 +15,19 @@ The graph generation process creates both hierarchical relationships similar to 
 Topic graph configuration uses similar parameters to trees but with additional connectivity options:
 
 ```yaml
-# Enable graph mode explicitly
-topic_generator: graph
-
+# Graph mode is auto-detected since topic_graph section is present
 topic_graph:
-  args:
-    root_prompt: "Artificial intelligence research areas"
-    model_system_prompt: "<system_prompt_placeholder>"
-    graph_degree: 4     # Connections per node
-    graph_depth: 3      # Maximum distance from root
-    temperature: 0.8    # Higher creativity for connections
-    provider: "anthropic"
-    model: "claude-3-opus"
+  topic_prompt: "Artificial intelligence research areas"
+  topic_system_prompt: "You are an AI research expert creating comprehensive topic structures for academic and professional research purposes. You provide detailed, interconnected topic hierarchies with precise relationships and thorough coverage of complex domains."
+  degree: 4     # Connections per node
+  depth: 3      # Maximum distance from root
+  temperature: 0.8    # Higher creativity for connections
+  provider: "anthropic"
+  model: "claude-3-opus"
   save_as: "ai_research_graph.json"
 ```
 
-The `topic_generator: graph` setting explicitly enables graph mode, distinguishing it from the default tree behavior.
+Graph mode is automatically detected when a `topic_graph` section is present in the configuration, distinguishing it from the default tree behavior.
 
 ## Graph Parameters
 

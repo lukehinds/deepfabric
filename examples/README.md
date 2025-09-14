@@ -65,25 +65,21 @@ Both trees and graphs support the same core parameters:
 ```yaml
 # For trees
 topic_tree:
-  args:
-    root_prompt: "Your topic here"
-    provider: "ollama"              # LLM provider
-    model: "llama3"                 # Model name
-    temperature: 0.7                # Generation temperature
-    tree_degree: 3                  # Branches per level
-    tree_depth: 2                   # Tree depth
+  topic_prompt: "Your topic here"
+  provider: "ollama"              # LLM provider
+  model: "qwen3:8b"                 # Model name
+  temperature: 0.7                # Generation temperature
+  degree: 3                  # Branches per level
+  depth: 2                   # Tree depth
   save_as: "output.jsonl"
 
-# For graphs  
-topic_generator: graph              # Enable graph mode
 topic_graph:
-  args:
-    root_prompt: "Your topic here"
-    provider: "ollama"              # LLM provider  
-    model: "llama3"                 # Model name
-    temperature: 0.7                # Generation temperature
-    graph_degree: 3                 # Subtopics per node
-    graph_depth: 2                  # Graph depth
+  topic_prompt: "Your topic here"
+  provider: "ollama"              # LLM provider
+  model: "qwen3:8b"                 # Model name
+  temperature: 0.7                # Generation temperature
+  degree: 3                 # Subtopics per node
+  depth: 2                  # Graph depth
   save_as: "output.json"
 ```
 
@@ -91,11 +87,11 @@ topic_graph:
 
 DeepFabric supports multiple LLM providers via LiteLLM:
 
-- **Ollama (Local)**: `ollama/llama3`, `ollama/mistral`, `ollama/codellama`
+- **Ollama (Local)**: `ollama/qwen3:8b`, `ollama/mistral`, `ollama/codellama`
 - **OpenAI**: `gpt-4`, `gpt-4o-mini`, `gpt-3.5-turbo`
 - **Anthropic**: `claude-3-opus-20240229`, `claude-3-sonnet-20240229`, `claude-3-haiku-20240307`
 - **Google**: `gemini/gemini-pro`, `gemini/gemini-2.5-flash-lite`
-- **Groq**: `groq/llama3-8b-8192`, `groq/mixtral-8x7b-32768`
+- **Groq**: `groq/qwen3:8b-8b-8192`, `groq/mixtral-8x7b-32768`
 
 Set API keys as environment variables (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`).
 
@@ -106,11 +102,11 @@ When using DeepFabric programmatically, ensure all required parameters are provi
 ### TreeArguments
 ```python
 TreeArguments(
-    root_prompt="...",                    # Required
-    model_name="ollama/llama3",          # Required  
-    model_system_prompt="...",           # Required
-    tree_degree=3,                       # Required
-    tree_depth=2,                        # Required
+    topic_prompt="...",                    # Required
+    model_name="ollama/qwen3:8b",          # Required
+    topic_system_prompt="...",           # Required
+    degree=3,                       # Required
+    depth=2,                        # Required
     temperature=0.7,                     # Required
 )
 ```
@@ -119,8 +115,8 @@ TreeArguments(
 ```python
 DataSetGeneratorArguments(
     instructions="...",                   # Required
-    system_prompt="...",                 # Required
-    model_name="ollama/llama3",          # Required
+    generation_system_prompt="...",                 # Required
+    model_name="ollama/qwen3:8b",          # Required
     prompt_template=None,                # Required (can be None)
     example_data=None,                   # Required (can be None)
     temperature=0.7,                     # Required

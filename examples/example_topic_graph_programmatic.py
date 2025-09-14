@@ -19,11 +19,11 @@ Your responses should be technically accurate, practical, and include real-world
 # Create a topic graph with cross-connections
 print("Building topic graph...")
 graph = Graph(
-    root_prompt="Modern Software Architecture and Design Patterns",
-    model_name="ollama/llama3",  # Change to your preferred model
+    topic_prompt="Modern Software Architecture and Design Patterns",
+    model_name="ollama/qwen3:8b",  # Change to your preferred model
     temperature=0.7,
-    graph_degree=3,  # 3 subtopics per node
-    graph_depth=2,  # 2 levels deep
+    degree=3,  # 3 subtopics per node
+    depth=2,  # 2 levels deep
 )
 
 # Build the graph (this will make LLM calls)
@@ -55,8 +55,8 @@ engine = DataSetGenerator(
                    - Performance considerations
                    - Real-world use cases
                    - Common pitfalls and how to avoid them""",
-    system_prompt=system_prompt,
-    model_name="ollama/llama3",
+    generation_system_prompt=system_prompt,
+    model_name="ollama/qwen3:8b",
     prompt_template=None,
     example_data=None,
     temperature=0.2,  # Lower temperature for more focused technical content

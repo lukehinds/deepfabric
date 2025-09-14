@@ -9,27 +9,25 @@ The process showcases DeepFabric's three-stage pipeline: topic tree generation, 
 Create a file named `python-tutorial.yaml` with the following configuration:
 
 ```yaml
-system_prompt: "You are a Python programming instructor providing clear, educational content for intermediate developers."
+dataset_system_prompt: "You are a Python programming instructor providing clear, educational content for intermediate developers."
 
 topic_tree:
-  args:
-    root_prompt: "Python programming fundamentals"
-    model_system_prompt: "<system_prompt_placeholder>"
-    tree_degree: 3
-    tree_depth: 2
-    temperature: 0.7
-    provider: "ollama"
-    model: "mistral"
+  topic_prompt: "Python programming fundamentals"
+  topic_system_prompt: "You are a Python programming instructor providing clear, educational content for intermediate developers."
+  degree: 3
+  depth: 2
+  temperature: 0.7
+  provider: "ollama"
+  model: "mistral"
   save_as: "python_topics.jsonl"
 
 data_engine:
-  args:
-    instructions: "Create a Python code example with detailed explanation suitable for intermediate developers."
-    system_prompt: "<system_prompt_placeholder>"
-    provider: "ollama"
-    model: "mistral"
-    temperature: 0.8
-    max_retries: 3
+  instructions: "Create a Python code example with detailed explanation suitable for intermediate developers."
+  generation_system_prompt: "You are a Python programming instructor providing clear, educational content for intermediate developers."
+  provider: "ollama"
+  model: "mistral"
+  temperature: 0.8
+  max_retries: 3
 
 dataset:
   creation:
@@ -41,7 +39,7 @@ dataset:
   save_as: "python_tutorial_dataset.jsonl"
 ```
 
-This configuration demonstrates several key concepts. The `<system_prompt_placeholder>` allows reuse of the system prompt across different components. The tree structure creates a hierarchical breakdown of Python concepts, while the data engine generates practical examples based on these topics.
+This configuration demonstrates several key concepts. System prompts are specified directly in each section where they're needed. The tree structure creates a hierarchical breakdown of Python concepts, while the data engine generates practical examples based on these topics.
 
 ??? tip "Understanding the Configuration Structure"
     The configuration separates concerns between topic generation and dataset creation. This separation allows you to experiment with different generation parameters without rebuilding the topic structure, saving time during iterative development.
@@ -107,7 +105,7 @@ Modify the configuration to explore different approaches:
 
 **Increase Diversity**: Raise `temperature` values to generate more creative and varied content, though this may reduce consistency.
 
-**Expand Coverage**: Increase `tree_degree` and `tree_depth` to create more comprehensive topic coverage, though this extends generation time.
+**Expand Coverage**: Increase `degree` and `depth` to create more comprehensive topic coverage, though this extends generation time.
 
 **Scale Production**: Increase `num_steps` and `batch_size` for larger datasets, balancing generation speed with resource consumption.
 

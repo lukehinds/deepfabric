@@ -16,11 +16,11 @@ from deepfabric.graph import Graph
 # First, let's create a graph to demonstrate (in practice, you'd already have this)
 print("Creating initial graph for demonstration...")
 initial_graph = Graph(
-    root_prompt="Web Development Technologies",
-    model_name="ollama/llama3",
+    topic_prompt="Web Development Technologies",
+    model_name="ollama/qwen3:8b",
     temperature=0.6,
-    graph_degree=2,
-    graph_depth=2,
+    degree=2,
+    depth=2,
 )
 
 # Build and save the initial graph
@@ -31,11 +31,11 @@ print(f"Initial graph created with {len(initial_graph.nodes)} nodes\n")
 # Now demonstrate loading the saved graph
 print("Loading existing graph from file...")
 graph_params = {
-    "root_prompt": "Web Development Technologies",  # Must match original
-    "model_name": "ollama/llama3",  # Can be different from original
+    "topic_prompt": "Web Development Technologies",  # Must match original
+    "model_name": "ollama/qwen3:8b",  # Can be different from original
     "temperature": 0.6,
-    "graph_degree": 2,
-    "graph_depth": 2,
+    "degree": 2,
+    "depth": 2,
 }
 loaded_graph = Graph.from_json("web_dev_graph.json", graph_params)
 
@@ -55,8 +55,8 @@ engine = DataSetGenerator(
                    - Explanation of key concepts
                    - Best practices and optimization tips
                    - Common mistakes to avoid""",
-    system_prompt="You are a web development expert creating practical tutorials.",
-    model_name="ollama/llama3",
+    generation_system_prompt="You are a web development expert creating practical tutorials.",
+    model_name="ollama/qwen3:8b",
     prompt_template=None,
     example_data=None,
     temperature=0.4,  # Different temperature for varied output

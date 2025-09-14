@@ -20,11 +20,11 @@ from deepfabric.graph import (
 def topic_graph_params():
     """Fixture for Graph parameters."""
     return {
-        "root_prompt": "Test root topic",
+        "topic_prompt": "Test root topic",
         "model_name": "test-model",
         "temperature": 0.7,
-        "graph_degree": 3,
-        "graph_depth": 2,
+        "degree": 3,
+        "depth": 2,
     }
 
 
@@ -97,54 +97,54 @@ class TestGraphConfig:
     def test_valid_arguments(self):
         """Test creation with valid arguments."""
         config = GraphConfig(
-            root_prompt="Test", model_name="gpt-4", temperature=0.5, graph_degree=2, graph_depth=3
+            topic_prompt="Test", model_name="gpt-4", temperature=0.5, degree=2, depth=3
         )
-        assert config.root_prompt == "Test"
+        assert config.topic_prompt == "Test"
         assert config.model_name == "gpt-4"
         assert config.temperature == 0.5  # noqa: PLR2004
-        assert config.graph_depth == 3  # noqa: PLR2004
+        assert config.depth == 3  # noqa: PLR2004
 
     def test_default_arguments(self):
         """Test default values."""
         config = GraphConfig(
-            root_prompt="Test",
-            model_name="ollama/llama3",
+            topic_prompt="Test",
+            model_name="ollama/qwen3:8b",
             temperature=0.2,
-            graph_degree=3,
-            graph_depth=2,
+            degree=3,
+            depth=2,
         )
-        assert config.model_name == "ollama/llama3"  # From constants
+        assert config.model_name == "ollama/qwen3:8b"  # From constants
         assert config.temperature == 0.2  # From constants  # noqa: PLR2004
-        assert config.graph_degree == 3  # noqa: PLR2004
-        assert config.graph_depth == 2  # noqa: PLR2004
+        assert config.degree == 3  # noqa: PLR2004
+        assert config.depth == 2  # noqa: PLR2004
 
     def test_invalid_arguments(self):
         """Test validation errors."""
         with pytest.raises(ValueError):
             GraphConfig(
-                root_prompt="",  # Empty root_prompt
-                model_name="ollama/llama3",
+                topic_prompt="",  # Empty topic_prompt
+                model_name="ollama/qwen3:8b",
                 temperature=0.2,
-                graph_degree=3,
-                graph_depth=2,
+                degree=3,
+                depth=2,
             )
 
         with pytest.raises(ValueError):
             GraphConfig(
-                root_prompt="Test",
-                model_name="ollama/llama3",
+                topic_prompt="Test",
+                model_name="ollama/qwen3:8b",
                 temperature=-0.1,
-                graph_degree=3,
-                graph_depth=2,
+                degree=3,
+                depth=2,
             )  # Invalid temperature
 
         with pytest.raises(ValueError):
             GraphConfig(
-                root_prompt="Test",
-                model_name="ollama/llama3",
+                topic_prompt="Test",
+                model_name="ollama/qwen3:8b",
                 temperature=-0.1,
-                graph_degree=0,
-                graph_depth=2,
+                degree=0,
+                depth=2,
             )  # Invalid degree
 
 
@@ -154,7 +154,7 @@ class TestGraph:
     def test_initialization(self, topic_graph_params):
         """Test Graph initialization."""
         graph = Graph(**topic_graph_params)
-        assert graph.config.root_prompt == topic_graph_params["root_prompt"]
+        assert graph.config.topic_prompt == topic_graph_params["topic_prompt"]
         assert graph.root.topic == "Test root topic"
         assert graph.root.id == 0
         assert len(graph.nodes) == 1
@@ -393,7 +393,7 @@ class TestGraph:
                             {
                                 "subtopics": [
                                     {"topic": f"Topic {i}", "connections": []}
-                                    for i in range(topic_graph.graph_degree)
+                                    for i in range(topic_graph.degree)
                                 ]
                             }
                         )
@@ -445,11 +445,11 @@ class TestIntegration:
     def test_complex_graph_creation(self, mock_completion):
         """Test creating a complex graph with cross-connections."""
         graph_params = {
-            "root_prompt": "Machine Learning",
+            "topic_prompt": "Machine Learning",
             "model_name": "test-model",
             "temperature": 0.7,
-            "graph_degree": 2,
-            "graph_depth": 2,
+            "degree": 2,
+            "depth": 2,
         }
         graph = Graph(**graph_params)
 
@@ -508,11 +508,11 @@ class TestIntegration:
     def test_graph_persistence_roundtrip(self):
         """Test complete save/load roundtrip with complex graph."""
         graph_params = {
-            "root_prompt": "Science",
+            "topic_prompt": "Science",
             "model_name": "test-model",
             "temperature": 0.5,
-            "graph_degree": 2,
-            "graph_depth": 2,
+            "degree": 2,
+            "depth": 2,
         }
         graph = Graph(**graph_params)
 

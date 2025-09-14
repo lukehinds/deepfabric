@@ -37,19 +37,19 @@
   <br/>
 </div>
 
-**DeepFabric** is a powerful Python library and CLI for generating synthetic datasets using LLMs. Whether you're building teacher-student distillation pipelines, creating evaluation datasets for models and agents, or conducting research that requires diverse training data, DeepFabric streamlines the entire process from topic generation to dataset export, with an option to push direct to Hugging Face.
+**Deepfabric** is a powerful Python library and CLI for generating synthetic datasets using LLMs. Suitabl for building teacher-student distillation pipelines, creating evaluation datasets for models and agents, or conducting research that requires diverse training data, Deepfabric streamlines the entire process from topic generation to dataset export. It can be used as an individual CLI tool, config driven with YAML, or imported as a library to use within your own ML pipelines"
 
 ## See It In Action
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="DeepFabric Demo" width="100%" style="max-width: 800px;">
+  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="Deepfabric Demo" width="100%" style="max-width: 800px;">
 </div>
 
 ## Quickstart
 
 Get up and running in under 60 seconds:
 
-### 1. Install DeepFabric
+### 1. Install Deepfabric
 
 ```bash
 pip install deepfabric
@@ -63,76 +63,116 @@ export OPENAI_API_KEY="your-api-key"
 
 # Generate a dataset with a single command
 deepfabric generate \
+  --mode tree \
   --provider openai \
   --model gpt-4o \
-  --tree-depth 3 \
-  --tree-degree 3 \
+  --depth 3 \
+  --degree 3 \
   --num-steps 9 \
   --batch-size 1 \
-  --topic-prompt "Python Programming Best Practices"
+  --topic-prompt "This history Quantum physics" \
+  --generation-system-prompt "You are an expert on academic history, with a specialism in the sciences" \
+  --dataset-save-as dataset.jsonl
 ```
 
-That's it! DeepFabric will automatically:
+That's it! Deepfabric will automatically:
 - Generate a hierarchical topic tree (3 levels deep, 3 branches per level)
 - Create 9 diverse Q&A pairs across the generated topics
 - Save your dataset to `dataset.jsonl`
 
 ### 3. Use Your Dataset
 
-Your dataset is ready for fine-tuning in the standard format:
+Your dataset is ready for fine-tuning in the standard instruct format:
 
 ```json
 {
   "messages": [
-    {"role": "system", "content": "You are a helpful AI assistant..."},
-    {"role": "user", "content": "What is a Python decorator?"},
-    {"role": "assistant", "content": "A decorator is a design pattern..."}
+    {
+      "role": "user",
+      "content": "Can you explain the significance of the double-slit experiment in quantum physics?"
+    },
+    {
+      "role": "assistant",
+      "content": "The double-slit experiment is fundamental in quantum physics as it demonstrates the dual nature of light and particles, showing both wave-like and particle-like properties. When particles such as photons or electrons pass through two slits, they create an interference pattern characteristic of waves, even if sent one at a time. This result challenged classical physics and contributed significantly to the development of quantum mechanics, highlighting the probabilistic nature of quantum states."
+    }
+  ]
+}
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Can you explain Albert Einstein's contribution to quantum theory?"
+    },
+    {
+      "role": "assistant",
+      "content": "Albert Einstein made significant contributions to quantum theory, particularly through his explanation of the photoelectric effect, for which he won the Nobel Prize in 1921. He proposed that light could be thought of as discrete packets of energy called quanta or photons, which could explain how electrons are emitted from metals when exposed to light. This idea was instrumental in the development of quantum mechanics. He later became famous for his skepticism about quantum mechanics probabilistic interpretation, leading to his quote \"God does not play dice with the universe.\""
+    }
+  ]
+}
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Can you explain the role of Niels Bohr in the development of quantum physics?"
+    },
+    {
+      "role": "assistant",
+      "content": "Niels Bohr was a pivotal figure in the development of quantum physics, particularly known for introducing the Bohr model of the atom and contributing to the Copenhagen Interpretation of quantum mechanics. His work laid the foundation for understanding atomic structure and quantum theory, emphasizing the idea of complementarity and the probabilistic nature of quantum phenomena."
+    }
+  ]
+}
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Can you tell me about the Stern-Gerlach experiment and its significance in quantum physics?"
+    },
+    {
+      "role": "assistant",
+      "content": "The Stern-Gerlach experiment, conducted by Otto Stern and Walther Gerlach in 1922, was crucial in the development of quantum mechanics. It demonstrated that particles such as neutral silver atoms have quantized spin angular momentum. In the experiment, a beam of silver atoms was passed through an inhomogeneous magnetic field, which caused the beam to split according to the spin of the atoms, thus providing evidence for the existence of quantum spin states."
+    }
   ]
 }
 ```
 
-### 4. Want More Control?
+### 4. Use local models.
 
 Generate larger datasets with different models:
 
 ```bash
-# Use Ollama for local generation
+# With a depth of 4 and degree of 4^5 = 1,024
 deepfabric generate \
   --provider ollama \
-  --model llama3 \
-  --tree-depth 4 \
-  --tree-degree 5 \
+  --model qwen3:8b \
+  --depth 4 \
+  --degree 5 \
   --num-steps 100 \
   --batch-size 5 \
   --topic-prompt "Machine Learning Fundamentals"
-
-# Or use a config file for complex setups
-deepfabric start config.yaml
+  --generation-system-prompt "You are an expert on Machine Learning and its application in modern technologies" \
+  --dataset-save-as dataset.jsonl
 ```
-Or take a look at [examples](./examples/).
 
-## Why DeepFabric?
+There are lots of [examples](./examples/) to get you going.
 
-DeepFabric solves the challenge of creating diverse, high-quality training data at scale
+## Why Deepfabric?
+
+Deepfabric solves the challenge of creating diverse, high-quality training data at scale. It uses a novel approach of first generating
+a topic tree or graph, which results in datasets with a high diversity level and miminmal duplication. Benchmarks using tools such as
+great expectations shows that Deepfabric datasets fair well when compared with such as databricks/databricks-dolly-15k.
 
 ## I heard that Synthetic Data is inferior to Human curated / labelled data
 
-That used to be the view, but no longer is, well especially when it comes to model training. Views changed when Deepseek first released,
-where the Deepseek whitepaper outlined how the model had been exclusively trained with synthetics using a process termed 'distilation'. 
+That used to be the view, but no longer is, especially when it comes to model fine-tuning of SLMs. Views shifted when Deepseek first released r1,
+trained largley on synthetics using a process termed 'distilation'. 
 
-Since then many other models have followed suit, including most recently Phi-4.
-
-**Hierarchical Topic Generation**: Automatically explores related subtopics from a single root prompt, ensuring comprehensive coverage of your domain, with high diversity, no duplication - without losing domain specificity.
-
-**Provider Agnostic**: Works seamlessly with OpenAI, Anthropic, Google, Ollama, and any LiteLLM-supported provider. Mix and match models for different stages of generation.
-
-**Export Anywhere**: Direct integration with Hugging Face Hub, or export to JSONL for use with any training framework.
+Since then many other models have followed suit, including most recently Phi-4, to quote the whitepaper "Synthetic data constitutes the bulk of the training data for phi-4".
 
 ## Key Features
 
 ### Topic Trees and Graphs
 
-DeepFabric can generate topics using two approaches:
+Deepfabric can generate topics using two approaches:
 
 **Topic Trees**: Traditional hierarchical structure where each topic branches into subtopics, perfect for well-organized domains.
 
@@ -140,23 +180,9 @@ DeepFabric can generate topics using two approaches:
 
 <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/f6ac2717a99b1ae1963aedeb099ad75bb30170e8/assets/graph.svg" width="100%" height="100%"/>
 
-Example graph configuration:
-
-```yaml
-topic_generator: graph  # Use 'tree' for traditional hierarchy
-
-topic_graph:
-  root_prompt: "Modern Software Architecture"
-  provider: "ollama"
-  model: "llama3"
-  graph_degree: 3    # Subtopics per node
-  graph_depth: 3     # Graph depth
-  save_as: "architecture_graph.json"
-```
-
 ### Multi-Provider Support
 
-Leverage different LLMs for different tasks. Use GPT-4 for complex topic generation, then switch to a faster model like Mixtral for bulk data creation:
+Leverage different LLMs for different tasks. Use GPT-4 for complex topic generation, then switch to a local model like Mixtral for bulk data creation:
 
 ```yaml
 topic_tree:
@@ -214,23 +240,23 @@ uv sync --all-extras
 
 ### Configuration-Based Approach (Recommended)
 
-DeepFabric uses YAML configuration files for maximum flexibility. Here's a complete example:
+Deepfabric uses YAML configuration files for maximum flexibility. Here's a complete example:
 
 ```yaml
-system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
+dataset_system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
 
 topic_tree:
-  root_prompt: "Capital Cities of the World."
-  model_system_prompt: "<system_prompt_placeholder>"
-  tree_degree: 3
-  tree_depth: 2
+  topic_prompt: "Capital Cities of the World."
+  topic_system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
+  degree: 3
+  depth: 2
   temperature: 0.7
   model_name: "ollama/mistral:latest"
   save_as: "basic_prompt_Tree.jsonl"
 
 data_engine:
   instructions: "Please provide training examples with questions about capital cities."
-  system_prompt: "<system_prompt_placeholder>"
+  generation_system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
   model_name: "ollama/mistral:latest"
   temperature: 0.9
   max_retries: 2
@@ -268,10 +294,10 @@ The CLI supports various options to override configuration values:
 deepfabric start config.yaml \
   --save-tree output_tree.jsonl \
   --dataset-save-as output_dataset.jsonl \
-  --model-name ollama/llama3 \
+  --model-name ollama/qwen3:8b \
   --temperature 0.8 \
-  --tree-degree 4 \
-  --tree-depth 3 \
+  --degree 4 \
+  --depth 3 \
   --num-steps 10 \
   --batch-size 2 \
   --sys-msg true \  # Control system message inclusion (default: true)
@@ -282,7 +308,7 @@ deepfabric start config.yaml \
 
 ### Supported Providers
 
-DeepFabric supports all LiteLLM providers. Here are the most common:
+Deepfabric supports all LiteLLM providers. Here are the most common:
 
 **OpenAI**
 ```yaml
@@ -308,7 +334,7 @@ model: "gemini-pro"
 **Ollama (Local)**
 ```yaml
 provider: "ollama"
-model: "llama3:latest"
+model: "qwen3:8b:latest"
 # No API key needed
 ```
 
@@ -338,93 +364,37 @@ deepfabric start config.yaml \
   --hf-tags "gpt4" --hf-tags "chemistry"
 ```
 
-DeepFabric automatically creates dataset cards with generation metadata, tags your dataset appropriately, and handles the upload process.
+Deepfabric automatically creates dataset cards with generation metadata, tags your dataset appropriately, and handles the upload process.
 
 ### Programmatic API
 
-For advanced use cases, use DeepFabric as a Python library:
+For advanced use cases, use Deepfabric as a Python library:
 
 ```python
 from deepfabric import DataSetGenerator, Tree
 
 tree = Tree(
-    root_prompt="Creative Writing Prompts",
-    model_system_prompt=system_prompt,
-    tree_degree=5,
-    tree_depth=4,
+    topic_prompt="Creative Writing Prompts",
+    topic_system_prompt=dataset_system_prompt,
+    degree=5,
+    depth=4,
     temperature=0.9,
-    model_name="ollama/llama3"
+    model_name="ollama/qwen3:8b"
 )
 
 engine = DataSetGenerator(
     instructions="Generate creative writing prompts and example responses.",
-    system_prompt="You are a creative writing instructor providing writing prompts and example responses.",
-    model_name="ollama/llama3",
+    generation_system_prompt="You are a creative writing instructor providing writing prompts and example responses.",
+    model_name="ollama/qwen3:8b",
     temperature=0.9,
     max_retries=2,
     sys_msg=True,  # Include system message in dataset (default: true)
 )
 ```
 
-## Advanced Examples
-
-### Multi-Stage Generation Pipeline
-
-Combine different models for optimal results:
-
-```yaml
-# Stage 1: High-quality topic generation with GPT-4
-topic_tree:
-  provider: "openai"
-  model: "gpt-4"
-  temperature: 0.7
-  tree_depth: 4
-
-# Stage 2: Fast bulk generation with Mixtral
-data_engine:
-  provider: "ollama"
-  model: "mixtral"
-  temperature: 0.9
-
-# Stage 3: Final dataset with efficient model
-dataset:
-  creation:
-    provider: "openai"
-    model: "gpt-3.5-turbo"
-    num_steps: 100
-    batch_size: 5
-```
-
-### Domain-Specific Datasets
-
-Create specialized datasets for any domain:
-
-```yaml
-# Medical Q&A Dataset
-system_prompt: "You are a medical professional providing accurate health information."
-topic_tree:
-  root_prompt: "Common Medical Conditions and Treatments"
-  tree_degree: 5
-  tree_depth: 3
-
-# Code Generation Dataset
-system_prompt: "You are an expert programmer."
-topic_tree:
-  root_prompt: "Data Structures and Algorithms in Python"
-  tree_degree: 4
-  tree_depth: 3
-
-# Creative Writing Dataset
-system_prompt: "You are a creative writing instructor."
-topic_tree:
-  root_prompt: "Science Fiction Story Elements"
-  tree_degree: 6
-  tree_depth: 2
-```
-
 ### Output Format
 
-DeepFabric generates datasets in the standard conversational format:
+Deepfabric generates datasets in the standard conversational format:
 
 ```json
 {
@@ -443,7 +413,6 @@ dataset:
   creation:
     sys_msg: false  # Omit system messages for certain training scenarios
 ```
-
 
 ## Development
 
@@ -470,27 +439,7 @@ make build  # Clean, test, and build package
 make all    # Complete workflow
 ```
 
-## Best Practices
+## Documentation
 
-**Start Small**: Begin with a small `num_steps` value to test your configuration before scaling up.
-
-**Temperature Tuning**: Use lower temperatures (0.3-0.7) for factual content, higher (0.7-1.0) for creative tasks.
-
-**Iterative Refinement**: Review initial outputs and adjust your prompts and instructions accordingly.
-
-**Model Selection**: Use more capable models for topic generation, then switch to faster models for bulk data creation.
-
-**Validation**: Always validate a sample of your dataset before using it for training.
-
-## Community and Support
-
-**Discord**: Join our community for discussions and support: [discord.gg/pPcjYzGvbS](https://discord.gg/pPcjYzGvbS)
-
-**Issues**: Report bugs or request features: [GitHub Issues](https://github.com/lukehinds/deepfabric/issues)
-
-**Contributing**: We welcome contributions! Check out our [good first issues](https://github.com/lukehinds/deepfabric/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) to get started.
-
-## License
-
-Apache 2.0 - See [LICENSE](LICENSE) for details.
+Much more in the docs: https://lukehinds.github.io/DeepFabric/
 

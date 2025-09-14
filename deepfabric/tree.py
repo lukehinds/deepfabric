@@ -28,8 +28,8 @@ from .utils import extract_list
 warnings.filterwarnings("ignore", message=".*Pydantic serializer warnings:.*")
 
 
-UPPER_TREE_DEGREE = 50
-UPPER_TREE_DEPTH = 10
+UPPER_DEGREE = 50
+UPPER_DEPTH = 10
 
 
 def validate_and_clean_response(response_text: str) -> str | list[str] | None:
@@ -58,20 +58,22 @@ class TreeConfig(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    root_prompt: str = Field(
+    topic_prompt: str = Field(
         ..., min_length=1, description="The initial prompt to start the topic tree"
     )
-    model_system_prompt: str = Field(default="", description="The system prompt for the model")
-    tree_degree: int = Field(
+    topic_system_prompt: str = Field(
+        default="", description="System prompt for topic exploration and generation"
+    )
+    degree: int = Field(
         default=TOPIC_TREE_DEFAULT_DEGREE,
         ge=1,
-        le=UPPER_TREE_DEGREE,
+        le=UPPER_DEGREE,
         description="The branching factor of the tree",
     )
-    tree_depth: int = Field(
+    depth: int = Field(
         default=TOPIC_TREE_DEFAULT_DEPTH,
         ge=1,
-        le=UPPER_TREE_DEPTH,
+        le=UPPER_DEPTH,
         description="The depth of the tree",
     )
     model_name: str = Field(
@@ -92,13 +94,13 @@ class TreeValidator:
     TreeValidator validates and calculates unique paths in a tree structure.
     """
 
-    def __init__(self, tree_degree: int, tree_depth: int):
-        self.tree_degree = tree_degree
-        self.tree_depth = tree_depth
+    def __init__(self, degree: int, depth: int):
+        self.degree = degree
+        self.depth = depth
 
     def calculate_paths(self) -> int:
         """Calculate total number of paths in the tree."""
-        return self.tree_degree**self.tree_depth
+        return self.degree**self.depth
 
     def validate_configuration(self, num_steps: int, batch_size: int) -> dict[str, Any]:
         """Validates tree configuration and provides recommendations if invalid."""
@@ -120,7 +122,7 @@ class TreeValidator:
             print("Recommended configurations to fit within the tree paths:")
             print(f" - Reduce num_steps to: {recommendation['suggested_num_steps']} or")
             print(f" - Reduce batch_size to: {recommendation['suggested_batch_size']} or")
-            print(" - Increase tree_depth or tree_degree to provide more paths.")
+            print(" - Increase depth or degree to provide more paths.")
             return recommendation
 
         return {
@@ -143,15 +145,15 @@ class Tree(TopicModel):
         json_instructions = TREE_JSON_INSTRUCTIONS
 
         # Initialize from config
-        self.root_prompt = self.config.root_prompt
-        self.model_system_prompt = self.config.model_system_prompt
-        self.tree_degree = self.config.tree_degree
-        self.tree_depth = self.config.tree_depth
+        self.topic_prompt = self.config.topic_prompt
+        self.model_system_prompt = self.config.topic_system_prompt
+        self.degree = self.config.degree
+        self.depth = self.config.depth
         self.temperature = self.config.temperature
         self.model_name = self.config.model_name
 
         # Derived attributes
-        self.system_prompt = json_instructions + self.config.model_system_prompt
+        self.system_prompt = json_instructions + self.config.topic_system_prompt
         self.tree_paths: list[list[str]] = []
         self.failed_generations: list[dict[str, Any]] = []
 
@@ -168,14 +170,14 @@ class Tree(TopicModel):
 
         # Initialize TUI
         tui = get_tree_tui()
-        tui.start_building(self.model_name, self.config.tree_depth, self.config.tree_degree)
+        tui.start_building(self.model_name, self.config.depth, self.config.degree)
 
         try:
             self.tree_paths = self.build_subtree(
-                [self.config.root_prompt],
+                [self.config.topic_prompt],
                 self.system_prompt,
-                self.config.tree_degree,
-                self.config.tree_depth,
+                self.config.degree,
+                self.config.depth,
                 model_name=self.model_name,
                 tui=tui,
                 current_depth=1,
@@ -323,8 +325,8 @@ class Tree(TopicModel):
         self,
         node_path: list[str],
         system_prompt: str,
-        tree_degree: int,
-        subtree_depth: int,
+        degree: int,
+        subdepth: int,
         model_name: str,
         tui=None,
         current_depth: int = 1,
@@ -337,10 +339,10 @@ class Tree(TopicModel):
         if tui and len(node_path) == current_depth:
             tui.start_depth_level(current_depth)
 
-        if subtree_depth == 0:
+        if subdepth == 0:
             return [node_path]
 
-        subnodes = self.get_subtopics(system_prompt, node_path, tree_degree, tui)
+        subnodes = self.get_subtopics(system_prompt, node_path, degree, tui)
 
         # Clean and validate subnodes
         cleaned_subnodes = []
@@ -362,8 +364,8 @@ class Tree(TopicModel):
                     self.build_subtree(
                         new_path,
                         system_prompt,
-                        tree_degree,
-                        subtree_depth - 1,
+                        degree,
+                        subdepth - 1,
                         model_name,
                         tui,
                         current_depth + 1,
@@ -415,19 +417,19 @@ class Tree(TopicModel):
             dict: Dictionary containing the tree structure and metadata
         """
         return {
-            "root_prompt": self.config.root_prompt,
-            "tree_degree": self.tree_degree,
-            "tree_depth": self.tree_depth,
+            "topic_prompt": self.config.topic_prompt,
+            "degree": self.degree,
+            "depth": self.depth,
             "model_name": self.model_name,
             "temperature": self.temperature,
             "paths": self.tree_paths,
             "failed_generations": self.failed_generations,
             "total_paths": len(self.tree_paths),
             "config": {
-                "root_prompt": self.config.root_prompt,
-                "model_system_prompt": self.config.model_system_prompt,
-                "tree_degree": self.config.tree_degree,
-                "tree_depth": self.config.tree_depth,
+                "topic_prompt": self.config.topic_prompt,
+                "topic_system_prompt": self.config.topic_system_prompt,
+                "degree": self.config.degree,
+                "depth": self.config.depth,
                 "model_name": self.config.model_name,
                 "temperature": self.config.temperature,
             },
