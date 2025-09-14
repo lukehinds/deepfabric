@@ -41,8 +41,6 @@
 
 The key innovation lies in Deepfabric's graph and tree-based architecture, which uses structured topic nodes as generation seeds. This approach ensures the creation of datasets that are both highly diverse and domain-specific, while minimizing redundancy and duplication across generated samples.
 
-## See It In Action
-
 <div align="center">
   <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="Deepfabric Demo" width="80%" style="max-width: 700px;">
 </div>
@@ -77,7 +75,7 @@ deepfabric generate \
   --dataset-save-as dataset.jsonl
 ```
 
-That's it! Deepfabric will automatically:
+Deepfabric will automatically:
 - Generate a hierarchical topic tree (3 levels deep, 3 branches per level)
 - Create 9 diverse Q&A pairs across the generated topics
 - Save your dataset to `dataset.jsonl`
@@ -157,19 +155,6 @@ deepfabric generate \
 
 There are lots of [examples](./examples/) to get you going.
 
-## Why Deepfabric?
-
-Deepfabric solves the challenge of creating diverse, high-quality training data at scale. It uses a novel approach of first generating
-a topic tree or graph, which results in datasets with a high diversity level and miminmal duplication. Benchmarks using tools such as
-great expectations shows that Deepfabric datasets fair well when compared with such as databricks/databricks-dolly-15k.
-
-## I heard that Synthetic Data is inferior to Human curated / labelled data
-
-That used to be the view, but no longer is, especially when it comes to model fine-tuning of SLMs. Views shifted when Deepseek first released r1,
-trained largley on synthetics using a process termed 'distilation'. 
-
-Since then many other models have followed suit, including most recently Phi-4, to quote the whitepaper "Synthetic data constitutes the bulk of the training data for phi-4".
-
 ## Key Features
 
 ### Topic Trees and Graphs
@@ -238,7 +223,7 @@ uv sync --all-extras
 
 ## Usage Guide
 
-### Configuration-Based Approach (Recommended)
+### Configuration-Based Approach
 
 Deepfabric uses YAML configuration files for maximum flexibility. Here's a complete example:
 
@@ -288,85 +273,7 @@ Run using the CLI:
 deepfabric generate config.yaml
 ```
 
-The CLI supports various options to override configuration values:
-
-```bash
-deepfabric generate config.yaml \
-  --save-tree output_tree.jsonl \
-  --dataset-save-as output_dataset.jsonl \
-  --model-name ollama/qwen3:8b \
-  --temperature 0.8 \
-  --degree 4 \
-  --depth 3 \
-  --num-steps 10 \
-  --batch-size 2 \
-  --sys-msg true \  # Control system message inclusion (default: true)
-  --hf-repo username/dataset-name \
-  --hf-token your-token \
-  --hf-tags tag1 --hf-tags tag2
-```
-
-### Supported Providers
-
-Deepfabric supports all LiteLLM providers. Here are the most common:
-
-**OpenAI**
-```yaml
-provider: "openai"
-model: "gpt-4-turbo-preview"
-# Set: export OPENAI_API_KEY="your-key"
-```
-
-**Anthropic**
-```yaml
-provider: "anthropic"
-model: "claude-3-opus-20240229"
-# Set: export ANTHROPIC_API_KEY="your-key"
-```
-
-**Google**
-```yaml
-provider: "gemini"
-model: "gemini-pro"
-# Set: export GEMINI_API_KEY="your-key"
-```
-
-**Ollama (Local)**
-```yaml
-provider: "ollama"
-model: "qwen3:8b:latest"
-# No API key needed
-```
-
-**Azure OpenAI**
-```yaml
-provider: "azure"
-model: "your-deployment-name"
-# Set: export AZURE_API_KEY="your-key"
-# Set: export AZURE_API_BASE="your-endpoint"
-```
-
-For a complete list of providers and models, see the [LiteLLM documentation](https://docs.litellm.ai/docs/providers/).
-
-### Hugging Face Hub Integration
-
-Share your datasets with the community:
-
-```bash
-# Using environment variable
-export HF_TOKEN=your-token
-deepfabric generate config.yaml --hf-repo username/my-dataset
-
-# Or pass token directly
-deepfabric generate config.yaml \
-  --hf-repo username/my-dataset \
-  --hf-token your-token \
-  --hf-tags "gpt4" --hf-tags "chemistry"
-```
-
-Deepfabric automatically creates dataset cards with generation metadata, tags your dataset appropriately, and handles the upload process.
-
-### Programmatic API
+### API
 
 For advanced use cases, use Deepfabric as a Python library:
 
@@ -394,7 +301,7 @@ engine = DataSetGenerator(
 
 ### Output Format
 
-Deepfabric generates datasets in the standard conversational format:
+Deepfabric generates datasets in the standard OpenAI conversational format:
 
 ```json
 {
@@ -414,32 +321,33 @@ dataset:
     sys_msg: false  # Omit system messages for certain training scenarios
 ```
 
-## Development
+## FAQ
 
-### Running Tests
+## I heard that Synthetic Data is inferior to Human curated / labelled data
 
-```bash
-make test
-# or
-uv run pytest
+That used to be the view, but no longer is, especially when it comes to model fine-tuning of SLMs. Views shifted when Deepseek first released r1,
+trained largley on synthetics using a process termed 'distilation'. 
+
+Since then many other models have followed suit, including most recently Phi-4, to quote the whitepaper "Synthetic data constitutes the bulk of the training data for phi-4".
+
+## Roadmap
+
+### Outlines
+
+Introduce Outlines as an LLM replacement, and make use of its structured ouput support
+
+### Conversation Framework
+
+Deepfabric currently outputs to Open AI chat format, we will provide a system where you can easily plug in a post-processing conversion to whatever format is needed. This should allow easy adaption to what ever you need within a training pipeline:
+
+```yaml
+formatters:
+- name: "alpaca"
+  template: "builtin://alpaca.py"
+- name: "custom"
+  template: "file://./my_format.py"
+  config:
+    instruction_field: "query"
 ```
 
-### Code Quality
-
-```bash
-make format  # Format with black and ruff
-make lint    # Run linting checks
-make security  # Security analysis with bandit
-```
-
-### Building
-
-```bash
-make build  # Clean, test, and build package
-make all    # Complete workflow
-```
-
-## Documentation
-
-Much more in the docs: https://lukehinds.github.io/DeepFabric/
 
