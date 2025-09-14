@@ -1,7 +1,7 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-dark.png">
-    <img alt="Deepfabric logo" src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png" width="486px" height="130px" style="max-width: 100%;">
+    <img alt="Deepfabric logo" src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png" width="486px" height="150spx" style="max-width: 100%;">
   </picture>
   <h3>Generate High-Quality Synthetic Datasets at Scale</h3>
 
@@ -45,7 +45,7 @@
   <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="Deepfabric Demo" width="100%" style="max-width: 800px;">
 </div>
 
-## Quickstart
+## Quick
 
 Get up and running in under 60 seconds:
 
@@ -199,7 +199,7 @@ data_engine:
 Push your datasets directly to Hugging Face Hub with automatic dataset cards:
 
 ```bash
-deepfabric start config.yaml --hf-repo username/my-dataset --hf-token $HF_TOKEN
+deepfabric generate config.yaml --hf-repo username/my-dataset --hf-token $HF_TOKEN
 ```
 
 ## Installation
@@ -285,13 +285,13 @@ huggingface:
 Run using the CLI:
 
 ```bash
-deepfabric start config.yaml
+deepfabric generate config.yaml
 ```
 
 The CLI supports various options to override configuration values:
 
 ```bash
-deepfabric start config.yaml \
+deepfabric generate config.yaml \
   --save-tree output_tree.jsonl \
   --dataset-save-as output_dataset.jsonl \
   --model-name ollama/qwen3:8b \
@@ -355,10 +355,10 @@ Share your datasets with the community:
 ```bash
 # Using environment variable
 export HF_TOKEN=your-token
-deepfabric start config.yaml --hf-repo username/my-dataset
+deepfabric generate config.yaml --hf-repo username/my-dataset
 
 # Or pass token directly
-deepfabric start config.yaml \
+deepfabric generate config.yaml \
   --hf-repo username/my-dataset \
   --hf-token your-token \
   --hf-tags "gpt4" --hf-tags "chemistry"
