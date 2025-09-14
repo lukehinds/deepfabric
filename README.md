@@ -109,30 +109,6 @@ Your dataset is ready for fine-tuning in the standard instruct format:
     }
   ]
 }
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Can you explain the role of Niels Bohr in the development of quantum physics?"
-    },
-    {
-      "role": "assistant",
-      "content": "Niels Bohr was a pivotal figure in the development of quantum physics, particularly known for introducing the Bohr model of the atom and contributing to the Copenhagen Interpretation of quantum mechanics. His work laid the foundation for understanding atomic structure and quantum theory, emphasizing the idea of complementarity and the probabilistic nature of quantum phenomena."
-    }
-  ]
-}
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Can you tell me about the Stern-Gerlach experiment and its significance in quantum physics?"
-    },
-    {
-      "role": "assistant",
-      "content": "The Stern-Gerlach experiment, conducted by Otto Stern and Walther Gerlach in 1922, was crucial in the development of quantum mechanics. It demonstrated that particles such as neutral silver atoms have quantized spin angular momentum. In the experiment, a beam of silver atoms was passed through an inhomogeneous magnetic field, which caused the beam to split according to the spin of the atoms, thus providing evidence for the existence of quantum spin states."
-    }
-  ]
-}
 ```
 
 ### 4. Use local models.
@@ -152,8 +128,6 @@ deepfabric generate \
   --generation-system-prompt "You are an expert on Machine Learning and its application in modern technologies" \
   --dataset-save-as dataset.jsonl
 ```
-
-There are lots of [examples](./examples/) to get you going.
 
 ## Key Features
 
@@ -187,139 +161,18 @@ Push your datasets directly to Hugging Face Hub with automatic dataset cards:
 deepfabric generate config.yaml --hf-repo username/my-dataset --hf-token $HF_TOKEN
 ```
 
-## Installation
+## Docs / Examples
 
-### Requirements
+For more details, including how to use the SDK, see the [docs!](https://lukehinds.github.io/DeepFabric/)
 
-Python 3.11 or higher
+There are also lots of [examples](./examples/) to get you going.
 
-### Install from PyPI
 
-```bash
-pip install deepfabric
-```
+## Stay Updated
 
-### Install from Source
+Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way to follow the project and to be instantly notified of new releases, **Star the repo**.
 
-```bash
-git clone https://github.com/lukehinds/deepfabric.git
-cd deepfabric
-pip install -e .
-```
-
-### Development Setup
-
-For contributors and developers:
-
-```bash
-# Install uv for dependency management
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Clone and setup development environment
-git clone https://github.com/lukehinds/deepfabric.git
-cd deepfabric
-uv sync --all-extras
-```
-
-## Usage Guide
-
-### Configuration-Based Approach
-
-Deepfabric uses YAML configuration files for maximum flexibility. Here's a complete example:
-
-```yaml
-dataset_system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
-
-topic_tree:
-  topic_prompt: "Capital Cities of the World."
-  topic_system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
-  degree: 3
-  depth: 2
-  temperature: 0.7
-  model_name: "ollama/mistral:latest"
-  save_as: "basic_prompt_Tree.jsonl"
-
-data_engine:
-  instructions: "Please provide training examples with questions about capital cities."
-  generation_system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
-  model_name: "ollama/mistral:latest"
-  temperature: 0.9
-  max_retries: 2
-
-dataset:
-  creation:
-    num_steps: 5
-    batch_size: 1
-    model_name: "ollama/mistral:latest"
-    sys_msg: true  # Include system message in dataset (default: true)
-  save_as: "basic_prompt_dataset.jsonl"
-
-# Optional Hugging Face Hub configuration
-huggingface:
-  # Repository in format "username/dataset-name"
-  repository: "your-username/your-dataset-name"
-  # Token can also be provided via HF_TOKEN environment variable or --hf-token CLI option
-  token: "your-hf-token"
-  # Additional tags for the dataset (optional)
-  # "deepfabric" and "synthetic" tags are added automatically
-  tags:
-    - "deepfabric-generated-dataset"
-    - "geography"
-```
-
-Run using the CLI:
-
-```bash
-deepfabric generate config.yaml
-```
-
-### API
-
-For advanced use cases, use Deepfabric as a Python library:
-
-```python
-from deepfabric import DataSetGenerator, Tree
-
-tree = Tree(
-    topic_prompt="Creative Writing Prompts",
-    topic_system_prompt=dataset_system_prompt,
-    degree=5,
-    depth=4,
-    temperature=0.9,
-    model_name="ollama/qwen3:8b"
-)
-
-engine = DataSetGenerator(
-    instructions="Generate creative writing prompts and example responses.",
-    generation_system_prompt="You are a creative writing instructor providing writing prompts and example responses.",
-    model_name="ollama/qwen3:8b",
-    temperature=0.9,
-    max_retries=2,
-    sys_msg=True,  # Include system message in dataset (default: true)
-)
-```
-
-### Output Format
-
-Deepfabric generates datasets in the standard OpenAI conversational format:
-
-```json
-{
-  "messages": [
-    {"role": "system", "content": "System prompt..."},
-    {"role": "user", "content": "User question..."},
-    {"role": "assistant", "content": "Assistant response..."}
-  ]
-}
-```
-
-Control system message inclusion with the `sys_msg` parameter:
-
-```yaml
-dataset:
-  creation:
-    sys_msg: false  # Omit system messages for certain training scenarios
-```
+<img src="/assets/star.gif" width="40%" height="40%"/>
 
 ## FAQ
 
