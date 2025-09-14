@@ -178,7 +178,7 @@ Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way t
 
 ### Better Structured Formatting
 
-Introduce Outlines as an LLM replacement, and make use of its structured ouput support
+Introduce Outlines as an LiteLLM replacement, and make use of its structured ouput support
 
 ### Conversation Framework
 
