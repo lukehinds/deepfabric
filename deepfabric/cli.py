@@ -248,6 +248,7 @@ def cli():
 @click.option("--depth", type=int, help="Depth setting")
 @click.option("--num-steps", type=int, help="Number of generation steps")
 @click.option("--batch-size", type=int, help="Batch size")
+@click.option("--base-url", help="Base URL for LLM provider API endpoint")
 @click.option(
     "--sys-msg",
     type=bool,
@@ -277,6 +278,7 @@ def generate(  # noqa: PLR0912, PLR0913
     depth: int | None = None,
     num_steps: int | None = None,
     batch_size: int | None = None,
+    base_url: str | None = None,
     sys_msg: bool | None = None,
     mode: str = "tree",
 ) -> None:
@@ -398,6 +400,8 @@ def generate(  # noqa: PLR0912, PLR0913
             tree_overrides["degree"] = degree
         if depth:
             tree_overrides["depth"] = depth
+        if base_url:
+            tree_overrides["base_url"] = base_url
 
         # Prepare topic graph overrides
         graph_overrides = {}
@@ -415,6 +419,8 @@ def generate(  # noqa: PLR0912, PLR0913
             graph_overrides["degree"] = degree
         if depth:
             graph_overrides["depth"] = depth
+        if base_url:
+            graph_overrides["base_url"] = base_url
 
         # Set provider and model
         final_provider = provider or dataset_params.get("provider", "ollama")
@@ -475,6 +481,7 @@ def generate(  # noqa: PLR0912, PLR0913
                     degree=TOPIC_TREE_DEFAULT_DEGREE,
                     depth=TOPIC_TREE_DEFAULT_DEPTH,
                     temperature=TOPIC_TREE_DEFAULT_TEMPERATURE,
+                    base_url=base_url,
                 )
                 topic_model.from_dict_list(dict_list)
             elif load_graph:
@@ -533,6 +540,8 @@ def generate(  # noqa: PLR0912, PLR0913
             engine_overrides["model"] = model
         if temperature:
             engine_overrides["temperature"] = temperature
+        if base_url:
+            engine_overrides["base_url"] = base_url
 
         # Create data engine
         try:
