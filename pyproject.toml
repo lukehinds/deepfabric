@@ -6,7 +6,7 @@ authors = [{name = "Luke Hinds", email = "luke@rdrocket.com"}]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "huggingface-hub==0.34.4",
+    "huggingface-hub==0.34.5",
     "datasets==4.1.0",
     "outlines==1.2.4",
     "openai>=1.107.2",
