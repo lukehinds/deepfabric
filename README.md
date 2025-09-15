@@ -41,8 +41,6 @@
 
 The key innovation lies in DeepFabric's graph and tree-based architecture, which uses structured topic nodes as generation seeds. This approach ensures the creation of datasets that are both highly diverse and domain-specific, while minimizing redundancy and duplication across generated samples.
 
-## See It In Action
-
 <div align="center">
   <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="DeepFabric Demo" width="80%" style="max-width: 700px;">
 </div>
@@ -75,8 +73,7 @@ deepfabric generate \
   --dataset-save-as dataset.jsonl
 ```
 
-That's it! DeepFabric will automatically:
-
+Deepfabric will automatically:
 - Generate a hierarchical topic tree (3 levels deep, 3 branches per level)
 - Create 9 diverse Q&A pairs across the generated topics
 - Save your dataset to `dataset.jsonl`
@@ -90,11 +87,11 @@ Your dataset is ready in the OpenAI standard instruct format (JSONL):
   "messages": [
     {
       "role": "user",
-      "content": "Can you explain the significance of the double-slit experiment in quantum physics?"
+      "content": "Can you explain Albert Einstein's contribution to quantum theory?"
     },
     {
       "role": "assistant",
-      "content": "The double-slit experiment is fundamental in quantum physics as it demonstrates the dual nature of light and particles, showing both wave-like and particle-like properties. When particles such as photons or electrons pass through two slits, they create an interference pattern characteristic of waves, even if sent one at a time. This result challenged classical physics and contributed significantly to the development of quantum mechanics, highlighting the probabilistic nature of quantum states."
+      "content": "Albert Einstein made significant contributions to quantum theory, particularly through his explanation of the photoelectric effect, for which he won the Nobel Prize in 1921. He proposed that light could be thought of as discrete packets of energy called quanta or photons, which could explain how electrons are emitted from metals when exposed to light. This idea was instrumental in the development of quantum mechanics. He later became famous for his skepticism about quantum mechanics probabilistic interpretation, leading to his quote \"God does not play dice with the universe.\""
     }
   ]
 }
@@ -108,7 +105,7 @@ Generate larger datasets with different models:
 # With a depth of 4 and degree of 4^5 = 1,024
 deepfabric generate \
   --provider ollama \
-  --model qwen3:8b \
+  --model qwen3:32b \
   --depth 4 \
   --degree 5 \
   --num-steps 100 \
@@ -119,19 +116,6 @@ deepfabric generate \
 ```
 
 There are lots more [examples](./examples/README.md) to get you going.
-
-## Why DeepFabric?
-
-DeepFabric solves the challenge of creating diverse, high-quality training data at scale. It uses a novel approach of first generating
-a topic tree or graph, which results in datasets with a high diversity level and miminmal duplication. Benchmarks using tools such as
-great expectations shows that DeepFabric datasets fair well when compared with such as databricks/databricks-dolly-15k.
-
-## I heard that Synthetic Data is inferior to Human curated / labelled data
-
-That used to be the view, but no longer is, especially when it comes to model fine-tuning of SLMs. Views shifted when Deepseek first released r1,
-trained largley on synthetics using a process termed 'distilation'. 
-
-Since then many other models have followed suit, including most recently Phi-4, to quote the whitepaper "Synthetic data constitutes the bulk of the training data for phi-4".
 
 ## Key Features
 
@@ -164,42 +148,6 @@ Push your datasets directly to Hugging Face Hub with automatic dataset cards:
 ```bash
 deepfabric generate config.yaml --hf-repo username/my-dataset --hf-token $HF_TOKEN
 ```
-
-## Installation
-
-### Requirements
-
-Python 3.11 or higher
-
-### Install from PyPI
-
-```bash
-pip install deepfabric
-```
-
-### Install from Source
-
-```bash
-git clone https://github.com/lukehinds/deepfabric.git
-cd deepfabric
-pip install -e .
-```
-
-### Development Setup
-
-For contributors and developers:
-
-```bash
-# Install uv for dependency management
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Clone and setup development environment
-git clone https://github.com/lukehinds/deepfabric.git
-cd deepfabric
-uv sync --all-extras
-```
-
-## Usage Guide
 
 ### Configuration-Based Approach (Recommended)
 
@@ -324,97 +272,39 @@ model: "qwen3:8b:latest"
 ```
 
 ### Hugging Face Hub Integration
+=======
+## Docs / Examples
 
-Share your datasets with the community:
+For more details, including how to use the SDK, see the [docs!](https://lukehinds.github.io/DeepFabric/)
 
-```bash
-# Using environment variable
-export HF_TOKEN=your-token
-deepfabric generate config.yaml --hf-repo username/my-dataset
+There are also lots of [examples](./examples/) to get you going.
 
-# Or pass token directly
-deepfabric generate config.yaml \
-  --hf-repo username/my-dataset \
-  --hf-token your-token \
-  --hf-tags "gpt4" --hf-tags "chemistry"
-```
+## Stay Updated
+
+Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way to follow the project and to be instantly notified of new releases, **Star the repo**.
 
 DeepFabric automatically creates dataset cards with generation metadata, tags your dataset appropriately, and handles the upload process.
+=======
+<img src="/assets/star.gif" width="40%" height="40%"/>
 
-### Programmatic API
+## Roadmap
 
-For advanced use cases, use DeepFabric as a Python library:
-
-```python
-from deepfabric import DataSetGenerator, Tree
-
-tree = Tree(
-    topic_prompt="Creative Writing Prompts",
-    topic_system_prompt=dataset_system_prompt,
-    degree=5,
-    depth=4,
-    temperature=0.9,
-    model_name="ollama/qwen3:8b"
-)
-
-engine = DataSetGenerator(
-    instructions="Generate creative writing prompts and example responses.",
-    generation_system_prompt="You are a creative writing instructor providing writing prompts and example responses.",
-    model_name="ollama/qwen3:8b",
-    temperature=0.9,
-    max_retries=2,
-    sys_msg=True,  # Include system message in dataset (default: true)
-)
-```
-
-### Output Format
-
-DeepFabric generates datasets in the standard conversational format:
-
-```json
-{
-  "messages": [
-    {"role": "system", "content": "System prompt..."},
-    {"role": "user", "content": "User question..."},
-    {"role": "assistant", "content": "Assistant response..."}
-  ]
-}
-```
-
-Control system message inclusion with the `sys_msg` parameter:
+Deepfabric currently outputs to Open AI chat format, we will provide a system where you can easily plug in a post-processing conversion to whatever format is needed. This should allow easy adaption to what ever you need within a training pipeline:
 
 ```yaml
-dataset:
-  creation:
-    sys_msg: false  # Omit system messages for certain training scenarios
+formatters:
+- name: "alpaca"
+  template: "builtin://alpaca.py"
+- name: "custom"
+  template: "file://./my_format.py"
+  config:
+    instruction_field: "query"
 ```
 
-## Development
+### More Conversations Types
 
-### Running Tests
+We will be introducing, multi-turn, reasoning, chain-of-thought etc.
 
-```bash
-make test
-# or
-uv run pytest
-```
+### Kaggel Support
 
-### Code Quality
-
-```bash
-make format  # Format with black and ruff
-make lint    # Run linting checks
-make security  # Security analysis with bandit
-```
-
-### Building
-
-```bash
-make build  # Clean, test, and build package
-make all    # Complete workflow
-```
-
-## Documentation
-
-Much more in the docs: https://lukehinds.github.io/DeepFabric/
-
+Push to Kaggel
