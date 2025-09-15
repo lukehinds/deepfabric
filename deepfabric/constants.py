@@ -19,11 +19,14 @@ ENGINE_DEFAULT_NUM_EXAMPLES = 3
 TOPIC_TREE_DEFAULT_DEGREE = 10
 TOPIC_TREE_DEFAULT_DEPTH = 3
 TOPIC_TREE_DEFAULT_TEMPERATURE = 0.2
-TOPIC_TREE_DEFAULT_MODEL = "ollama/qwen3:8b"
+TOPIC_TREE_DEFAULT_MODEL = "qwen3:8b"
 
 # Topic graph defaults
 TOPIC_GRAPH_DEFAULT_DEGREE = 10
 TOPIC_GRAPH_DEFAULT_DEPTH = 3
+TOPIC_GRAPH_SUMMARY = 20
+TOPIC_GRAPH_DEFAULT_MODEL = "qwen3:8b"
+TOPIC_GRAPH_DEFAULT_TEMPERATURE = 0.7
 
 # File extensions and patterns
 JSONL_EXTENSION = ".jsonl"
@@ -63,6 +66,7 @@ ERROR_CATEGORIES = {
     "json_parsing_errors": "JSON Parsing Errors",
     "invalid_schema": "Invalid Schema",
     "api_errors": "API Errors",
+    "authentication_error": "Authentication Errors",
     "empty_responses": "Empty Responses",
     "malformed_responses": "Malformed Responses",
     "other_errors": "Other Errors",

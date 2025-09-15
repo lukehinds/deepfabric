@@ -12,6 +12,7 @@ def engine_args():
         "instructions": "Test instructions",
         "generation_system_prompt": "Test system prompt",
         "dataset_system_prompt": "Test dataset system prompt",
+        "provider": "openai",
         "model_name": "test-model",
         "prompt_template": None,
         "example_data": None,
@@ -26,11 +27,13 @@ def engine_args():
 
 @pytest.fixture
 def data_engine(engine_args):
-    return DataSetGenerator(**engine_args)
+    with patch("deepfabric.generator.LLMClient"):
+        return DataSetGenerator(**engine_args)
 
 
 def test_engine_initialization(engine_args):
-    engine = DataSetGenerator(**engine_args)
+    with patch("deepfabric.generator.LLMClient"):
+        engine = DataSetGenerator(**engine_args)
     assert engine.config.instructions == engine_args["instructions"]
     assert engine.config.generation_system_prompt == engine_args["generation_system_prompt"]
     assert engine.config.model_name == engine_args["model_name"]
@@ -43,20 +46,18 @@ def test_create_data_no_steps(data_engine):
         data_engine.create_data(num_steps=0)
 
 
-@patch("deepfabric.generator.litellm.batch_completion")
-def test_create_data_success(mock_batch_completion, data_engine):
-    # Mock valid JSON responses to match the expected structure for 10 samples
-    mock_batch_completion.return_value = [
-        MagicMock(
-            choices=[
-                MagicMock(
-                    message=MagicMock(
-                        content='{"messages": [{"role": "user", "content": "example"}, {"role": "assistant", "content": "response"}]}'
-                    )
-                )
+def test_create_data_success(data_engine):
+    # Mock the generate method on the data_engine's llm_client instance
+    from deepfabric.schemas import ChatMessage, ChatTranscript  # noqa: PLC0415
+
+    data_engine.llm_client.generate = MagicMock(
+        return_value=ChatTranscript(
+            messages=[
+                ChatMessage(role="user", content="example"),
+                ChatMessage(role="assistant", content="response"),
             ]
         )
-    ] * 10  # Mock 10 responses to match the batch size
+    )
 
     topic_tree = MagicMock()
     topic_tree.tree_paths = [
@@ -83,20 +84,18 @@ def test_create_data_success(mock_batch_completion, data_engine):
     assert len(dataset.samples) == expected_num_samples
 
 
-@patch("deepfabric.generator.litellm.batch_completion")
-def test_create_data_with_sys_msg_default(mock_batch_completion, data_engine):
-    # Mock valid JSON response
-    mock_batch_completion.return_value = [
-        MagicMock(
-            choices=[
-                MagicMock(
-                    message=MagicMock(
-                        content='{"messages": [{"role": "user", "content": "example"}, {"role": "assistant", "content": "response"}]}'
-                    )
-                )
+def test_create_data_with_sys_msg_default(data_engine):
+    # Mock the generate method on the data_engine's llm_client instance
+    from deepfabric.schemas import ChatMessage, ChatTranscript  # noqa: PLC0415
+
+    data_engine.llm_client.generate = MagicMock(
+        return_value=ChatTranscript(
+            messages=[
+                ChatMessage(role="user", content="example"),
+                ChatMessage(role="assistant", content="response"),
             ]
         )
-    ]
+    )
 
     topic_tree = MagicMock()
     topic_tree.tree_paths = ["path1"]
@@ -112,20 +111,18 @@ def test_create_data_with_sys_msg_default(mock_batch_completion, data_engine):
     assert dataset.samples[0]["messages"][0]["content"] == data_engine.config.dataset_system_prompt
 
 
-@patch("deepfabric.generator.litellm.batch_completion")
-def test_create_data_without_sys_msg(mock_batch_completion, data_engine):
-    # Mock valid JSON response
-    mock_batch_completion.return_value = [
-        MagicMock(
-            choices=[
-                MagicMock(
-                    message=MagicMock(
-                        content='{"messages": [{"role": "user", "content": "example"}, {"role": "assistant", "content": "response"}]}'
-                    )
-                )
+def test_create_data_without_sys_msg(data_engine):
+    # Mock the generate method on the data_engine's llm_client instance
+    from deepfabric.schemas import ChatMessage, ChatTranscript  # noqa: PLC0415
+
+    data_engine.llm_client.generate = MagicMock(
+        return_value=ChatTranscript(
+            messages=[
+                ChatMessage(role="user", content="example"),
+                ChatMessage(role="assistant", content="response"),
             ]
         )
-    ]
+    )
 
     topic_tree = MagicMock()
     topic_tree.tree_paths = ["path1"]
@@ -142,36 +139,36 @@ def test_create_data_without_sys_msg(mock_batch_completion, data_engine):
     assert dataset.samples[0]["messages"][0]["role"] == "user"
 
 
-@patch("deepfabric.generator.litellm.batch_completion")
-def test_create_data_sys_msg_override(mock_batch_completion):
+def test_create_data_sys_msg_override():
     # Create engine with sys_msg=False
-    engine = DataSetGenerator(
-        instructions="Test instructions",
-        generation_system_prompt="Test system prompt",
-        dataset_system_prompt="Test dataset system prompt",
-        model_name="test-model",
-        prompt_template=None,
-        example_data=None,
-        temperature=0.7,
-        max_retries=3,
-        default_batch_size=5,
-        default_num_examples=3,
-        request_timeout=30,
-        sys_msg=False,  # Default to False
-    )
+    with patch("deepfabric.generator.LLMClient"):
+        engine = DataSetGenerator(
+            instructions="Test instructions",
+            generation_system_prompt="Test system prompt",
+            dataset_system_prompt="Test dataset system prompt",
+            provider="openai",
+            model_name="test-model",
+            prompt_template=None,
+            example_data=None,
+            temperature=0.7,
+            max_retries=3,
+            default_batch_size=5,
+            default_num_examples=3,
+            request_timeout=30,
+            sys_msg=False,  # Default to False
+        )
 
-    # Mock valid JSON response
-    mock_batch_completion.return_value = [
-        MagicMock(
-            choices=[
-                MagicMock(
-                    message=MagicMock(
-                        content='{"messages": [{"role": "user", "content": "example"}, {"role": "assistant", "content": "response"}]}'
-                    )
-                )
+    # Mock the generate method on the engine's llm_client instance
+    from deepfabric.schemas import ChatMessage, ChatTranscript  # noqa: PLC0415
+
+    engine.llm_client.generate = MagicMock(
+        return_value=ChatTranscript(
+            messages=[
+                ChatMessage(role="user", content="example"),
+                ChatMessage(role="assistant", content="response"),
             ]
         )
-    ]
+    )
 
     topic_tree = MagicMock()
     topic_tree.tree_paths = ["path1"]
@@ -181,9 +178,9 @@ def test_create_data_sys_msg_override(mock_batch_completion):
     dataset = engine.create_data(num_steps=1, batch_size=1, topic_model=topic_tree, sys_msg=True)
 
     # Verify system message is included despite engine default
-    assert len(dataset.samples) == 1
-    assert len(dataset.samples[0]["messages"]) == 3  # noqa: PLR2004
-    assert dataset.samples[0]["messages"][0]["role"] == "system"
+    assert len(dataset.samples) == 1 # type: ignore
+    assert len(dataset.samples[0]["messages"]) == 3  # type: ignore # noqa: PLR2004
+    assert dataset.samples[0]["messages"][0]["role"] == "system" # type: ignore
 
 
 def test_build_prompt(data_engine):

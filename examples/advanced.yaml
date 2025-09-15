@@ -1,0 +1,79 @@
+# DeepFabric Advanced Configuration
+# Graph-based generation with cross-connections and advanced features
+
+# Main system prompt for the entire pipeline
+dataset_system_prompt: "You are a senior software architect and computer science educator with extensive industry experience. Provide comprehensive, technically accurate explanations with real-world examples."
+
+# Topic Graph Configuration
+# Generates an interconnected topic structure with cross-references
+topic_graph:
+  topic_prompt: "Modern software architecture, design patterns, and engineering practices"
+
+  # LLM Settings
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.6                      # Balanced creativity for topic exploration
+
+  # Graph Structure
+  degree: 3                             # Number of subtopics per node
+  depth: 3                              # Depth of the graph (creates more complex connections)
+
+  # Specialized topic generation prompt
+  topic_system_prompt: "You are a software architecture committee designing a comprehensive curriculum. Focus on interconnected concepts, design patterns, and how different architectural approaches relate to each other. Consider prerequisites, dependencies, and real-world application scenarios."
+
+  # Output
+  save_as: "software_architecture_graph.json"
+
+# Data Engine Configuration
+# Advanced content generation with detailed instructions
+data_engine:
+  instructions: |
+    Create comprehensive technical content that includes:
+    - Theoretical foundations and core principles
+    - Complete, runnable code examples with multiple languages where applicable
+    - Real-world use cases and industry applications
+    - Performance considerations and trade-offs
+    - Best practices and common anti-patterns
+    - Integration with modern development workflows
+
+  # Different provider for content generation (mix providers for optimal results)
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.2                      # Lower temperature for technical accuracy
+  max_retries: 5                        # More retries for complex content
+
+  # Specialized content generation prompt
+  generation_system_prompt: "You are a principal software engineer and technical lead with 15+ years of experience across multiple industries. Create detailed, production-ready examples that demonstrate not just how to implement something, but why specific approaches were chosen and how they scale in practice."
+
+# Dataset Assembly Configuration
+dataset:
+  creation:
+    num_steps: 12                       # Generate more examples from the graph
+    batch_size: 2                       # Smaller batches for complex content
+
+    # Can use different provider for final assembly
+    provider: "anthropic"
+    model: "claude-3-opus"
+    sys_msg: true
+
+  save_as: "software_architecture_dataset.jsonl"
+
+# HuggingFace Hub Configuration
+# Automated upload with comprehensive metadata
+huggingface:
+  repository: "username/software-architecture-dataset"
+  # Token read from HF_TOKEN environment variable
+  tags:
+    - "software-architecture"
+    - "design-patterns"
+    - "engineering"
+    - "advanced"
+    - "synthetic"
+    - "deepfabric"
+
+# Advanced Features (these are handled automatically but shown for reference)
+# - Graph cycle detection
+# - Cross-connection optimization
+# - Path validation before generation
+# - Quality filtering and validation
+# - Retry logic with exponential backoff

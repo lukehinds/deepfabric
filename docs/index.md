@@ -27,7 +27,7 @@ For those preferring configuration-driven workflows, DeepFabric's YAML format pr
 
 ## Integration Ecosystem
 
-DeepFabric integrates seamlessly with the modern machine learning ecosystem. Built on LiteLLM, it supports virtually any language model provider including OpenAI, Anthropic, local Ollama instances, and cloud-based solutions. Generated datasets export directly to Hugging Face Hub with automatic dataset cards and metadata.
+DeepFabric integrates seamlessly with the modern machine learning ecosystem, including OpenAI, Anthropic, local Ollama instances, and cloud-based solutions. Generated datasets export directly to Hugging Face Hub with automatic dataset cards and metadata.
 
 The modular CLI design supports complex workflows through commands like `deepfabric validate` for configuration checking, `deepfabric visualize` for topic graph exploration, and `deepfabric upload` for streamlined dataset publishing.
 

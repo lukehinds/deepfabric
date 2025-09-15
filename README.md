@@ -1,7 +1,7 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-dark.png">
-    <img alt="Deepfabric logo" src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png" width="486px" height="150spx" style="max-width: 100%;">
+    <img alt="DeepFabric logo" src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png" width="486px" height="150spx" style="max-width: 100%;">
   </picture>
   <h3>Generate High-Quality Synthetic Datasets at Scale</h3>
 
@@ -37,21 +37,19 @@
   <br/>
 </div>
 
-**Deepfabric** is an SDK and CLI tool that leverages large language models to generate high-quality synthetic datasets. It's designed for researchers and developers building teacher-student distillation pipelines, creating evaluation benchmarks for models and agents, or conducting research requiring diverse training data.
+**DeepFabric** is a CLI tool and SDK, that leverages large language models to generate high-quality synthetic datasets. It's designed for researchers and developers building teacher-student distillation pipelines, creating evaluation benchmarks for models and agents, or conducting research requiring diverse training data.
 
-The key innovation lies in Deepfabric's graph and tree-based architecture, which uses structured topic nodes as generation seeds. This approach ensures the creation of datasets that are both highly diverse and domain-specific, while minimizing redundancy and duplication across generated samples.
+The key innovation lies in DeepFabric's graph and tree-based architecture, which uses structured topic nodes as generation seeds. This approach ensures the creation of datasets that are both highly diverse and domain-specific, while minimizing redundancy and duplication across generated samples.
 
 ## See It In Action
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="Deepfabric Demo" width="80%" style="max-width: 700px;">
+  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="DeepFabric Demo" width="80%" style="max-width: 700px;">
 </div>
 
 ## Quickstart
 
-Get up and running in under 60 seconds:
-
-### 1. Install Deepfabric
+### 1. Install DeepFabric
 
 ```bash
 pip install deepfabric
@@ -77,14 +75,15 @@ deepfabric generate \
   --dataset-save-as dataset.jsonl
 ```
 
-That's it! Deepfabric will automatically:
+That's it! DeepFabric will automatically:
+
 - Generate a hierarchical topic tree (3 levels deep, 3 branches per level)
 - Create 9 diverse Q&A pairs across the generated topics
 - Save your dataset to `dataset.jsonl`
 
 ### 3. Use Your Dataset
 
-Your dataset is ready for fine-tuning in the standard instruct format:
+Your dataset is ready in the OpenAI standard instruct format (JSONL):
 
 ```json
 {
@@ -96,42 +95,6 @@ Your dataset is ready for fine-tuning in the standard instruct format:
     {
       "role": "assistant",
       "content": "The double-slit experiment is fundamental in quantum physics as it demonstrates the dual nature of light and particles, showing both wave-like and particle-like properties. When particles such as photons or electrons pass through two slits, they create an interference pattern characteristic of waves, even if sent one at a time. This result challenged classical physics and contributed significantly to the development of quantum mechanics, highlighting the probabilistic nature of quantum states."
-    }
-  ]
-}
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Can you explain Albert Einstein's contribution to quantum theory?"
-    },
-    {
-      "role": "assistant",
-      "content": "Albert Einstein made significant contributions to quantum theory, particularly through his explanation of the photoelectric effect, for which he won the Nobel Prize in 1921. He proposed that light could be thought of as discrete packets of energy called quanta or photons, which could explain how electrons are emitted from metals when exposed to light. This idea was instrumental in the development of quantum mechanics. He later became famous for his skepticism about quantum mechanics probabilistic interpretation, leading to his quote \"God does not play dice with the universe.\""
-    }
-  ]
-}
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Can you explain the role of Niels Bohr in the development of quantum physics?"
-    },
-    {
-      "role": "assistant",
-      "content": "Niels Bohr was a pivotal figure in the development of quantum physics, particularly known for introducing the Bohr model of the atom and contributing to the Copenhagen Interpretation of quantum mechanics. His work laid the foundation for understanding atomic structure and quantum theory, emphasizing the idea of complementarity and the probabilistic nature of quantum phenomena."
-    }
-  ]
-}
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Can you tell me about the Stern-Gerlach experiment and its significance in quantum physics?"
-    },
-    {
-      "role": "assistant",
-      "content": "The Stern-Gerlach experiment, conducted by Otto Stern and Walther Gerlach in 1922, was crucial in the development of quantum mechanics. It demonstrated that particles such as neutral silver atoms have quantized spin angular momentum. In the experiment, a beam of silver atoms was passed through an inhomogeneous magnetic field, which caused the beam to split according to the spin of the atoms, thus providing evidence for the existence of quantum spin states."
     }
   ]
 }
@@ -155,13 +118,13 @@ deepfabric generate \
   --dataset-save-as dataset.jsonl
 ```
 
-There are lots of [examples](./examples/) to get you going.
+There are lots more [examples](./examples/README.md) to get you going.
 
-## Why Deepfabric?
+## Why DeepFabric?
 
-Deepfabric solves the challenge of creating diverse, high-quality training data at scale. It uses a novel approach of first generating
+DeepFabric solves the challenge of creating diverse, high-quality training data at scale. It uses a novel approach of first generating
 a topic tree or graph, which results in datasets with a high diversity level and miminmal duplication. Benchmarks using tools such as
-great expectations shows that Deepfabric datasets fair well when compared with such as databricks/databricks-dolly-15k.
+great expectations shows that DeepFabric datasets fair well when compared with such as databricks/databricks-dolly-15k.
 
 ## I heard that Synthetic Data is inferior to Human curated / labelled data
 
@@ -174,7 +137,7 @@ Since then many other models have followed suit, including most recently Phi-4, 
 
 ### Topic Trees and Graphs
 
-Deepfabric can generate topics using two approaches:
+DeepFabric can generate topics using two approaches:
 
 **Topic Graphs** (Experimental): DAG-based structure allowing cross-connections between topics, ideal for complex domains with interconnected concepts.
 
@@ -240,34 +203,56 @@ uv sync --all-extras
 
 ### Configuration-Based Approach (Recommended)
 
-Deepfabric uses YAML configuration files for maximum flexibility. Here's a complete example:
+DeepFabric uses YAML configuration files for maximum flexibility. Here's a complete example:
 
 ```yaml
-dataset_system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
+# Main system prompt - used as fallback throughout the pipeline
+dataset_system_prompt: "You are a helpful AI assistant providing clear, educational responses."
 
+# Topic Tree Configuration
+# Generates a hierarchical topic structure using tree generation
 topic_tree:
-  topic_prompt: "Capital Cities of the World."
-  topic_system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
-  degree: 3
-  depth: 2
-  temperature: 0.7
-  model_name: "ollama/mistral:latest"
-  save_as: "basic_prompt_Tree.jsonl"
+  topic_prompt: "Python programming fundamentals and best practices"
 
+  # LLM Settings
+  provider: "ollama"                    # Options: openai, anthropic, gemini, ollama
+  model: "qwen3:0.6b"                    # Change to your preferred model
+  temperature: 0.7                      # 0.0 = deterministic, 1.0 = creative
+
+  # Tree Structure
+  degree: 2                             # Number of subtopics per node (1-10)
+  depth: 2                              # Depth of the tree (1-5)
+
+  # Topic generation prompt (optional - uses dataset_system_prompt if not specified)
+  topic_system_prompt: "You are a curriculum designer creating comprehensive programming learning paths. Focus on practical concepts that beginners need to master."
+
+  # Output
+  save_as: "python_topics_tree.jsonl"  # Where to save the generated topic tree
+
+# Data Engine Configuration
+# Generates the actual training examples
 data_engine:
-  instructions: "Please provide training examples with questions about capital cities."
-  generation_system_prompt: "You are a helpful assistant. You provide clear and concise answers to user questions."
-  model_name: "ollama/mistral:latest"
-  temperature: 0.9
-  max_retries: 2
+  instructions: "Create clear programming tutorials with working code examples and explanations"
 
+  # LLM Settings (can override main provider/model)
+  provider: "ollama"
+  model: "qwen3:0.6b"
+  temperature: 0.3                      # Lower temperature for more consistent code
+  max_retries: 3                        # Number of retries for failed generations
+
+  # Content generation prompt
+  generation_system_prompt: "You are a Python programming instructor creating educational content. Provide working code examples, clear explanations, and practical applications."
+
+# Dataset Assembly Configuration
+# Controls how the final dataset is created and formatted
 dataset:
   creation:
-    num_steps: 5
-    batch_size: 1
-    model_name: "ollama/mistral:latest"
-    sys_msg: true  # Include system message in dataset (default: true)
-  save_as: "basic_prompt_dataset.jsonl"
+    num_steps: 4                        # Number of training examples to generate
+    batch_size: 1                       # Process 3 examples at a time
+    sys_msg: true                       # Include system messages in output format
+
+  # Output
+  save_as: "python_programming_dataset.jsonl"
 
 # Optional Hugging Face Hub configuration
 huggingface:
@@ -308,7 +293,7 @@ deepfabric generate config.yaml \
 
 ### Supported Providers
 
-Deepfabric supports all LiteLLM providers. Here are the most common:
+DeepFabric supports serveral providers. Here are the most common:
 
 **OpenAI**
 ```yaml
@@ -338,16 +323,6 @@ model: "qwen3:8b:latest"
 # No API key needed
 ```
 
-**Azure OpenAI**
-```yaml
-provider: "azure"
-model: "your-deployment-name"
-# Set: export AZURE_API_KEY="your-key"
-# Set: export AZURE_API_BASE="your-endpoint"
-```
-
-For a complete list of providers and models, see the [LiteLLM documentation](https://docs.litellm.ai/docs/providers/).
-
 ### Hugging Face Hub Integration
 
 Share your datasets with the community:
@@ -364,11 +339,11 @@ deepfabric generate config.yaml \
   --hf-tags "gpt4" --hf-tags "chemistry"
 ```
 
-Deepfabric automatically creates dataset cards with generation metadata, tags your dataset appropriately, and handles the upload process.
+DeepFabric automatically creates dataset cards with generation metadata, tags your dataset appropriately, and handles the upload process.
 
 ### Programmatic API
 
-For advanced use cases, use Deepfabric as a Python library:
+For advanced use cases, use DeepFabric as a Python library:
 
 ```python
 from deepfabric import DataSetGenerator, Tree
@@ -394,7 +369,7 @@ engine = DataSetGenerator(
 
 ### Output Format
 
-Deepfabric generates datasets in the standard conversational format:
+DeepFabric generates datasets in the standard conversational format:
 
 ```json
 {

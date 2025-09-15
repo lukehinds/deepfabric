@@ -1,29 +1,24 @@
 import json
-import re
 import time
 import warnings
 
-from typing import Any
+from typing import Any, TypedDict
 
-import litellm
-
-from litellm.exceptions import APIError, AuthenticationError
 from pydantic import BaseModel, ConfigDict, Field
 
 from .constants import (
     DEFAULT_MAX_TOKENS,
     MAX_RETRY_ATTEMPTS,
-    RETRY_BASE_DELAY,
     TOPIC_TREE_DEFAULT_DEGREE,
     TOPIC_TREE_DEFAULT_DEPTH,
     TOPIC_TREE_DEFAULT_MODEL,
     TOPIC_TREE_DEFAULT_TEMPERATURE,
 )
 from .exceptions import TreeError
-from .prompts import TREE_GENERATION_PROMPT, TREE_JSON_INSTRUCTIONS
+from .llm import LLMClient
+from .prompts import TOPIC_EXPANSION_PROMPT
+from .schemas import TopicList
 from .topic_model import TopicModel
-from .tui import get_tree_tui, get_tui
-from .utils import extract_list
 
 warnings.filterwarnings("ignore", message=".*Pydantic serializer warnings:.*")
 
@@ -32,25 +27,11 @@ UPPER_DEGREE = 50
 UPPER_DEPTH = 10
 
 
-def validate_and_clean_response(response_text: str) -> str | list[str] | None:
-    """Clean and validate the response from the LLM."""
-    try:
-        # First try to extract a JSON array if present
-        json_match = re.search(r"[.*]", response_text, re.DOTALL)
-        if json_match:
-            cleaned_json = json_match.group(0)
-            # Remove any markdown code block markers
-            cleaned_json = re.sub(r"```json\s*|\s*```", "", cleaned_json)
-            return json.loads(cleaned_json)
-
-        # If no JSON array found, fall back to extract_list
-        topics = extract_list(response_text)
-        if topics:
-            return [topic.strip() for topic in topics if topic.strip()]
-        return None  # noqa: TRY300
-    except (json.JSONDecodeError, ValueError) as e:
-        print(f"Error parsing response: {str(e)}")
-        return None
+class ValidationResult(TypedDict, total=False):
+    valid: bool
+    total_tree_paths: int
+    total_requested_paths: int
+    recommended_batch_size: int
 
 
 class TreeConfig(BaseModel):
@@ -76,6 +57,11 @@ class TreeConfig(BaseModel):
         le=UPPER_DEPTH,
         description="The depth of the tree",
     )
+    provider: str = Field(
+        default="ollama",
+        min_length=1,
+        description="LLM provider (openai, anthropic, gemini, ollama)",
+    )
     model_name: str = Field(
         default=TOPIC_TREE_DEFAULT_MODEL,
         min_length=1,
@@ -90,9 +76,7 @@ class TreeConfig(BaseModel):
 
 
 class TreeValidator:
-    """
-    TreeValidator validates and calculates unique paths in a tree structure.
-    """
+    """TreeValidator validates and calculates unique paths in a tree structure."""
 
     def __init__(self, degree: int, depth: int):
         self.degree = degree
@@ -102,34 +86,38 @@ class TreeValidator:
         """Calculate total number of paths in the tree."""
         return self.degree**self.depth
 
-    def validate_configuration(self, num_steps: int, batch_size: int) -> dict[str, Any]:
-        """Validates tree configuration and provides recommendations if invalid."""
+    def validate_configuration(self, num_steps: int, batch_size: int) -> ValidationResult:
+        """
+        Validates the tree configuration and provides recommendations if invalid.
+
+        Args:
+            num_steps: Number of steps requested.
+            batch_size: Batch size per step.
+
+        Returns:
+            A ValidationResult dict containing validity, totals, and recommendations.
+        """
         total_requested_paths = num_steps * batch_size
         total_tree_paths = self.calculate_paths()
 
         print(f"Total tree paths available: {total_tree_paths}")
         print(f"Total requested paths: {total_requested_paths}")
 
-        if total_requested_paths > total_tree_paths:
-            print("Warning: The requested paths exceed the available tree paths.")
-            recommendation = {
-                "valid": False,
-                "suggested_num_steps": total_tree_paths // batch_size,
-                "suggested_batch_size": total_tree_paths // num_steps,
-                "total_tree_paths": total_tree_paths,
-                "total_requested_paths": total_requested_paths,
-            }
-            print("Recommended configurations to fit within the tree paths:")
-            print(f" - Reduce num_steps to: {recommendation['suggested_num_steps']} or")
-            print(f" - Reduce batch_size to: {recommendation['suggested_batch_size']} or")
-            print(" - Increase depth or degree to provide more paths.")
-            return recommendation
-
-        return {
-            "valid": True,
+        result: ValidationResult = {
+            "valid": total_requested_paths <= total_tree_paths,
             "total_tree_paths": total_tree_paths,
             "total_requested_paths": total_requested_paths,
         }
+
+        if not result["valid"]:
+            print(
+                "Requested paths (%d) exceed available tree paths (%d).",
+                total_requested_paths,
+                total_tree_paths,
+            )
+            result["recommended_batch_size"] = min(batch_size, total_tree_paths)
+
+        return result
 
 
 class Tree(TopicModel):
@@ -142,54 +130,72 @@ class Tree(TopicModel):
         except Exception as e:
             raise TreeError(f"Invalid tree configuration: {str(e)}") from e  # noqa: TRY003
 
-        json_instructions = TREE_JSON_INSTRUCTIONS
-
         # Initialize from config
         self.topic_prompt = self.config.topic_prompt
         self.model_system_prompt = self.config.topic_system_prompt
         self.degree = self.config.degree
         self.depth = self.config.depth
         self.temperature = self.config.temperature
+        self.provider = self.config.provider
         self.model_name = self.config.model_name
 
+        # Initialize LLM client
+        self.llm_client = LLMClient(
+            provider=self.provider,
+            model_name=self.model_name,
+        )
+
         # Derived attributes
-        self.system_prompt = json_instructions + self.config.topic_system_prompt
+        self.system_prompt = self.config.topic_system_prompt
         self.tree_paths: list[list[str]] = []
         self.failed_generations: list[dict[str, Any]] = []
 
-    def build(self, model_name: str | None = None) -> None:
-        """
-        Build the complete topic tree.
+    def build(self, model_name: str | None = None):
+        """Build the complete topic tree.
 
         Args:
             model_name: Optional model name to override the configured model
-        """
 
+        Yields:
+            dict: Progress events with event type and associated data
+        """
         if model_name:
             self.model_name = model_name
 
-        # Initialize TUI
-        tui = get_tree_tui()
-        tui.start_building(self.model_name, self.config.depth, self.config.degree)
+        yield {
+            "event": "build_start",
+            "model_name": self.model_name,
+            "depth": self.config.depth,
+            "degree": self.config.degree,
+        }
+
+        def _raise_if_build_failed():
+            """Check if build failed completely and raise appropriate error."""
+            if len(self.tree_paths) == 0 and self.failed_generations:
+                error_msg = f"Tree build failed completely: all {len(self.failed_generations)} generation attempts failed. No topic paths created."
+                raise RuntimeError(error_msg)
 
         try:
-            self.tree_paths = self.build_subtree(
+            yield from self._build_subtree_generator(
                 [self.config.topic_prompt],
-                self.system_prompt,
-                self.config.degree,
+                self.config.topic_system_prompt,
                 self.config.depth,
-                model_name=self.model_name,
-                tui=tui,
-                current_depth=1,
+                self.config.degree,
+                1,
             )
 
-            tui.finish_building(len(self.tree_paths), len(self.failed_generations))
+            # Check if build was completely unsuccessful (no paths generated)
+            _raise_if_build_failed()
 
-        except Exception as e:  # noqa: F841
-            if tui.progress:
-                tui.progress.stop()
+            yield {
+                "event": "build_complete",
+                "total_paths": len(self.tree_paths),
+                "failed_generations": len(self.failed_generations),
+            }
+        except Exception as e:
+            yield {"event": "error", "error": str(e)}
+            # Save partial results before re-raising
             if self.tree_paths:
-                tui.tui.info("Saving partial tree...")
                 self.save("partial_tree.jsonl")
             raise
 
@@ -197,211 +203,109 @@ class Tree(TopicModel):
         """Returns all the paths in the topic model."""
         return self.tree_paths
 
-    def get_subtopics(  # noqa: PLR0912
-        self, system_prompt: str, node_path: list[str], num_subtopics: int, tui=None
+    def get_subtopics(
+        self, system_prompt: str, node_path: list[str], num_subtopics: int
     ) -> list[str]:
-        """Generate subtopics with improved error handling and validation."""
-        if tui:
-            tui.start_subtree_generation(node_path, num_subtopics)
+        """Generate subtopics using structured generation."""
 
-        prompt = TREE_GENERATION_PROMPT
+        prompt = TOPIC_EXPANSION_PROMPT
         prompt = prompt.replace("{{{{system_prompt}}}}", system_prompt if system_prompt else "")
         prompt = prompt.replace("{{{{subtopics_list}}}}", " -> ".join(node_path))
         prompt = prompt.replace("{{{{num_subtopics}}}}", str(num_subtopics))
 
-        max_retries = MAX_RETRY_ATTEMPTS
-        retries = 0
-        last_error = "No error recorded"
-
-        while retries < max_retries:
-            try:
-                # Prepare completion arguments
-                completion_args = {
-                    "model": self.model_name,
-                    "max_tokens": DEFAULT_MAX_TOKENS,
-                    "temperature": self.temperature,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "stream": False,  # Ensure we get a complete response
-                }
-
-                response = litellm.completion(**completion_args)
-
-                # Extract content from the response - use getattr to safely access attributes
-                response_content = None
-
-                # Try standard OpenAI format first
-                choices = getattr(response, "choices", None)
-                if choices and len(choices) > 0:
-                    choice = choices[0]
-                    message = getattr(choice, "message", None)
-                    if message:
-                        response_content = getattr(message, "content", None)
-                    if not response_content:
-                        response_content = getattr(choice, "text", None)
-
-                # Try direct content access if no content found yet
-                if not response_content:
-                    response_content = getattr(response, "content", None)
-
-                if not response_content:
-                    response_content = getattr(response, "text", None)
-
-                # Try getting content from response as dict if still no content
-                if not response_content and isinstance(response, dict):
-                    try:
-                        if "choices" in response and response["choices"]:
-                            choice = response["choices"][0]
-                            if isinstance(choice, dict):
-                                if "message" in choice and "content" in choice["message"]:
-                                    response_content = choice["message"]["content"]
-                                elif "text" in choice:
-                                    response_content = choice["text"]
-                        elif "content" in response:
-                            response_content = response["content"]
-                    except (KeyError, IndexError, TypeError):
-                        pass
-
-                if not response_content:
-                    raise ValueError("No content in response")  # noqa: TRY003, TRY301
-
-                subtopics = validate_and_clean_response(response_content)
-
-                if subtopics and len(subtopics) > 0:
-                    # Validate and clean each subtopic
-                    cleaned_subtopics = []
-                    for topic in subtopics:
-                        if isinstance(topic, str):
-                            # Keep more special characters but ensure JSON safety
-                            cleaned_topic = topic.strip()
-                            if cleaned_topic:
-                                cleaned_subtopics.append(cleaned_topic)
-
-                    if len(cleaned_subtopics) >= num_subtopics:
-                        if tui:
-                            tui.complete_subtree_generation(True, num_subtopics)
-                        return cleaned_subtopics[:num_subtopics]
-
-                last_error = "Insufficient valid subtopics generated"
-                if not tui:  # Only print if no TUI
-                    print(f"Attempt {retries + 1}: {last_error}. Retrying...")
-
-            except (AuthenticationError, APIError) as e:
-                provider = self.model_name.split("/")[0] if "/" in self.model_name else "unknown"
-                error_str = str(e).lower()
-                if any(
-                    keyword in error_str
-                    for keyword in ["api_key", "api key", "authentication", "unauthorized"]
-                ):
-                    error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."
-                else:
-                    error_msg = f"API error for provider '{provider}': {str(e)[:100]}..."
-                raise RuntimeError(error_msg) from e
-            except Exception as e:
-                last_error = str(e)
-                if not tui:  # Only print if no TUI
-                    print(
-                        f"Error generating subtopics (attempt {retries + 1}/{max_retries}): {last_error}"
-                    )
-
-            retries += 1
-            if retries < max_retries:
-                time.sleep(RETRY_BASE_DELAY**retries)  # Exponential backoff
-
-        # If all retries failed, generate default subtopics and log the failure
-        default_subtopics = [f"subtopic_{i + 1}_for_{node_path[-1]}" for i in range(num_subtopics)]
-        self.failed_generations.append(
-            {"path": node_path, "attempts": retries, "last_error": last_error}
-        )
-        if tui:
-            tui.complete_subtree_generation(False, 0)
-            tui.add_failure()
-        else:
-            print(
-                f"Failed to generate valid subtopics after {max_retries} attempts. Using defaults."
+        try:
+            # Generate structured subtopics using TopicList schema
+            topic_response = self.llm_client.generate(
+                prompt=prompt,
+                schema=TopicList,
+                max_retries=MAX_RETRY_ATTEMPTS,
+                max_tokens=DEFAULT_MAX_TOKENS,
+                temperature=self.temperature,
             )
-        return default_subtopics
 
-    def build_subtree(
+            # Extract and validate subtopics
+            subtopics = topic_response.subtopics
+            if len(subtopics) >= num_subtopics:
+                return subtopics[:num_subtopics]
+
+            # If insufficient subtopics, pad with defaults
+            while len(subtopics) < num_subtopics:
+                subtopics.append(f"subtopic_{len(subtopics) + 1}_for_{node_path[-1]}")
+
+            return subtopics[:num_subtopics]
+
+        except Exception as e:
+            # Log the failure and return default subtopics
+            self.failed_generations.append(
+                {
+                    "node_path": node_path,
+                    "error": str(e),
+                    "timestamp": time.time(),
+                }
+            )
+
+            # Generate default subtopics
+            return [f"subtopic_{i + 1}_for_{node_path[-1]}" for i in range(num_subtopics)]
+
+    def _build_subtree_generator(
         self,
         node_path: list[str],
         system_prompt: str,
-        degree: int,
-        subdepth: int,
-        model_name: str,
-        tui=None,
-        current_depth: int = 1,
-    ) -> list[list[str]]:
-        """Build a subtree with improved error handling and validation."""
-        # Convert any non-string elements to strings
-        node_path = [str(node) if not isinstance(node, str) else node for node in node_path]
+        total_depth: int,
+        n_child: int,
+        current_depth: int,
+    ):
+        """Recursively build a subtree of topics, yielding progress events.
 
-        # Update TUI for new depth level if at root of this depth
-        if tui and len(node_path) == current_depth:
-            tui.start_depth_level(current_depth)
+        Args:
+            node_path: Current path in the tree
+            system_prompt: System prompt for topic generation
+            total_depth: Maximum depth of the tree
+            n_child: Number of child nodes per parent
+            current_depth: Current depth in the tree
 
-        if subdepth == 0:
-            return [node_path]
+        Yields:
+            dict: Progress events
+        """
+        yield {"event": "subtree_start", "node_path": node_path, "depth": current_depth}
 
-        subnodes = self.get_subtopics(system_prompt, node_path, degree, tui)
+        if current_depth > total_depth:
+            self.tree_paths.append(node_path)
+            yield {"event": "leaf_reached", "path": node_path}
+            return
 
-        # Clean and validate subnodes
-        cleaned_subnodes = []
-        for subnode in subnodes:
-            try:
-                if isinstance(subnode, dict | list):
-                    cleaned_subnodes.append(json.dumps(subnode))
-                else:
-                    cleaned_subnodes.append(str(subnode))
-            except Exception as e:
-                print(f"Error cleaning subnode: {str(e)}")
-                continue
+        subtopics = self.get_subtopics(system_prompt, node_path, n_child)
 
-        result = []
-        for subnode in cleaned_subnodes:
-            try:
-                new_path = node_path + [subnode]
-                result.extend(
-                    self.build_subtree(
-                        new_path,
-                        system_prompt,
-                        degree,
-                        subdepth - 1,
-                        model_name,
-                        tui,
-                        current_depth + 1,
-                    )
-                )
-            except Exception as e:
-                if not tui:  # Only print if no TUI
-                    print(f"Error building subtree for {subnode}: {str(e)}")
-                continue
+        yield {
+            "event": "subtopics_generated",
+            "parent_path": node_path,
+            "count": len(subtopics),
+            "success": bool(subtopics),
+        }
 
-        return result
+        if not subtopics:
+            self.tree_paths.append(node_path)
+            yield {"event": "leaf_reached", "path": node_path}
+            return
+
+        for subtopic in subtopics:
+            child_path = node_path + [subtopic]
+            yield from self._build_subtree_generator(
+                child_path, system_prompt, total_depth, n_child, current_depth + 1
+            )
 
     def save(self, save_path: str) -> None:
         """Save the topic tree to a file."""
-        try:
-            with open(save_path, "w") as f:
-                for path in self.tree_paths:
-                    f.write(json.dumps({"path": path}) + "\n")
+        with open(save_path, "w") as f:
+            for path in self.tree_paths:
+                f.write(json.dumps({"path": path}) + "\n")
 
-            # Save failed generations if any
-            if self.failed_generations:
-                failed_path = save_path.replace(".jsonl", "_failed.jsonl")
-                with open(failed_path, "w") as f:
-                    for failure in self.failed_generations:
-                        f.write(json.dumps(failure) + "\n")
-                print(f"Failed generations saved to {failed_path}")
-
-            # Let TUI handle final messaging, fallback to print if no TUI active
-            tui = get_tui()
-            tui.success(f"Topic tree saved to {save_path}")
-            tui.info(f"Total paths: {len(self.tree_paths)}")
-
-        except Exception as e:
-            tui = get_tui()
-            tui.error(f"Error saving topic tree: {str(e)}")
-            raise
+        # Save failed generations if any
+        if self.failed_generations:
+            failed_path = save_path.replace(".jsonl", "_failed.jsonl")
+            with open(failed_path, "w") as f:
+                for failed in self.failed_generations:
+                    f.write(json.dumps({"failed_generation": failed}) + "\n")
 
     def print_tree(self) -> None:
         """Print the topic tree in a readable format."""
@@ -410,48 +314,36 @@ class Tree(TopicModel):
             print(" -> ".join(path))
 
     def to_dict(self) -> dict[str, Any]:
-        """
-        Convert the topic tree to a dictionary representation.
+        """Convert the topic tree to a dictionary representation.
 
         Returns:
             dict: Dictionary containing the tree structure and metadata
         """
         return {
-            "topic_prompt": self.config.topic_prompt,
-            "degree": self.degree,
-            "depth": self.depth,
-            "model_name": self.model_name,
-            "temperature": self.temperature,
-            "paths": self.tree_paths,
+            "tree_paths": self.tree_paths,
             "failed_generations": self.failed_generations,
-            "total_paths": len(self.tree_paths),
             "config": {
-                "topic_prompt": self.config.topic_prompt,
-                "topic_system_prompt": self.config.topic_system_prompt,
-                "degree": self.config.degree,
-                "depth": self.config.depth,
-                "model_name": self.config.model_name,
-                "temperature": self.config.temperature,
+                "topic_prompt": self.topic_prompt,
+                "degree": self.degree,
+                "depth": self.depth,
+                "temperature": self.temperature,
+                "provider": self.provider,
+                "model_name": self.model_name,
             },
         }
 
     def from_dict_list(self, dict_list: list[dict[str, Any]]) -> None:
-        """
-        Construct the topic tree from a list of dictionaries.
+        """Construct the topic tree from a list of dictionaries.
 
         Args:
             dict_list (list[dict]): The list of dictionaries representing the topic tree.
         """
+        # Clear existing data
         self.tree_paths = []
         self.failed_generations = []
 
         for d in dict_list:
             if "path" in d:
                 self.tree_paths.append(d["path"])
-            if "failed_generation" in d:
+            elif "failed_generation" in d:
                 self.failed_generations.append(d["failed_generation"])
-
-        tui = get_tui()
-        tui.info(
-            f"Loaded {len(self.tree_paths)} paths and {len(self.failed_generations)} failed generations from JSONL file"
-        )

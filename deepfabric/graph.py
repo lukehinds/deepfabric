@@ -1,51 +1,21 @@
 import json
 import textwrap
-import time
 
 from typing import Any
 
-import litellm
-
-from litellm.exceptions import APIError, AuthenticationError
 from pydantic import BaseModel, ConfigDict, Field
 
 from .constants import (
     DEFAULT_MAX_TOKENS,
     MAX_RETRY_ATTEMPTS,
-    RETRY_BASE_DELAY,
-    TOPIC_TREE_DEFAULT_MODEL,
-    TOPIC_TREE_DEFAULT_TEMPERATURE,
+    TOPIC_GRAPH_DEFAULT_MODEL,
+    TOPIC_GRAPH_DEFAULT_TEMPERATURE,
+    TOPIC_GRAPH_SUMMARY,
 )
+from .llm import LLMClient
+from .prompts import GRAPH_EXPANSION_PROMPT
+from .schemas import GraphSubtopics
 from .topic_model import TopicModel
-from .tui import get_graph_tui, get_tui
-
-# The prompt to be used for generating the graph
-GRAPH_GENERATION_PROMPT = """
-You are an expert in knowledge graph generation. Your task is to expand a topic into a set of subtopics. For each subtopic, you should also identify if it connects to any other existing topics in the graph.
-
-Here is the current state of the graph:
-{{current_graph_summary}}
-
-You are expanding the topic: "{{current_topic}}"
-
-Generate a list of {{num_subtopics}} subtopics. For each subtopic, provide:
-1. A "topic" string.
-2. A "connections" list of IDs of existing topics it should connect to. This is for creating cross-links. If there are no connections, provide an empty list.
-
-Your response MUST be a JSON array of objects, like this:
-{
-    "subtopics": [
-        {
-            "topic": "New Subtopic 1",
-            "connections": [1, 2]
-        },
-        {
-            "topic": "New Subtopic 2",
-            "connections": []
-        }
-    ]
-}
-"""
 
 
 def validate_graph_response(response_text: str) -> dict[str, Any] | None:
@@ -68,13 +38,18 @@ class GraphConfig(BaseModel):
     topic_system_prompt: str = Field(
         default="", description="System prompt for topic exploration and generation"
     )
+    provider: str = Field(
+        default="ollama",
+        min_length=1,
+        description="LLM provider (openai, anthropic, gemini, ollama)",
+    )
     model_name: str = Field(
-        default=TOPIC_TREE_DEFAULT_MODEL,
+        default=TOPIC_GRAPH_DEFAULT_MODEL,
         min_length=1,
         description="The name of the model to be used",
     )
     temperature: float = Field(
-        default=TOPIC_TREE_DEFAULT_TEMPERATURE,
+        default=TOPIC_GRAPH_DEFAULT_TEMPERATURE,
         ge=0.0,
         le=2.0,
         description="Temperature for model generation",
@@ -136,10 +111,17 @@ class Graph(TopicModel):
         # Initialize from config
         self.topic_prompt = self.config.topic_prompt
         self.model_system_prompt = self.config.topic_system_prompt
+        self.provider = self.config.provider
         self.model_name = self.config.model_name
         self.temperature = self.config.temperature
         self.degree = self.config.degree
         self.depth = self.config.depth
+
+        # Initialize LLM client
+        self.llm_client = LLMClient(
+            provider=self.provider,
+            model_name=self.model_name,
+        )
 
         self.root: Node = Node(self.config.topic_prompt, 0)
         self.nodes: dict[int, Node] = {0: self.root}
@@ -181,17 +163,8 @@ class Graph(TopicModel):
 
     def save(self, save_path: str) -> None:
         """Save the topic graph to a file."""
-        try:
-            with open(save_path, "w") as f:
-                f.write(self.to_json())
-
-            tui = get_tui()
-            tui.success(f"Topic graph saved to {save_path}")
-
-        except Exception as e:
-            tui = get_tui()
-            tui.error(f"Error saving topic graph: {str(e)}")
-            raise
+        with open(save_path, "w") as f:
+            f.write(self.to_json())
 
     @classmethod
     def from_json(cls, json_path: str, params: dict) -> "Graph":
@@ -237,152 +210,105 @@ class Graph(TopicModel):
         mermaid = Mermaid(graph_definition)
         mermaid.to_svg(f"{save_path}.svg")
 
-    def build(self) -> None:
-        """Builds the graph by iteratively calling the LLM to get subtopics and connections."""
-        # Initialize TUI
-        tui = get_graph_tui()
-        tui.start_building(self.model_name, self.depth, self.degree)
+    def build(self):
+        """Builds the graph by iteratively calling the LLM to get subtopics and connections.
+
+        Yields:
+            dict: Progress events with event type and associated data
+        """
+
+        def _raise_if_build_failed():
+            """Check if build failed completely and raise appropriate error."""
+            if len(self.nodes) == 1 and self.failed_generations:
+                # Surface the actual first error instead of a generic message
+                first_error = self.failed_generations[0]["last_error"]
+                raise RuntimeError(first_error)
 
         try:
             for depth in range(self.depth):
                 leaf_nodes = [node for node in self.nodes.values() if not node.children]
-                tui.start_depth_level(depth + 1, len(leaf_nodes))
+                yield {"event": "depth_start", "depth": depth + 1, "leaf_count": len(leaf_nodes)}
 
                 for node in leaf_nodes:
                     subtopics_added, connections_added = self.get_subtopics_and_connections(
-                        node, self.degree, tui
+                        node, self.degree
                     )
-                    tui.complete_node_expansion(node.topic, subtopics_added, connections_added)
+                    yield {
+                        "event": "node_expanded",
+                        "node_topic": node.topic,
+                        "subtopics_added": subtopics_added,
+                        "connections_added": connections_added,
+                    }
 
-                tui.complete_depth_level(depth + 1)
+                yield {"event": "depth_complete", "depth": depth + 1}
 
-            tui.finish_building(len(self.failed_generations))
+            # Check if build was completely unsuccessful (only root node exists)
+            _raise_if_build_failed()
 
-        except Exception as e:  # noqa: F841
-            if tui.progress:
-                tui.progress.stop()
+            yield {
+                "event": "build_complete",
+                "nodes_count": len(self.nodes),
+                "failed_generations": len(self.failed_generations),
+            }
+
+        except Exception as e:
+            yield {"event": "error", "error": str(e)}
             raise
 
     def get_subtopics_and_connections(  # noqa: PLR0912
-        self, parent_node: Node, num_subtopics: int, tui=None
+        self, parent_node: Node, num_subtopics: int
     ) -> tuple[int, int]:
         """Generate subtopics and connections for a given node. Returns (subtopics_added, connections_added)."""
         subtopics_added = 0
         connections_added = 0
-        graph_summary = self.to_json()  # A simple summary for now
-        prompt = GRAPH_GENERATION_PROMPT.replace("{{current_graph_summary}}", graph_summary)
-        prompt = prompt.replace("{{current_topic}}", parent_node.topic)
-        prompt = prompt.replace("{{num_subtopics}}", str(num_subtopics))
-
-        max_retries = MAX_RETRY_ATTEMPTS
-        retries = 0
-        last_error = "No error recorded"
-
-        while retries < max_retries:
-            try:
-                completion_args = {
-                    "model": self.model_name,
-                    "max_tokens": DEFAULT_MAX_TOKENS,
-                    "temperature": self.temperature,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "response_format": {"type": "json_object"},
-                    "stream": False,
-                }
-
-                response = litellm.completion(**completion_args)
-
-                # Extract content from the response - use getattr to safely access attributes
-                response_content = None
-
-                # Try standard OpenAI format first
-                choices = getattr(response, "choices", None)
-                if choices and len(choices) > 0:
-                    choice = choices[0]
-                    message = getattr(choice, "message", None)
-                    if message:
-                        response_content = getattr(message, "content", None)
-                    if not response_content:
-                        response_content = getattr(choice, "text", None)
-
-                # Try direct content access if no content found yet
-                if not response_content:
-                    response_content = getattr(response, "content", None)
-
-                if not response_content:
-                    response_content = getattr(response, "text", None)
-
-                # Try getting content from response as dict if still no content
-                if not response_content and isinstance(response, dict):
-                    try:
-                        if "choices" in response and response["choices"]:
-                            choice = response["choices"][0]
-                            if isinstance(choice, dict):
-                                if "message" in choice and "content" in choice["message"]:
-                                    response_content = choice["message"]["content"]
-                                elif "text" in choice:
-                                    response_content = choice["text"]
-                        elif "content" in response:
-                            response_content = response["content"]
-                    except (KeyError, IndexError, TypeError):
-                        pass
-
-                if not response_content:
-                    raise ValueError("No content in response")  # noqa: TRY003, TRY301
-
-                subtopics_data = validate_graph_response(response_content)
-
-                if (
-                    subtopics_data
-                    and "subtopics" in subtopics_data
-                    and isinstance(subtopics_data["subtopics"], list)
-                ):
-                    for subtopic_data in subtopics_data["subtopics"]:
-                        new_node = self.add_node(subtopic_data["topic"])
-                        self.add_edge(parent_node.id, new_node.id)
-                        subtopics_added += 1
-                        for connection_id in subtopic_data.get("connections", []):
-                            if connection_id in self.nodes:
-                                self.add_edge(connection_id, new_node.id)
-                                connections_added += 1
-                    return subtopics_added, connections_added
-
-                last_error = "Insufficient valid subtopics generated"
-                if not tui:  # Only print if no TUI
-                    print(f"Attempt {retries + 1}: {last_error}. Retrying...")
-
-            except (AuthenticationError, APIError) as e:
-                provider = self.model_name.split("/")[0] if "/" in self.model_name else "unknown"
-                # Check if it's an API key related error
-                error_str = str(e).lower()
-                if any(
-                    keyword in error_str
-                    for keyword in ["api_key", "api key", "authentication", "unauthorized"]
-                ):
-                    error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."
-                else:
-                    error_msg = f"API error for provider '{provider}': {str(e)[:100]}..."
-                raise RuntimeError(error_msg) from e
-            except Exception as e:
-                last_error = str(e)
-                if not tui:  # Only print if no TUI
-                    print(
-                        f"Error generating subtopics (attempt {retries + 1}/{max_retries}): {last_error}"
-                    )
-
-            retries += 1
-            if retries < max_retries:
-                time.sleep(RETRY_BASE_DELAY * retries)  # Linear backoff instead of exponential
-
-        self.failed_generations.append(
-            {"node_id": parent_node.id, "attempts": retries, "last_error": last_error}
+        graph_summary = (
+            self.to_json()
+            if len(self.nodes) <= TOPIC_GRAPH_SUMMARY
+            else "Graph too large to display"
         )
-        if tui:
-            tui.add_failure(parent_node.topic)
-        else:
-            print(
-                f"Failed to generate valid subtopics for node {parent_node.id} after {max_retries} attempts."
+
+        graph_prompt = GRAPH_EXPANSION_PROMPT.replace("{{current_graph_summary}}", graph_summary)
+        graph_prompt = graph_prompt.replace("{{current_topic}}", parent_node.topic)
+        graph_prompt = graph_prompt.replace("{{num_subtopics}}", str(num_subtopics))
+
+        try:
+            response = self.llm_client.generate(
+                prompt=graph_prompt,
+                schema=GraphSubtopics,
+                max_retries=MAX_RETRY_ATTEMPTS,
+                max_tokens=DEFAULT_MAX_TOKENS,
+                temperature=self.temperature,
             )
-        return 0, 0  # No subtopics or connections added on failure
+
+            # Process structured response
+            for subtopic_data in response.subtopics:
+                new_node = self.add_node(subtopic_data.topic)
+                self.add_edge(parent_node.id, new_node.id)
+                subtopics_added += 1
+                for connection_id in subtopic_data.connections:
+                    if connection_id in self.nodes:
+                        self.add_edge(connection_id, new_node.id)
+                        connections_added += 1
+
+            return subtopics_added, connections_added
+
+        except Exception as e:
+            last_error = str(e)
+            # Check if it's an API key related error
+            error_str = str(e).lower()
+            if any(
+                keyword in error_str
+                for keyword in ["api_key", "api key", "authentication", "unauthorized"]
+            ):
+                error_msg = f"Authentication failed for provider '{self.provider}'. Please set the required API key environment variable."
+                raise RuntimeError(error_msg) from e
+
+            self.failed_generations.append(
+                {"node_id": parent_node.id, "attempts": 1, "last_error": last_error}
+            )
+            return 0, 0  # No subtopics or connections added on failure
+        else:
+            return subtopics_added, connections_added
 
     def get_all_paths(self) -> list[list[str]]:
         """Returns all paths from the root to leaf nodes."""

@@ -23,7 +23,9 @@ graph = Graph(
 
 **topic_prompt** (str): Central concept from which the graph expands. Should support rich interconnections.
 
-**model_name** (str): LiteLLM-compatible model specification. Higher-capability models often produce better cross-connections.
+**model** (str): model specification in `provider/model` format.
+
+**provider** (str): provider name , e.g `openai`, `anthropic`.
 
 **topic_system_prompt** (str): System prompt guiding both hierarchical and lateral relationship generation.
 
@@ -48,10 +50,14 @@ graph = Graph(
     depth=3,
     temperature=0.8
 )
-graph.build()
+
+# Build using generator pattern (NEW!)
+for event in graph.build():
+    if event['event'] == 'build_complete':
+        print(f"Graph built with {event['nodes_count']} nodes")
 
 # Access graph structure
-print(f"Generated {len(graph.nodes)} nodes with {len(graph.edges)} connections")
+print(f"Generated {len(graph.nodes)} nodes")
 
 # Save and visualize
 graph.save("research_graph.json")
@@ -62,13 +68,30 @@ graph.visualize("research_structure")
 
 #### build()
 
-Constructs the complete graph structure through multi-phase generation:
+Constructs the complete graph structure through multi-phase generation using a generator pattern:
 
 ```python
-graph.build()
+# Silent build - consume all events
+list(graph.build())
+
+# Monitor progress events
+for event in graph.build():
+    if event['event'] == 'depth_start':
+        print(f"Starting depth {event['depth']} with {event['leaf_count']} nodes")
+    elif event['event'] == 'node_expanded':
+        print(f"Expanded '{event['node_topic']}' -> {event['subtopics_added']} subtopics, {event['connections_added']} connections")
+    elif event['event'] == 'build_complete':
+        print(f"Graph complete! {event['nodes_count']} nodes, {event.get('failed_generations', 0)} failures")
 ```
 
-The build process includes hierarchical construction followed by cross-connection analysis and validation to ensure acyclic structure.
+**Returns**: Generator yielding progress events with the following types:
+- `depth_start`: Beginning depth level processing
+- `node_expanded`: Node expansion completed
+- `depth_complete`: Depth level finished
+- `build_complete`: Graph construction finished
+- `error`: Build error occurred
+
+The build process includes hierarchical construction followed by cross-connection analysis. The generator pattern provides real-time progress monitoring or silent consumption.
 
 #### save(filepath: str)
 

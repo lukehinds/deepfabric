@@ -27,7 +27,9 @@ generator = DataSetGenerator(
 
 **generation_system_prompt** (str): System prompt providing behavioral context for the generation model.
 
-**model_name** (str): LiteLLM-compatible model specification in `provider/model` format.
+**model** (str): model specification in `provider/model` format.
+
+**provider** (str): provider name , e.g `openai`, `anthropic`.
 
 **temperature** (float): Controls creativity and diversity in content generation. Range 0.0-2.0, typically 0.7-0.9.
 

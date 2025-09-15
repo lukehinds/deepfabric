@@ -23,7 +23,9 @@ tree = Tree(
 
 **topic_prompt** (str): The central concept from which the tree expands. This should be broad enough to support meaningful subdivision while specific enough to maintain focus.
 
-**model_name** (str): LiteLLM-compatible model specification in `provider/model` format.
+**model** (str): model specification in `provider/model` format.
+
+**provider** (str): provider name , e.g `openai`, `anthropic`.
 
 **topic_system_prompt** (str): System prompt providing context for topic generation behavior.
 
@@ -48,10 +50,14 @@ tree = Tree(
     depth=3,
     temperature=0.7
 )
-tree.build()
+
+# Build using generator pattern (NEW!)
+for event in tree.build():
+    if event['event'] == 'build_complete':
+        print(f"Tree built with {event['total_paths']} paths")
 
 # Access tree structure
-print(f"Generated {len(tree.nodes)} topics")
+print(f"Generated {len(tree.tree_paths)} topics")
 for path in tree.get_all_paths():
     print(" -> ".join(path))
 
@@ -63,13 +69,34 @@ tree.save("topics.jsonl")
 
 #### build()
 
-Constructs the complete tree structure from the root prompt:
+Constructs the complete tree structure from the root prompt using a generator pattern:
 
 ```python
-tree.build()
+# Silent build - consume all events
+list(tree.build())
+
+# Monitor progress events
+for event in tree.build():
+    if event['event'] == 'build_start':
+        print(f"Starting build: {event['model_name']}")
+    elif event['event'] == 'subtopics_generated':
+        if event['success']:
+            print(f"Generated {event['count']} subtopics")
+        else:
+            print("Generation failed for subtopics")
+    elif event['event'] == 'build_complete':
+        print(f"Build complete! {event['total_paths']} paths created")
 ```
 
-The build process operates level by level, generating all children for each node before proceeding to the next depth level. Progress is displayed in real-time showing node counts and generation status.
+**Returns**: Generator yielding progress events with the following types:
+- `build_start`: Build initialization
+- `subtree_start`: Beginning subtree generation
+- `subtopics_generated`: Subtopic generation result
+- `leaf_reached`: Path reached maximum depth
+- `build_complete`: Build finished
+- `error`: Build error occurred
+
+The build process operates level by level, generating all children for each node before proceeding to the next depth level. The generator pattern allows you to monitor progress in real-time or consume silently.
 
 #### save(filepath: str)
 

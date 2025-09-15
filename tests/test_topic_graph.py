@@ -21,6 +21,7 @@ def topic_graph_params():
     """Fixture for Graph parameters."""
     return {
         "topic_prompt": "Test root topic",
+        "provider": "openai",
         "model_name": "test-model",
         "temperature": 0.7,
         "degree": 3,
@@ -31,7 +32,8 @@ def topic_graph_params():
 @pytest.fixture
 def topic_graph(topic_graph_params):
     """Fixture for Graph instance."""
-    return Graph(**topic_graph_params)
+    with patch("deepfabric.graph.LLMClient"):
+        return Graph(**topic_graph_params)
 
 
 class TestValidateGraphResponse:
@@ -153,7 +155,8 @@ class TestGraph:
 
     def test_initialization(self, topic_graph_params):
         """Test Graph initialization."""
-        graph = Graph(**topic_graph_params)
+        with patch("deepfabric.graph.LLMClient"):
+            graph = Graph(**topic_graph_params)
         assert graph.config.topic_prompt == topic_graph_params["topic_prompt"]
         assert graph.root.topic == "Test root topic"
         assert graph.root.id == 0
@@ -224,7 +227,8 @@ class TestGraph:
     def test_save_and_load(self, topic_graph_params):
         """Test saving and loading a graph."""
         # Create and populate a graph
-        graph = Graph(**topic_graph_params)
+        with patch("deepfabric.graph.LLMClient"):
+            graph = Graph(**topic_graph_params)
         node1 = graph.add_node("Child 1")
         node2 = graph.add_node("Child 2")
         graph.add_edge(0, node1.id)
@@ -238,7 +242,8 @@ class TestGraph:
             graph.save(temp_path)
 
             # Load the graph
-            loaded_graph = Graph.from_json(temp_path, topic_graph_params)
+            with patch("deepfabric.graph.LLMClient"):
+                loaded_graph = Graph.from_json(temp_path, topic_graph_params)
 
             # Verify structure
             assert len(loaded_graph.nodes) == 3  # noqa: PLR2004
@@ -297,26 +302,19 @@ class TestGraph:
 
         assert topic_graph.has_cycle() is True
 
-    @patch("deepfabric.graph.litellm.completion")
-    def test_get_subtopics_and_connections_success(self, mock_completion, topic_graph):
+    def test_get_subtopics_and_connections_success(self, topic_graph):
         """Test successful subtopic generation."""
-        # Mock LLM response
-        mock_response = MagicMock()
-        mock_response.choices = [
-            MagicMock(
-                message=MagicMock(
-                    content=json.dumps(
-                        {
-                            "subtopics": [
-                                {"topic": "Subtopic 1", "connections": []},
-                                {"topic": "Subtopic 2", "connections": [0]},
-                            ]
-                        }
-                    )
-                )
+        # Mock the generate method on the topic_graph's llm_client instance
+        from deepfabric.schemas import GraphSubtopic, GraphSubtopics  # noqa: PLC0415
+
+        topic_graph.llm_client.generate = MagicMock(
+            return_value=GraphSubtopics(
+                subtopics=[
+                    GraphSubtopic(topic="Subtopic 1", connections=[]),
+                    GraphSubtopic(topic="Subtopic 2", connections=[0]),
+                ]
             )
-        ]
-        mock_completion.return_value = mock_response
+        )
 
         # Generate subtopics
         topic_graph.get_subtopics_and_connections(topic_graph.root, 2)
@@ -330,46 +328,28 @@ class TestGraph:
         subtopic2 = next(node for node in topic_graph.nodes.values() if node.topic == "Subtopic 2")
         assert topic_graph.root in subtopic2.parents  # Connection to root
 
-    @patch("deepfabric.graph.litellm.completion")
-    def test_get_subtopics_and_connections_retry(self, mock_completion, topic_graph, capsys):
+    def test_get_subtopics_and_connections_retry(self, topic_graph):
         """Test subtopic generation with retries."""
-        # First call fails, second succeeds
-        mock_completion.side_effect = [
-            Exception("API Error"),
-            MagicMock(
-                choices=[
-                    MagicMock(
-                        message=MagicMock(
-                            content=json.dumps(
-                                {"subtopics": [{"topic": "Subtopic", "connections": []}]}
-                            )
-                        )
-                    )
-                ]
-            ),
-        ]
+        # Mock success - LLMClient handles retries internally, so Graph only sees the final result
+        from deepfabric.schemas import GraphSubtopic, GraphSubtopics  # noqa: PLC0415
+
+        topic_graph.llm_client.generate = MagicMock(
+            return_value=GraphSubtopics(subtopics=[GraphSubtopic(topic="Subtopic", connections=[])])
+        )
 
         topic_graph.get_subtopics_and_connections(topic_graph.root, 1)
 
-        # Verify retry occurred
-        captured = capsys.readouterr()
-        assert "Error generating subtopics" in captured.out
-
-        # Verify node was added after retry
+        # Verify node was added
         assert len(topic_graph.nodes) == 2  # noqa: PLR2004
 
-    @patch("deepfabric.graph.litellm.completion")
-    @patch("deepfabric.graph.time.sleep")
     def test_get_subtopics_and_connections_max_retries(
         self,
-        mock_sleep,  # noqa: ARG002
-        mock_completion,
         topic_graph,
         capsys,  # noqa: ARG002
     ):  # noqa: ARG002
         """Test subtopic generation hitting max retries."""
         # All calls fail
-        mock_completion.side_effect = Exception("API Error")
+        topic_graph.llm_client.generate = MagicMock(side_effect=Exception("API Error"))
 
         topic_graph.get_subtopics_and_connections(topic_graph.root, 1)
 
@@ -378,31 +358,21 @@ class TestGraph:
         assert topic_graph.failed_generations[0]["node_id"] == 0
         assert "API Error" in topic_graph.failed_generations[0]["last_error"]
 
-        captured = capsys.readouterr()
-        assert "Failed to generate valid subtopics" in captured.out
-
-    @patch("deepfabric.graph.litellm.completion")
-    def test_build(self, mock_completion, topic_graph):
+    def test_build(self, topic_graph):
         """Test building the entire graph."""
         # Mock responses for each call
-        mock_completion.return_value = MagicMock(
-            choices=[
-                MagicMock(
-                    message=MagicMock(
-                        content=json.dumps(
-                            {
-                                "subtopics": [
-                                    {"topic": f"Topic {i}", "connections": []}
-                                    for i in range(topic_graph.degree)
-                                ]
-                            }
-                        )
-                    )
-                )
-            ]
+        from deepfabric.schemas import GraphSubtopic, GraphSubtopics  # noqa: PLC0415
+
+        topic_graph.llm_client.generate = MagicMock(
+            return_value=GraphSubtopics(
+                subtopics=[
+                    GraphSubtopic(topic=f"Topic {i}", connections=[])
+                    for i in range(topic_graph.degree)
+                ]
+            )
         )
 
-        topic_graph.build()
+        list(topic_graph.build())  # Convert generator to list to complete build
 
         # With depth=2 and degree=3, we should have:
         # 1 root + 3 children + (3 * 3) grandchildren = 13 nodes
@@ -441,20 +411,21 @@ class TestGraph:
 class TestIntegration:
     """Integration tests for the Graph system."""
 
-    @patch("deepfabric.graph.litellm.completion")
-    def test_complex_graph_creation(self, mock_completion):
+    def test_complex_graph_creation(self):
         """Test creating a complex graph with cross-connections."""
         graph_params = {
             "topic_prompt": "Machine Learning",
+            "provider": "openai",
             "model_name": "test-model",
             "temperature": 0.7,
             "degree": 2,
             "depth": 2,
         }
-        graph = Graph(**graph_params)
+        with patch("deepfabric.graph.LLMClient"):
+            graph = Graph(**graph_params)
 
         # First level response
-        first_response = {
+        _first_response = {
             "subtopics": [
                 {"topic": "Supervised Learning", "connections": []},
                 {"topic": "Unsupervised Learning", "connections": []},
@@ -462,14 +433,14 @@ class TestIntegration:
         }
 
         # Second level responses with cross-connections
-        supervised_response = {
+        _supervised_response = {
             "subtopics": [
                 {"topic": "Classification", "connections": []},
                 {"topic": "Regression", "connections": [2]},  # Connect to Unsupervised
             ]
         }
 
-        unsupervised_response = {
+        _unsupervised_response = {
             "subtopics": [
                 {"topic": "Clustering", "connections": [1]},  # Connect to Supervised
                 {"topic": "Dimensionality Reduction", "connections": []},
@@ -477,17 +448,34 @@ class TestIntegration:
         }
 
         # Set up mock to return different responses
-        mock_completion.side_effect = [
-            MagicMock(choices=[MagicMock(message=MagicMock(content=json.dumps(first_response)))]),
-            MagicMock(
-                choices=[MagicMock(message=MagicMock(content=json.dumps(supervised_response)))]
-            ),
-            MagicMock(
-                choices=[MagicMock(message=MagicMock(content=json.dumps(unsupervised_response)))]
-            ),
-        ]
+        from deepfabric.schemas import GraphSubtopic, GraphSubtopics  # noqa: PLC0415
 
-        graph.build()
+        graph.llm_client.generate = MagicMock(
+            side_effect=[
+                GraphSubtopics(
+                    subtopics=[
+                        GraphSubtopic(topic="Supervised Learning", connections=[]),
+                        GraphSubtopic(topic="Unsupervised Learning", connections=[]),
+                    ]
+                ),
+                GraphSubtopics(
+                    subtopics=[
+                        GraphSubtopic(topic="Classification", connections=[]),
+                        GraphSubtopic(
+                            topic="Regression", connections=[2]
+                        ),  # Connect to Unsupervised
+                    ]
+                ),
+                GraphSubtopics(
+                    subtopics=[
+                        GraphSubtopic(topic="Clustering", connections=[1]),  # Connect to Supervised
+                        GraphSubtopic(topic="Dimensionality Reduction", connections=[]),
+                    ]
+                ),
+            ]
+        )
+
+        list(graph.build())  # Convert generator to list to complete build
 
         # Verify structure
         assert len(graph.nodes) == 7  # 1 root + 2 level1 + 4 level2  # noqa: PLR2004

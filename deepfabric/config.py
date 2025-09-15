@@ -10,11 +10,6 @@ from .exceptions import ConfigurationError
 # Config classes are no longer imported directly as they're not used in this module
 
 
-def construct_model_string(provider: str, model: str) -> str:
-    """Construct the full model string for LiteLLM."""
-    return f"{provider}/{model}"
-
-
 class DeepFabricConfig(BaseModel):
     """Configuration for DeepFabric tasks."""
 
@@ -69,17 +64,27 @@ class DeepFabricConfig(BaseModel):
             params.pop("save_as", None)
 
             # Handle provider and model separately if present
-            provider = overrides.pop("provider", params.pop("provider", None))
-            model = overrides.pop("model", params.pop("model", None))
+            override_provider = overrides.pop("provider", None)
+            override_model = overrides.pop("model", None)
+            config_provider = params.pop("provider", None)
+            config_model = params.pop("model", None)
 
             # Apply remaining overrides
             params.update(overrides)
 
-            # Construct full model string if provider/model were specified
-            if provider and model:
-                params["model_name"] = construct_model_string(provider, model)
+            # Determine final provider
+            final_provider = override_provider or config_provider or DEFAULT_PROVIDER
+            params["provider"] = final_provider
+
+            # Determine final model and model_name
+            if override_model:
+                # If model is overridden, use just the model name (provider is separate)
+                params["model_name"] = override_model
+            elif config_model:
+                # If model comes from config, use as-is for model_name
+                params["model_name"] = config_model
             elif "model_name" not in params:
-                params["model_name"] = construct_model_string(DEFAULT_PROVIDER, DEFAULT_MODEL)
+                params["model_name"] = DEFAULT_MODEL
 
         except Exception as e:
             raise ConfigurationError(f"config error: {str(e)}") from e  # noqa: TRY003
@@ -104,17 +109,27 @@ class DeepFabricConfig(BaseModel):
             params.pop("save_as", None)
 
             # Handle provider and model separately if present
-            provider = overrides.pop("provider", params.pop("provider", None))
-            model = overrides.pop("model", params.pop("model", None))
+            override_provider = overrides.pop("provider", None)
+            override_model = overrides.pop("model", None)
+            config_provider = params.pop("provider", None)
+            config_model = params.pop("model", None)
 
             # Apply remaining overrides
             params.update(overrides)
 
-            # Construct full model string if provider/model were specified
-            if provider and model:
-                params["model_name"] = construct_model_string(provider, model)
+            # Determine final provider
+            final_provider = override_provider or config_provider or DEFAULT_PROVIDER
+            params["provider"] = final_provider
+
+            # Determine final model and model_name
+            if override_model:
+                # If model is overridden, use just the model name (provider is separate)
+                params["model_name"] = override_model
+            elif config_model:
+                # If model comes from config, use as-is for model_name
+                params["model_name"] = config_model
             elif "model_name" not in params:
-                params["model_name"] = construct_model_string(DEFAULT_PROVIDER, DEFAULT_MODEL)
+                params["model_name"] = DEFAULT_MODEL
 
         except Exception as e:
             raise ConfigurationError(f"config error: {str(e)}") from e  # noqa: TRY003
@@ -136,17 +151,27 @@ class DeepFabricConfig(BaseModel):
             params.pop("save_as", None)
 
             # Handle provider and model separately if present
-            provider = overrides.pop("provider", params.pop("provider", None))
-            model = overrides.pop("model", params.pop("model", None))
+            override_provider = overrides.pop("provider", None)
+            override_model = overrides.pop("model", None)
+            config_provider = params.pop("provider", None)
+            config_model = params.pop("model", None)
 
             # Apply remaining overrides
             params.update(overrides)
 
-            # Construct full model string if provider/model were specified
-            if provider and model:
-                params["model_name"] = construct_model_string(provider, model)
+            # Determine final provider
+            final_provider = override_provider or config_provider or DEFAULT_PROVIDER
+            params["provider"] = final_provider
+
+            # Determine final model and model_name
+            if override_model:
+                # If model is overridden, use just the model name (provider is separate)
+                params["model_name"] = override_model
+            elif config_model:
+                # If model comes from config, use as-is for model_name
+                params["model_name"] = config_model
             elif "model_name" not in params:
-                params["model_name"] = construct_model_string(DEFAULT_PROVIDER, DEFAULT_MODEL)
+                params["model_name"] = DEFAULT_MODEL
 
             # Get sys_msg from dataset config, defaulting to True
             dataset_config = self.get_dataset_config()
