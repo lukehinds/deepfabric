@@ -149,8 +149,6 @@ class Dataset:
                 clean_json = self.remove_linebreaks_and_spaces(json.dumps(sample))
                 f.write(clean_json + "\n")
 
-        print(f"Saved dataset to {save_path}")
-
     def __len__(self) -> int:
         """Get the number of samples in the dataset.
 

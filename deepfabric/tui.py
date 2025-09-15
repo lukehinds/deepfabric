@@ -262,6 +262,18 @@ class DatasetGenerationTUI:
         self.console.print(Panel(stats_table, title="Generation Parameters", border_style="dim"))
         self.console.print()
 
+    def success(self, message: str) -> None:
+        """Display a success message."""
+        self.tui.success(message)
+
+    def warning(self, message: str) -> None:
+        """Display a warning message."""
+        self.tui.warning(message)
+
+    def error(self, message: str) -> None:
+        """Display an error message."""
+        self.tui.error(message)
+
 
 # Global TUI instance
 _tui_instance = None

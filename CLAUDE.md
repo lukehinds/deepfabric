@@ -35,13 +35,7 @@ DeepFabric is a Python library for generating synthetic datasets using LLM provi
 
 ### Configuration System
 - YAML-based configuration with direct system prompt specification
-- Separate provider/model specification that gets combined into LiteLLM format
 - CLI supports extensive parameter overrides
-
-### LLM Integration
-- Uses LiteLLM for provider abstraction (OpenAI, Anthropic, Ollama, etc.)
-- Model specification: `provider/model` format (e.g., "ollama/mistral:latest")
-- API keys via environment variables: `{PROVIDER}_API_KEY`
 
 ### Data Flow
 1. Tree generates topic hierarchy from root prompt

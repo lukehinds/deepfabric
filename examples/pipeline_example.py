@@ -1,6 +1,12 @@
 """
-Advanced example showing a complete pipeline with error handling,
-custom validation, and HuggingFace Hub integration.
+DeepFabric Production Pipeline Example
+
+Complete pipeline demonstrating:
+- Quality validation and filtering
+- Statistics and monitoring
+- Error recovery and retry logic
+- Output organization and metadata
+- Performance optimization
 """
 
 import json
@@ -81,6 +87,10 @@ def create_filtered_dataset(
         topic_model=topic_tree,
     )
 
+    # Ensure we have a valid Dataset object
+    if not isinstance(dataset, Dataset):
+        raise TypeError(f"Expected Dataset, got {type(dataset)}")  # noqa: TRY003
+
     # Validate and filter samples
     validator = CustomDatasetValidator()
     valid_samples = []
@@ -111,6 +121,7 @@ def main():
 
     # Configuration
     ROOT_TOPIC = "Advanced Python Design Patterns and Architecture"  # noqa: N806
+    PROVIDER = "openai"  # Change to your provider  # noqa: N806
     MODEL_NAME = "openai/gpt-4o"  # Change to your model  # noqa: N806
     OUTPUT_DIR = "output"  # noqa: N806
 
@@ -132,9 +143,12 @@ def main():
     )
 
     try:
-        tree.build()
+        # Build the tree using the generator pattern
+        for event in tree.build():
+            if event['event'] == 'build_complete':
+                print(f" Topic tree created with {event['total_paths']} paths")
+
         tree.save(os.path.join(OUTPUT_DIR, "python_patterns_tree.jsonl"))
-        print(f" Topic tree created with {len(tree.get_all_paths())} paths")
     except Exception as e:
         print(f"❌ Error building tree: {e}")
         return
@@ -156,6 +170,7 @@ def main():
                        Your code follows PEP 8, uses type hints, and includes
                        comprehensive docstrings. You prioritize clean, maintainable code.""",
         model_name=MODEL_NAME,
+        provider=PROVIDER,
         prompt_template=None,
         example_data=None,
         temperature=0.3,

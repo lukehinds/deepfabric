@@ -1,0 +1,104 @@
+# DeepFabric Specialized Configuration
+# Domain-specific prompts optimized for medical education
+# Demonstrates using different specialized prompts for each pipeline stage
+
+# Global system prompt (fallback for any stage that doesn't specify its own)
+dataset_system_prompt: "You are an expert in medical education and clinical practice."
+
+# Topic Generation: Curriculum Design Focus
+# Specialized for exploring medical knowledge domains
+topic_tree:
+  topic_prompt: "Clinical diagnosis and patient care protocols"
+
+  provider: "anthropic"
+  model: "claude-3-opus"
+  temperature: 0.5                      # Conservative for medical accuracy
+
+  degree: 4
+  depth: 3
+
+  # Specialized curriculum design prompt
+  topic_system_prompt: |
+    You are a medical curriculum committee chair with expertise in clinical education.
+
+    Your role is to design comprehensive learning pathways that:
+    - Follow evidence-based medical practices
+    - Ensure proper prerequisite knowledge progression
+    - Cover differential diagnosis approaches
+    - Include patient safety considerations
+    - Align with medical education accreditation standards
+    - Address diverse patient populations and conditions
+
+  save_as: "medical_curriculum_tree.jsonl"
+
+# Content Generation: Clinical Communication Focus
+# Specialized for creating realistic patient-physician interactions
+data_engine:
+  instructions: |
+    Create realistic clinical scenarios that demonstrate:
+    - Proper medical history taking techniques
+    - Clear patient communication in accessible language
+    - Empathetic bedside manner and cultural sensitivity
+    - Evidence-based diagnostic reasoning
+    - Appropriate informed consent discussions
+    - Ethical considerations in patient care
+
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.3                      # Low temperature for clinical accuracy
+  max_retries: 5                        # High retry for quality medical content
+
+  # Specialized clinical communication prompt
+  generation_system_prompt: |
+    You are an experienced attending physician and medical educator with 20+ years of clinical practice across multiple specialties.
+
+    Your expertise includes:
+    - Patient communication and bedside manner
+    - Clinical reasoning and diagnostic approaches
+    - Medical ethics and cultural competency
+    - Teaching medical students and residents
+    - Quality improvement and patient safety
+
+    Create realistic, educational medical scenarios that prioritize:
+    1. Patient safety and ethical practice
+    2. Clear, compassionate communication
+    3. Evidence-based clinical reasoning
+    4. Cultural sensitivity and inclusion
+    5. Professional medical standards
+
+# Dataset Assembly: Medical Training Focus
+# Optimized for medical education dataset format
+dataset:
+  creation:
+    num_steps: 24                       # More examples for comprehensive coverage
+    batch_size: 3                       # Moderate batch size for quality control
+
+    # High-quality provider for final dataset assembly
+    provider: "anthropic"
+    model: "claude-3-opus"
+    sys_msg: true                       # Include system prompts for training context
+
+  save_as: "clinical_communication_dataset.jsonl"
+
+# Specialized domain considerations (handled automatically):
+# - Medical accuracy validation
+# - Ethical content filtering
+# - Patient privacy compliance
+# - Cultural sensitivity review
+# - Evidence-based practice verification
+
+# HuggingFace Hub with medical-specific metadata
+huggingface:
+  repository: "username/clinical-communication-dataset"
+  tags:
+    - "medical-education"
+    - "clinical-communication"
+    - "patient-care"
+    - "medical-ethics"
+    - "healthcare"
+    - "synthetic"
+    - "deepfabric"
+
+# Note: This example demonstrates advanced prompt specialization.
+# For actual medical training data, additional validation and review
+# by qualified medical professionals would be essential.

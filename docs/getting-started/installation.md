@@ -20,7 +20,7 @@ This command confirms that DeepFabric is properly installed and accessible from 
 
 ## Provider Setup
 
-DeepFabric operates through various language model providers, each requiring specific authentication setup. The system supports any provider compatible with LiteLLM, giving you flexibility in choosing models based on cost, performance, or privacy requirements.
+DeepFabric operates through various language model providers, each requiring specific authentication setup. The system supports any provider comp, giving you flexibility in choosing models based on cost, performance, or privacy requirements.
 
 ### OpenAI Configuration
 

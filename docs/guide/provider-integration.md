@@ -1,12 +1,12 @@
 # Provider Integration
 
-DeepFabric integrates with language model providers through LiteLLM, enabling access to virtually any commercial or open-source language model through a unified interface. This abstraction layer provides consistent behavior across different providers while preserving access to provider-specific capabilities and optimizations.
+DeepFabric integrates with language model providers, enabling access to virtually any commercial or open-source language model through a unified interface. This abstraction layer provides consistent behavior across different providers while preserving access to provider-specific capabilities and optimizations.
 
 The integration approach supports both simple single-provider workflows and sophisticated multi-provider strategies that optimize different components for cost, performance, or capability requirements.
 
 ## Supported Providers
 
-DeepFabric supports all LiteLLM-compatible providers through consistent configuration patterns:
+DeepFabric supports all model providers through consistent configuration patterns:
 
 **OpenAI** provides GPT models including GPT-4, GPT-3.5, and specialized variants optimized for different use cases.
 

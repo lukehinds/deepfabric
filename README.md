@@ -1,7 +1,7 @@
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-dark.png">
-    <img alt="Deepfabric logo" src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png" width="486px" height="150spx" style="max-width: 100%;">
+    <img alt="DeepFabric logo" src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/logo-light.png" width="486px" height="150spx" style="max-width: 100%;">
   </picture>
   <h3>Generate High-Quality Synthetic Datasets at Scale</h3>
 
@@ -37,19 +37,17 @@
   <br/>
 </div>
 
-**Deepfabric** is an SDK and CLI tool that leverages large language models to generate high-quality synthetic datasets. It's designed for researchers and developers building teacher-student distillation pipelines, creating evaluation benchmarks for models and agents, or conducting research requiring diverse training data.
+**DeepFabric** is a CLI tool and SDK, that leverages large language models to generate high-quality synthetic datasets. It's designed for researchers and developers building teacher-student distillation pipelines, creating evaluation benchmarks for models and agents, or conducting research requiring diverse training data.
 
-The key innovation lies in Deepfabric's graph and tree-based architecture, which uses structured topic nodes as generation seeds. This approach ensures the creation of datasets that are both highly diverse and domain-specific, while minimizing redundancy and duplication across generated samples.
+The key innovation lies in DeepFabric's graph and tree-based architecture, which uses structured topic nodes as generation seeds. This approach ensures the creation of datasets that are both highly diverse and domain-specific, while minimizing redundancy and duplication across generated samples.
 
 <div align="center">
-  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="Deepfabric Demo" width="80%" style="max-width: 700px;">
+  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="DeepFabric Demo" width="80%" style="max-width: 700px;">
 </div>
 
 ## Quickstart
 
-Get up and running in under 60 seconds:
-
-### 1. Install Deepfabric
+### 1. Install DeepFabric
 
 ```bash
 pip install deepfabric
@@ -82,21 +80,9 @@ Deepfabric will automatically:
 
 ### 3. Use Your Dataset
 
-Your dataset is ready for fine-tuning in the standard instruct format:
+Your dataset is ready in the OpenAI standard instruct format (JSONL):
 
 ```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Can you explain the significance of the double-slit experiment in quantum physics?"
-    },
-    {
-      "role": "assistant",
-      "content": "The double-slit experiment is fundamental in quantum physics as it demonstrates the dual nature of light and particles, showing both wave-like and particle-like properties. When particles such as photons or electrons pass through two slits, they create an interference pattern characteristic of waves, even if sent one at a time. This result challenged classical physics and contributed significantly to the development of quantum mechanics, highlighting the probabilistic nature of quantum states."
-    }
-  ]
-}
 {
   "messages": [
     {
@@ -119,7 +105,7 @@ Generate larger datasets with different models:
 # With a depth of 4 and degree of 4^5 = 1,024
 deepfabric generate \
   --provider ollama \
-  --model qwen3:8b \
+  --model qwen3:32b \
   --depth 4 \
   --degree 5 \
   --num-steps 100 \
@@ -129,11 +115,13 @@ deepfabric generate \
   --dataset-save-as dataset.jsonl
 ```
 
+There are lots more [examples](./examples/README.md) to get you going.
+
 ## Key Features
 
 ### Topic Trees and Graphs
 
-Deepfabric can generate topics using two approaches:
+DeepFabric can generate topics using two approaches:
 
 **Topic Graphs** (Experimental): DAG-based structure allowing cross-connections between topics, ideal for complex domains with interconnected concepts.
 
@@ -161,26 +149,145 @@ Push your datasets directly to Hugging Face Hub with automatic dataset cards:
 deepfabric generate config.yaml --hf-repo username/my-dataset --hf-token $HF_TOKEN
 ```
 
+### Configuration-Based Approach (Recommended)
+
+DeepFabric uses YAML configuration files for maximum flexibility. Here's a complete example:
+
+```yaml
+# Main system prompt - used as fallback throughout the pipeline
+dataset_system_prompt: "You are a helpful AI assistant providing clear, educational responses."
+
+# Topic Tree Configuration
+# Generates a hierarchical topic structure using tree generation
+topic_tree:
+  topic_prompt: "Python programming fundamentals and best practices"
+
+  # LLM Settings
+  provider: "ollama"                    # Options: openai, anthropic, gemini, ollama
+  model: "qwen3:0.6b"                    # Change to your preferred model
+  temperature: 0.7                      # 0.0 = deterministic, 1.0 = creative
+
+  # Tree Structure
+  degree: 2                             # Number of subtopics per node (1-10)
+  depth: 2                              # Depth of the tree (1-5)
+
+  # Topic generation prompt (optional - uses dataset_system_prompt if not specified)
+  topic_system_prompt: "You are a curriculum designer creating comprehensive programming learning paths. Focus on practical concepts that beginners need to master."
+
+  # Output
+  save_as: "python_topics_tree.jsonl"  # Where to save the generated topic tree
+
+# Data Engine Configuration
+# Generates the actual training examples
+data_engine:
+  instructions: "Create clear programming tutorials with working code examples and explanations"
+
+  # LLM Settings (can override main provider/model)
+  provider: "ollama"
+  model: "qwen3:0.6b"
+  temperature: 0.3                      # Lower temperature for more consistent code
+  max_retries: 3                        # Number of retries for failed generations
+
+  # Content generation prompt
+  generation_system_prompt: "You are a Python programming instructor creating educational content. Provide working code examples, clear explanations, and practical applications."
+
+# Dataset Assembly Configuration
+# Controls how the final dataset is created and formatted
+dataset:
+  creation:
+    num_steps: 4                        # Number of training examples to generate
+    batch_size: 1                       # Process 3 examples at a time
+    sys_msg: true                       # Include system messages in output format
+
+  # Output
+  save_as: "python_programming_dataset.jsonl"
+
+# Optional Hugging Face Hub configuration
+huggingface:
+  # Repository in format "username/dataset-name"
+  repository: "your-username/your-dataset-name"
+  # Token can also be provided via HF_TOKEN environment variable or --hf-token CLI option
+  token: "your-hf-token"
+  # Additional tags for the dataset (optional)
+  # "deepfabric" and "synthetic" tags are added automatically
+  tags:
+    - "deepfabric-generated-dataset"
+    - "geography"
+```
+
+Run using the CLI:
+
+```bash
+deepfabric generate config.yaml
+```
+
+The CLI supports various options to override configuration values:
+
+```bash
+deepfabric generate config.yaml \
+  --save-tree output_tree.jsonl \
+  --dataset-save-as output_dataset.jsonl \
+  --model-name ollama/qwen3:8b \
+  --temperature 0.8 \
+  --degree 4 \
+  --depth 3 \
+  --num-steps 10 \
+  --batch-size 2 \
+  --sys-msg true \  # Control system message inclusion (default: true)
+  --hf-repo username/dataset-name \
+  --hf-token your-token \
+  --hf-tags tag1 --hf-tags tag2
+```
+
+### Supported Providers
+
+DeepFabric supports serveral providers. Here are the most common:
+
+**OpenAI**
+```yaml
+provider: "openai"
+model: "gpt-4-turbo-preview"
+# Set: export OPENAI_API_KEY="your-key"
+```
+
+**Anthropic**
+```yaml
+provider: "anthropic"
+model: "claude-3-opus-20240229"
+# Set: export ANTHROPIC_API_KEY="your-key"
+```
+
+**Google**
+```yaml
+provider: "gemini"
+model: "gemini-pro"
+# Set: export GEMINI_API_KEY="your-key"
+```
+
+**Ollama (Local)**
+```yaml
+provider: "ollama"
+model: "qwen3:8b:latest"
+# No API key needed
+```
+
+### Hugging Face Hub Integration
+=======
 ## Docs / Examples
 
 For more details, including how to use the SDK, see the [docs!](https://lukehinds.github.io/DeepFabric/)
 
 There are also lots of [examples](./examples/) to get you going.
 
-
 ## Stay Updated
 
 Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way to follow the project and to be instantly notified of new releases, **Star the repo**.
 
+DeepFabric automatically creates dataset cards with generation metadata, tags your dataset appropriately, and handles the upload process.
+=======
 <img src="/assets/star.gif" width="40%" height="40%"/>
 
 ## Roadmap
-
-### Better Structured Formatting
-
-Introduce Outlines as an LiteLLM replacement, and make use of its structured ouput support
-
-### Conversation Framework
 
 Deepfabric currently outputs to Open AI chat format, we will provide a system where you can easily plug in a post-processing conversion to whatever format is needed. This should allow easy adaption to what ever you need within a training pipeline:
 
@@ -201,7 +308,3 @@ We will be introducing, multi-turn, reasoning, chain-of-thought etc.
 ### Kaggel Support
 
 Push to Kaggel
-
-
-
-

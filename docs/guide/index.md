@@ -34,7 +34,7 @@ Each section of this guide builds upon previous concepts while introducing new c
 
 [**Dataset Generation**](dataset-generation.md) covers the conversion from topics to training examples, including template systems, batch processing, and quality assurance.
 
-[**Provider Integration**](provider-integration.md) explains LiteLLM integration, authentication patterns, and optimization strategies for different model providers.
+[**Provider Integration**](provider-integration.md) explains provider integration, authentication patterns, and optimization strategies for different model providers.
 
 ## Advanced Workflows
 

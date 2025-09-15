@@ -1,15 +1,9 @@
-import json
 import math
 import random
-import re
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-import litellm
-
-from litellm.exceptions import APIError, AuthenticationError
 from pydantic import BaseModel, ConfigDict, Field
-from tqdm.rich import tqdm
 
 from .constants import (
     API_ERROR_INDICATORS,
@@ -23,37 +17,15 @@ from .constants import (
     INTERRUPTED_DATASET_FILENAME,
 )
 from .dataset import Dataset
-from .exceptions import (
-    DataSetGeneratorError,
-)
-from .prompts import ENGINE_JSON_INSTRUCTIONS, SAMPLE_GENERATION_PROMPT
+from .exceptions import DataSetGeneratorError
+from .llm import LLMClient
+from .prompts import CONVERSATION_GENERATION_PROMPT
+from .schemas import ChatTranscript
 from .topic_model import TopicModel
-from .tui import get_dataset_tui, get_tui
 
 # Handle circular import for type hints
 if TYPE_CHECKING:
     from .topic_model import TopicModel
-
-
-def validate_json_response(json_str: str, schema: dict[str, Any] | None = None) -> dict | None:
-    """Validate and clean JSON response from LLM."""
-    try:
-        json_match = re.search(r"(?s)\{.*\}", json_str)
-        if not json_match:
-            return None
-
-        cleaned_json = json_match.group(0)
-        cleaned_json = re.sub(r"```json\s*|\s*```", "", cleaned_json)
-
-        parsed = json.loads(cleaned_json)
-
-        if schema is not None:
-            # Schema validation could be added here
-            pass
-        else:
-            return parsed
-    except (json.JSONDecodeError, ValueError):
-        return None
 
 
 class DataSetGeneratorConfig(BaseModel):
@@ -68,6 +40,9 @@ class DataSetGeneratorConfig(BaseModel):
     dataset_system_prompt: str | None = Field(
         None,
         description="System prompt that goes into the final dataset (falls back to generation_system_prompt if not provided)",
+    )
+    provider: str = Field(
+        ..., min_length=1, description="LLM provider (openai, anthropic, gemini, ollama)"
     )
     model_name: str = Field(..., min_length=1, description="Name of the model to use")
     prompt_template: str | None = Field(default=None, description="Custom prompt template")
@@ -113,17 +88,24 @@ class DataSetGenerator:
             raise DataSetGeneratorError(f"Invalid generator configuration: {str(e)}") from e  # noqa: TRY003
 
         # Initialize from config
+        self.provider = self.config.provider
         self.model_name = self.config.model_name
         self.dataset = Dataset()
         self.failed_samples = []
         self.failure_analysis = {category: [] for category in ERROR_CATEGORIES}
 
+        # Initialize LLM client
+        self.llm_client = LLMClient(
+            provider=self.provider,
+            model_name=self.model_name,
+        )
+
         # Store dataset system prompt for dataset inclusion (with fallback)
         self.dataset_system_prompt = (
             self.config.dataset_system_prompt or self.config.generation_system_prompt
         )
-        # Use ENGINE_JSON_INSTRUCTIONS + generation prompt for content generation
-        self.generation_prompt = ENGINE_JSON_INSTRUCTIONS + self.config.generation_system_prompt
+        # Store generation prompt for content generation
+        self.generation_prompt = self.config.generation_system_prompt
 
     def _validate_create_data_params(
         self,
@@ -155,7 +137,22 @@ class DataSetGenerator:
             required_samples = num_steps * batch_size
 
             if required_samples > total_paths:
-                raise DataSetGeneratorError("insufficient")
+                # Provide detailed error with recommendations
+                max_steps_for_batch = total_paths // batch_size
+                max_batch_for_steps = total_paths // num_steps if num_steps > 0 else total_paths
+
+                error_msg = (
+                    f"Insufficient topic paths for dataset generation:\n"
+                    f"  • Available paths: {total_paths}\n"
+                    f"  • Requested samples: {required_samples} ({num_steps} steps × {batch_size} batch size)\n"
+                    f"  • Shortfall: {required_samples - total_paths} samples\n\n"
+                    f"Recommendations:\n"
+                    f"  • Reduce --num-steps to {max_steps_for_batch} (with current batch size {batch_size})\n"
+                    f"  • Reduce --batch-size to {max_batch_for_steps} (with current {num_steps} steps)\n"
+                    f"  • Increase topic tree/graph depth or degree to generate more paths"
+                )
+                raise DataSetGeneratorError(error_msg)
+
             # Bandit: not a security function
             topic_paths = random.sample(topic_paths, required_samples)  # nosec
             num_steps = math.ceil(len(topic_paths) / batch_size)
@@ -189,62 +186,32 @@ class DataSetGenerator:
             prompts.append(sample_prompt)
         return prompts
 
-    def _process_batch_responses(  # noqa: PLR0912
+    def _generate_structured_samples(
         self,
-        responses: list,
+        prompts: list[str],
         include_sys_msg: bool,
     ) -> tuple[list, list]:
-        """Process batch responses and return samples and failed responses."""
+        """Generate structured samples using Outlines."""
         samples = []
         failed_responses = []
 
-        for response in responses:
+        for prompt in prompts:
             try:
-                # Extract content from the response - use getattr to safely access attributes
-                response_content = None
+                # Generate structured conversation using ChatTranscript schema
+                conversation = self.llm_client.generate(
+                    prompt=prompt,
+                    schema=ChatTranscript,
+                    max_retries=self.config.max_retries,
+                    max_tokens=2000,
+                    temperature=self.config.temperature,
+                )
 
-                # Try standard OpenAI format first
-                choices = getattr(response, "choices", None)
-                if choices and len(choices) > 0:
-                    choice = choices[0]
-                    message = getattr(choice, "message", None)
-                    if message:
-                        response_content = getattr(message, "content", None)
-                    if not response_content:
-                        response_content = getattr(choice, "text", None)
+                # Convert Pydantic model to dict
+                sample = conversation.model_dump()
 
-                # Try direct content access if no content found yet
-                if not response_content:
-                    response_content = getattr(response, "content", None)
-
-                if not response_content:
-                    response_content = getattr(response, "text", None)
-
-                # Try getting content from response as dict if still no content
-                if not response_content and isinstance(response, dict):
-                    try:
-                        if "choices" in response and response["choices"]:
-                            choice = response["choices"][0]
-                            if isinstance(choice, dict):
-                                if "message" in choice and "content" in choice["message"]:
-                                    response_content = choice["message"]["content"]
-                                elif "text" in choice:
-                                    response_content = choice["text"]
-                        elif "content" in response:
-                            response_content = response["content"]
-                    except (KeyError, IndexError, TypeError):
-                        pass
-
-                if not response_content:
-                    failed_responses.append("empty model response")
-                    self.failure_analysis["empty_responses"].append("empty model response")
-                    continue
-
-                parsed_json = validate_json_response(response_content)
-
-                if parsed_json and include_sys_msg and "messages" in parsed_json:
-                    # Add system message at the start if sys_msg is True
-                    parsed_json["messages"].insert(
+                # Add system message at the start if sys_msg is True
+                if include_sys_msg:
+                    sample["messages"].insert(
                         0,
                         {
                             "role": "system",
@@ -252,29 +219,15 @@ class DataSetGenerator:
                         },
                     )
 
-                if parsed_json:
-                    samples.append(parsed_json)
-                else:
-                    failed_responses.append(response_content)
-                    failure_type = self.analyze_failure(response_content)
-                    self.failure_analysis[failure_type].append(response_content)
+                samples.append(sample)
 
             except Exception as e:
-                failed_responses.append(str(e))
+                error_msg = f"Generation failed: {str(e)}"
+                failed_responses.append(error_msg)
                 failure_type = self.analyze_failure(str(e), error=e)
-                self.failure_analysis[failure_type].append(str(e))
+                self.failure_analysis[failure_type].append(error_msg)
 
         return samples, failed_responses
-
-    def _handle_batch_completion(self, prompts: list[str]) -> list:
-        """Handle batch completion with the LLM."""
-        completion_args = {
-            "model": self.model_name,
-            "messages": [[{"role": "user", "content": p}] for p in prompts],
-            "temperature": self.config.temperature,
-            "stream": False,  # Ensure we get complete responses
-        }
-        return litellm.batch_completion(**completion_args)
 
     def analyze_failure(self, response_content: str, error: Exception | None = None) -> str:
         """Analyze the failure reason for a sample."""
@@ -347,17 +300,10 @@ class DataSetGenerator:
         topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
 
         total_samples = num_steps * batch_size
+        data_creation_prompt = CONVERSATION_GENERATION_PROMPT
 
-        # Initialize dataset generation TUI
-        dataset_tui = get_dataset_tui()
-        dataset_tui.show_generation_header(self.model_name, num_steps, batch_size)
-
-        # Enable JSON schema validation
-        litellm.enable_json_schema_validation = True
-
-        data_creation_prompt = SAMPLE_GENERATION_PROMPT
-
-        return self._run_generation_loop(
+        # Use generator pattern for progress events (no TUI dependencies)
+        generator = self._run_generation_loop(
             num_steps=num_steps,
             batch_size=batch_size,
             total_samples=total_samples,
@@ -365,7 +311,70 @@ class DataSetGenerator:
             data_creation_prompt=data_creation_prompt,
             num_example_demonstrations=num_example_demonstrations,
             include_sys_msg=include_sys_msg,
-            dataset_tui=dataset_tui,
+        )
+
+        # Consume the generator and return the final dataset
+        final_result = None
+        for event in generator:
+            final_result = event
+
+        return final_result
+
+    def create_data_with_events(
+        self,
+        num_steps: int | None = None,
+        num_example_demonstrations: int = 3,
+        batch_size: int = 10,
+        topic_model: TopicModel | None = None,
+        model_name: str | None = None,
+        sys_msg: bool | None = None,
+    ):
+        """Create dataset yielding progress events (for TUI integration)."""
+        # Set default value for num_steps if None
+        if num_steps is None:
+            num_steps = 1
+
+        # Validate inputs
+        self._validate_create_data_params(num_steps, batch_size, topic_model)
+
+        # Use instance model_name as fallback if none provided
+        if model_name:
+            self.model_name = model_name.strip()
+
+        if not self.model_name:
+            raise DataSetGeneratorError("")
+
+        # Use provided sys_msg or fall back to config.sys_msg
+        include_sys_msg = sys_msg if sys_msg is not None else self.config.sys_msg
+
+        # Prepare topic paths and adjust num_steps if necessary
+        topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
+
+        # Use instance model_name as fallback if none provided
+        if model_name:
+            self.model_name = model_name.strip()
+
+        if not self.model_name:
+            raise DataSetGeneratorError("")
+
+        # Use provided sys_msg or fall back to config.sys_msg
+        include_sys_msg = sys_msg if sys_msg is not None else self.config.sys_msg
+
+        # Prepare topic paths and adjust num_steps if necessary
+        topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
+
+        total_samples = num_steps * batch_size
+        data_creation_prompt = CONVERSATION_GENERATION_PROMPT
+
+        # Yield from the generation loop
+        yield from self._run_generation_loop(
+            num_steps=num_steps,
+            batch_size=batch_size,
+            total_samples=total_samples,
+            topic_paths=topic_paths or [],
+            data_creation_prompt=data_creation_prompt,
+            num_example_demonstrations=num_example_demonstrations,
+            include_sys_msg=include_sys_msg,
         )
 
     def _run_generation_loop(  # noqa: PLR0912
@@ -377,88 +386,78 @@ class DataSetGenerator:
         data_creation_prompt: str,
         num_example_demonstrations: int,
         include_sys_msg: bool,
-        dataset_tui=None,
     ):
-        """Run the main generation loop."""
+        """Run the main generation loop yielding progress events."""
         try:
-            # Create rich progress bar
-            progress = dataset_tui.create_rich_progress() if dataset_tui else None
-            if progress:
-                progress.start()
-                progress_task = progress.add_task("Generating dataset samples", total=total_samples)
-            else:
-                progress_task = None
+            # Yield start event
+            yield {
+                "event": "generation_start",
+                "model_name": self.model_name,
+                "num_steps": num_steps,
+                "batch_size": batch_size,
+                "total_samples": total_samples,
+            }
 
-            # Fallback to regular tqdm if no TUI
-            pbar = None if progress else tqdm(total=total_samples, desc="Progress")
+            for step in range(num_steps):
+                yield {"event": "step_start", "step": step + 1, "total_steps": num_steps}
 
-            try:
-                for step in range(num_steps):
-                    start_idx = step * batch_size
-                    prompts = self._generate_batch_prompts(
-                        batch_size,
-                        start_idx,
-                        topic_paths,
-                        data_creation_prompt,
-                        num_example_demonstrations,
-                    )
+                start_idx = step * batch_size
+                prompts = self._generate_batch_prompts(
+                    batch_size,
+                    start_idx,
+                    topic_paths,
+                    data_creation_prompt,
+                    num_example_demonstrations,
+                )
 
-                    success = self._process_batch_with_retries(
-                        prompts, include_sys_msg, progress, progress_task, pbar
-                    )
-                    if not success:
-                        if dataset_tui:
-                            dataset_tui.tui.warning(
-                                f"Failed to process batch {step + 1} after all retries"
-                            )
-                        else:
-                            print(f"Failed to process batch {step + 1} after all retries")
+                success, samples_generated = self._process_batch_with_retries(
+                    prompts, include_sys_msg
+                )
 
-            finally:
-                if progress:
-                    progress.stop()
-                elif pbar:
-                    pbar.close()
+                yield {
+                    "event": "step_complete",
+                    "step": step + 1,
+                    "samples_generated": samples_generated,
+                    "success": success,
+                }
+
+                if not success:
+                    yield {
+                        "event": "step_failed",
+                        "step": step + 1,
+                        "message": f"Failed to process batch {step + 1} after all retries",
+                    }
+
+            yield {
+                "event": "generation_complete",
+                "total_samples": len(self.dataset),
+                "failed_samples": len(self.failed_samples),
+            }
 
         except KeyboardInterrupt:
-            if dataset_tui:
-                dataset_tui.tui.warning("Generation interrupted by user.")
-            else:
-                print("\nGeneration interrupted by user.")
+            yield {"event": "generation_interrupted", "message": "Generation interrupted by user."}
             self.print_failure_summary()
             self.save_dataset(INTERRUPTED_DATASET_FILENAME)
-            return self.dataset
 
         except Exception as e:
-            if dataset_tui:
-                dataset_tui.tui.error(f"Unexpected error: {str(e)}")
-            else:
-                print(f"\nUnexpected error: {str(e)}")
+            yield {"event": "generation_error", "error": str(e)}
             self.print_failure_summary()
             self.save_dataset(ERROR_DATASET_FILENAME)
             raise DataSetGeneratorError("failed") from e
 
-        if dataset_tui:
-            dataset_tui.tui.success(f"Successfully Generated {len(self.dataset)} samples.")
-        else:
-            print(f"Successfully Generated {len(self.dataset)} samples.")
-        self.print_failure_summary()
-        return self.dataset
+        # Always return the dataset as the final result
+        yield self.dataset
 
     def _process_batch_with_retries(
         self,
         prompts: list[str],
         include_sys_msg: bool,
-        progress=None,
-        progress_task=None,
-        pbar=None,
-    ) -> bool:
+    ) -> tuple[bool, int]:
         """Process a batch with retry logic."""
         for attempt in range(self.config.max_retries):
             try:
-                responses = self._handle_batch_completion(prompts)
-                samples, failed_responses = self._process_batch_responses(
-                    responses, include_sys_msg
+                samples, failed_responses = self._generate_structured_samples(
+                    prompts, include_sys_msg
                 )
 
                 # Update failed samples
@@ -473,44 +472,33 @@ class DataSetGenerator:
 
                     successful_samples = len(samples) - len(failed_samples)
 
-                    # Update progress
-                    if progress and progress_task is not None:
-                        progress.advance(progress_task, successful_samples)
-                    elif pbar:
-                        pbar.update(successful_samples)
-
-                    return True  # Success - exit retry loop
-            except (AuthenticationError, APIError) as e:
-                provider = self.model_name.split("/")[0] if "/" in self.model_name else "unknown"
+                    return True, successful_samples  # Success - exit retry loop
+            except DataSetGeneratorError as e:
+                # Authentication and API errors are now wrapped in DataSetGeneratorError
                 error_str = str(e).lower()
                 if any(
                     keyword in error_str
                     for keyword in ["api_key", "api key", "authentication", "unauthorized"]
                 ):
-                    error_msg = f"Authentication failed for provider '{provider}'. Please set the required API key environment variable."
+                    error_msg = f"Authentication failed for provider '{self.provider}'. Please set the required API key environment variable."
+                    self.failure_analysis["authentication_error"].append(error_msg)
                 else:
-                    error_msg = f"API error for provider '{provider}': {str(e)[:100]}..."
+                    error_msg = f"API error for provider '{self.provider}': {str(e)[:100]}..."
+                    self.failure_analysis["api_errors"].append(error_msg)
+
                 self.failed_samples.append(error_msg)
-                self.failure_analysis["authentication_error"].append(error_msg)
 
-                # Use TUI to display error if available
-                try:
-                    tui = get_tui()
-                    tui.error(error_msg)
-                except Exception:
-                    print(f"Authentication Error: {error_msg}")
+                print(f"Error: {error_msg}")
 
-                return False  # Don't retry authentication errors
+                return False, 0  # Don't retry authentication/API errors
             except Exception as e:
                 if attempt == self.config.max_retries - 1:
-                    # Don't print here, let TUI or calling code handle final messaging
                     self.failed_samples.append(str(e))
                     failure_type = self.analyze_failure(str(e), error=e)
                     self.failure_analysis[failure_type].append(str(e))
-                    return False
-                # Don't print retry messages to avoid clutter with TUI
+                    return False, 0
 
-        return False
+        return False, 0
 
     def print_failure_summary(self):
         """Print a detailed summary of all failures."""

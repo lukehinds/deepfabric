@@ -6,7 +6,7 @@ The journey from installation to your first dataset involves setting up the envi
 
 ## Prerequisites
 
-DeepFabric requires Python 3.11 or higher and works with any LiteLLM-supported language model provider. Whether you prefer OpenAI's GPT models, Anthropic's Claude, Google's Gemini, or local Ollama instances, DeepFabric adapts to your preferred setup.
+DeepFabric requires Python 3.11 or higher and works with multple model providers. Whether you prefer OpenAI's GPT models, Anthropic's Claude, Google's Gemini, or local Ollama instances, DeepFabric adapts to your preferred setup.
 
 The system works equally well with cloud-based APIs and local models, making it suitable for both rapid prototyping and production environments where data privacy considerations may require on-premises processing.
 

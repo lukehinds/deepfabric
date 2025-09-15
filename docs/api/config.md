@@ -222,8 +222,6 @@ for issue in parameter_issues:
 
 #### construct_model_string(provider: str, model: str)
 
-Utility function for creating LiteLLM-compatible model strings:
-
 ```python
 from deepfabric.config import construct_model_string
 

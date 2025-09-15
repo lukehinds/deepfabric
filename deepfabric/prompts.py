@@ -1,36 +1,25 @@
-SAMPLE_GENERATION_PROMPT = """I want to train a large language model and you should help me generate training data for it. Here is the system prompt of the model that tells it what it should be able to do:
+CONVERSATION_GENERATION_PROMPT = """Generate a training conversation for a language model with this system prompt:
 
 <system_prompt>
 {{{{system_prompt}}}}
 </system_prompt>
 
-You should now generate three training samples for the model. Each training sample should consist of a JSON object with the field "messages", which is a list of messages alternating between user and assistant roles. The first message must always be from the user, and the last one from the assistant. Depending on the use case of the system prompt, there may be multiple user and assistant messages. The format for each training sample must strictly follow this format:
-
-{
-    "messages": [
-        {
-            "role": "user",
-            "content": "<user_content>"
-        },
-        {
-            "role": "assistant",
-            "content": "<assistant_content>"
-        }
-    ]
-}
-
-It is crucial that you respond only with valid JSON. Do not include any introductions, explanations, summaries, or additional text that is not part of the JSON object. Any non-JSON content will be considered incorrect. If you encounter issues generating valid JSON, please retry or provide a default response.
-
-Here are additional inputs to guide you:
+Create a realistic conversation that demonstrates the system's capabilities. The conversation should:
+- Start with a user question/request
+- Have the assistant respond helpfully according to the system prompt
+- Be natural and educational
 
 {{{{instructions}}}}
 {{{{examples}}}}
 {{{{subtopics}}}}
 
-Now, generate a single training sample in the JSON format specified above. Respond only with valid JSON."""
+Generate one training sample as a conversation."""
 
-TREE_GENERATION_PROMPT = """I want to train a large language model and I am using another, bigger large language model to generate training data for this. However, if we always ask the bigger model to generate training data with the same prompt, it will end up generating very repetitive training samples. Therefore, we will slightly modify our prompt for each sampling procedure according to some aspects. For instance, when asking the model to generate news articles, we could modify the prompt to let the model tell news articles about particular topics, such as business or politics. To further generate training data, we will do this recursively, and generate submodifications to the prompt. For instance, within the domain of business, we could adapt the prompt to generate news about the stock market or business scandals, and within politics, we could ask the model to generate articles for subtopics like elections or climate policy. We do this recursively, and therefore, we get a tree-like structure of topics.
-Your job is the following: I will give you a path of nodes down the topic tree - you should then come up with a list of new subtopics for this given node and return it as a python list. Here are a few examples of what your outputs should look like, related to the news example I just gave you:
+TOPIC_EXPANSION_PROMPT = """Generate subtopics for training data organization. You'll receive a topic path and need to create relevant subtopics that expand on the given topic.
+
+Your task: Given a topic path, generate specific subtopics that are related but diverse enough to create varied training content.
+
+Examples:
 
 Example 1:
 node path: "News Topics" -> "Sports" -> "Football"
@@ -75,89 +64,15 @@ desired number of subtopics: {{{{num_subtopics}}}}
 
 Now return the subtopics as a python list, and return it in just one line, not multiple ones. Don't return anything else."""
 
-TREE_JSON_INSTRUCTIONS = """When listing subtopics, format your response as a valid JSON array of strings.
-Example: ["topic 1", "topic 2", "topic 3"]
-1. Use double quotes for strings
-2. Use square brackets for the array
-3. Separate items with commas
-4. Do not include any text before or after the JSON array
-5. Ensure all JSON syntax is valid
-"""
+GRAPH_EXPANSION_PROMPT = """
+You are an expert in knowledge graph generation. Your task is to expand a topic into a set of subtopics. For each subtopic, you should also identify if it connects to any other existing topics in the graph.
 
-OLD_ENGINE_JSON_INSTRUCTIONS = """Your response **must be valid JSON** that can be parsed by `json.loads()`. Follow these rules precisely:
+Here is the current state of the graph:
+{{current_graph_summary}}
 
-1. **Double Quotes Only**: Use double quotes (`"`) around all string values, including keys.
-2. **No Extra Text**: Do not include any text before or after the JSON block. Ensure the output is **only JSON**.
-3. **Valid Syntax**: Check that all JSON syntax is correct:
-   - Every key-value pair should be separated by a colon.
-   - Separate each item in an array or object with a comma, except for the last item.
-4. **No Trailing Commas**: Ensure there are no trailing commas in arrays or objects.
-5. **Number Formatting**: Ensure numbers are formatted correctly (e.g., no leading zeroes unless the number is decimal).
-6. **Boolean & Null Values**: Use lowercase `true`, `false`, and `null` as valid JSON values.
-7. **Final Validation**: Your response will be parsed as JSON. Any syntax errors will cause a failure, so check carefully.
+You are expanding the topic: "{{current_topic}}"
 
-**Important**: The entire response must be **valid JSON**, with no explanations, comments, or text outside of the JSON structure.
-"""
-
-ENGINE_JSON_INSTRUCTIONS = """You are an expert JSON builder designed to assist with a wide range of tasks.
-
-Your response **must be valid JSON** that can be parsed by `json.loads()`. Follow these rules precisely:
-
-1. **Double Quotes Only**: Use double quotes (`"`) around all string values, including keys.
-2. **No Extra Text**: Do not include any text before or after the JSON block. Ensure the output is **only JSON**.
-3. **Valid Syntax**: Check that all JSON syntax is correct:
-   - Every key-value pair should be separated by a colon.
-   - Separate each item in an array or object with a comma, except for the last item.
-4. **No Trailing Commas**: Ensure there are no trailing commas in arrays or objects.
-5. **Number Formatting**: Ensure numbers are formatted correctly (e.g., no leading zeroes unless the number is decimal).
-6. **Boolean & Null Values**: Use lowercase `true`, `false`, and `null` as valid JSON values.
-7. **Final Validation**: Your response will be parsed as JSON. Any syntax errors will cause a failure, so check carefully.
-
-**Important**: The entire response must be **valid JSON**, with no explanations, comments, or text outside of the JSON structure.
-
-**JSON Structure**:
-```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "<user_message>"
-    },
-    {
-      "role": "assistant",
-      "content": "<assistant_response>"
-    }
-  ]
-}
-```
-
-**JSON Examples**:
-```json
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "Hey, how are you today?"
-    },
-    {
-      "role": "assistant",
-      "content": "I'm good thanks, how are you?"
-    }
-  ]
-},
-{
-  "messages": [
-    {
-      "role": "user",
-      "content": "What color is the sky?"
-    },
-    {
-      "role": "assistant",
-      "content": "The sky is blue."
-    }
-  ]
-}
-```
-
-All of Assistant's communication is performed using this JSON format.
+Generate a list of {{num_subtopics}} subtopics. For each subtopic, provide:
+1. A "topic" string - the name of the new subtopic
+2. A "connections" list of IDs of existing topics it should connect to for creating cross-links (use empty list if no connections)
 """

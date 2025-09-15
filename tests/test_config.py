@@ -16,26 +16,22 @@ def sample_config_dict():
     return {
         "dataset_system_prompt": "Test system prompt",
         "topic_tree": {
-            "args": {
-                "topic_prompt": "Test root prompt",
-                "topic_system_prompt": "Test system prompt",
-                "degree": 3,
-                "depth": 2,
-                "temperature": 0.7,
-                "provider": "test",
-                "model": "model",
-            },
+            "topic_prompt": "Test root prompt",
+            "topic_system_prompt": "Test system prompt",
+            "degree": 3,
+            "depth": 2,
+            "temperature": 0.7,
+            "provider": "test",
+            "model": "model",
             "save_as": "test_tree.jsonl",
         },
         "data_engine": {
-            "args": {
-                "instructions": "Test instructions",
-                "generation_system_prompt": "Test system prompt",
-                "provider": "test",
-                "model": "model",
-                "temperature": 0.9,
-                "max_retries": 2,
-            }
+            "instructions": "Test instructions",
+            "generation_system_prompt": "Test system prompt",
+            "provider": "test",
+            "model": "model",
+            "temperature": 0.9,
+            "max_retries": 2,
         },
         "dataset": {
             "creation": {
@@ -56,26 +52,22 @@ def sample_config_dict_no_sys_msg():
     return {
         "dataset_system_prompt": "Test system prompt",
         "topic_tree": {
-            "args": {
-                "topic_prompt": "Test root prompt",
-                "topic_system_prompt": "Test system prompt",
-                "degree": 3,
-                "depth": 2,
-                "temperature": 0.7,
-                "provider": "test",
-                "model": "model",
-            },
+            "topic_prompt": "Test root prompt",
+            "topic_system_prompt": "Test system prompt",
+            "degree": 3,
+            "depth": 2,
+            "temperature": 0.7,
+            "provider": "test",
+            "model": "model",
             "save_as": "test_tree.jsonl",
         },
         "data_engine": {
-            "args": {
-                "instructions": "Test instructions",
-                "generation_system_prompt": "Test system prompt",
-                "provider": "test",
-                "model": "model",
-                "temperature": 0.9,
-                "max_retries": 2,
-            }
+            "instructions": "Test instructions",
+            "generation_system_prompt": "Test system prompt",
+            "provider": "test",
+            "model": "model",
+            "temperature": 0.9,
+            "max_retries": 2,
         },
         "dataset": {
             "creation": {
@@ -138,7 +130,8 @@ def test_get_topic_tree_args(sample_yaml_file):
     assert args["degree"] == 3  # noqa: PLR2004
     assert args["depth"] == 2  # noqa: PLR2004
     assert args["temperature"] == 0.7  # noqa: PLR2004
-    assert args["model_name"] == "test/model"
+    assert args["provider"] == "test"
+    assert args["model_name"] == "model"
 
 
 def test_get_engine_args(sample_yaml_file):
@@ -149,7 +142,8 @@ def test_get_engine_args(sample_yaml_file):
     assert isinstance(args, dict)
     assert args["instructions"] == "Test instructions"
     assert args["generation_system_prompt"] == "Test system prompt"
-    assert args["model_name"] == "test/model"
+    assert args["model_name"] == "model"
+    assert args["provider"] == "test"
     assert args["temperature"] == 0.9  # noqa: PLR2004
     assert args["max_retries"] == 2  # noqa: PLR2004
     assert args["sys_msg"] is True  # Default from dataset config
@@ -173,7 +167,7 @@ def test_get_topic_tree_args_with_overrides(sample_yaml_file):
         temperature=0.5,
     )
 
-    assert args["model_name"] == "override/model"
+    assert args["model_name"] == "model"
     assert args["temperature"] == 0.5  # noqa: PLR2004
 
 
@@ -186,7 +180,7 @@ def test_get_engine_args_with_overrides(sample_yaml_file):
         temperature=0.5,
     )
 
-    assert args["model_name"] == "override/model"
+    assert args["model_name"] == "model"
     assert args["temperature"] == 0.5  # noqa: PLR2004
 
 

@@ -113,7 +113,7 @@ Batch processing parameters balance generation speed with resource consumption. 
 
 ## Provider Integration
 
-DeepFabric supports any LiteLLM-compatible provider through consistent configuration patterns. Different components can use different providers, enabling sophisticated workflows that optimize for cost, performance, or specific model capabilities:
+DeepFabric supports any multiple providers through consistent configuration patterns. Different components can use different providers, enabling sophisticated workflows that optimize for cost, performance, or specific model capabilities:
 
 ```yaml
 topic_tree:
