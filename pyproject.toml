@@ -6,23 +6,15 @@ authors = [{name = "Luke Hinds", email = "luke@rdrocket.com"}]
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "certifi==2025.1.31",
-    "charset-normalizer==3.4.1",
-    "idna==3.10",
-    "requests==2.32.3",
-    "tqdm==4.67.1",
-    "urllib3==2.4.0",
     "huggingface-hub==0.34.4",
     "datasets==4.0.0",
     "outlines==1.2.4",
     "openai>=1.107.2",
     "anthropic>=0.67.0",
-    "google-generativeai>=0.8.5",
     "PyYAML>=6.0.1",
     "click>=8.1.7",
     "pydantic>=2.0.0",
     "mermaid-py>=0.8.0",
-    "ipython>=9.5.0",
     "rich>=13.0.0",
     "google-genai>=1.36.0",
     "posthog>=3.0.0",
