@@ -13,7 +13,7 @@ dependencies = [
     "tqdm==4.67.1",
     "urllib3==2.4.0",
     "huggingface-hub==0.34.4",
-    "datasets==4.0.0",
+    "datasets==4.1.0",
     "outlines==1.2.4",
     "openai>=1.107.2",
     "anthropic>=0.67.0",
