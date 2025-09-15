@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from .constants import DEFAULT_MODEL, DEFAULT_PROVIDER
 from .exceptions import ConfigurationError
+from .metrics import trace
 
 # Config classes are no longer imported directly as they're not used in this module
 
@@ -40,11 +41,22 @@ class DeepFabricConfig(BaseModel):
             raise ConfigurationError("must be dictionary")  # noqa: TRY003
 
         try:
-            return cls(**config_dict)
+            config = cls(**config_dict)
+            trace(
+                "config_loaded",
+                {
+                    "method": "yaml",
+                    "has_topic_tree": config.topic_tree is not None,
+                    "has_topic_graph": config.topic_graph is not None,
+                    "has_huggingface": config.huggingface is not None,
+                },
+            )
         except Exception as e:
             raise ConfigurationError(  # noqa: TRY003
                 f"invalid structure: {str(e)}"
             ) from e  # noqa: TRY003
+        else:
+            return config
 
     def get_topic_tree_params(self, **overrides) -> dict:
         """Get parameters for Tree instantiation."""

@@ -271,20 +271,17 @@ model: "qwen3:8b:latest"
 # No API key needed
 ```
 
-### Hugging Face Hub Integration
-=======
+
 ## Docs / Examples
 
 For more details, including how to use the SDK, see the [docs!](https://lukehinds.github.io/DeepFabric/)
 
-There are also lots of [examples](./examples/) to get you going.
+There are also lots of [examples](./examples/README.md) to get you going.
 
 ## Stay Updated
 
 Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way to follow the project and to be instantly notified of new releases, **Star the repo**.
 
-DeepFabric automatically creates dataset cards with generation metadata, tags your dataset appropriately, and handles the upload process.
-=======
 <img src="/assets/star.gif" width="40%" height="40%"/>
 
 ## Roadmap
@@ -308,3 +305,22 @@ We will be introducing, multi-turn, reasoning, chain-of-thought etc.
 ### Kaggel Support
 
 Push to Kaggel
+
+## Analytics
+
+We use fully anonymised analytics, to help use improve application performance and stablity. **We never** send personal indentifiable information.
+
+The analytics only captures:
+- Model names and providers (e.g., "ollama", "gpt-4")
+- Numeric parameters (temperature, depth, degree, batch_size)
+- Success/failure rates
+- Timing metrics
+
+But never:
+- Prompts
+- Generated content
+- File paths (only hashed versions)
+- API keys, Tokens etc
+- Any user data or content
+
+Should you wish to opt-out, just set `ANONYMIZED_TELEMETRY=False`.

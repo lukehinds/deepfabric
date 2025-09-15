@@ -19,6 +19,7 @@ from .constants import (
 from .dataset import Dataset
 from .exceptions import DataSetGeneratorError
 from .llm import LLMClient
+from .metrics import trace
 from .prompts import CONVERSATION_GENERATION_PROMPT
 from .schemas import ChatTranscript
 from .topic_model import TopicModel
@@ -99,6 +100,7 @@ class DataSetGenerator:
             provider=self.provider,
             model_name=self.model_name,
         )
+        trace("generator_created", {"provider": self.provider})
 
         # Store dataset system prompt for dataset inclusion (with fallback)
         self.dataset_system_prompt = (
@@ -317,6 +319,16 @@ class DataSetGenerator:
         final_result = None
         for event in generator:
             final_result = event
+
+        if final_result and isinstance(final_result, Dataset):
+            trace(
+                "dataset_created",
+                {
+                    "samples_count": len(final_result.samples),
+                    "failed_samples": len(self.failed_samples),
+                    "success": len(final_result.samples) > 0,
+                },
+            )
 
         return final_result
 
