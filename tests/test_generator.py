@@ -178,9 +178,9 @@ def test_create_data_sys_msg_override():
     dataset = engine.create_data(num_steps=1, batch_size=1, topic_model=topic_tree, sys_msg=True)
 
     # Verify system message is included despite engine default
-    assert len(dataset.samples) == 1 # type: ignore
+    assert len(dataset.samples) == 1  # type: ignore
     assert len(dataset.samples[0]["messages"]) == 3  # type: ignore # noqa: PLR2004
-    assert dataset.samples[0]["messages"][0]["role"] == "system" # type: ignore
+    assert dataset.samples[0]["messages"][0]["role"] == "system"  # type: ignore
 
 
 def test_build_prompt(data_engine):

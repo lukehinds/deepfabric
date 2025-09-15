@@ -13,6 +13,7 @@ from .constants import (
     TOPIC_GRAPH_SUMMARY,
 )
 from .llm import LLMClient
+from .metrics import trace
 from .prompts import GRAPH_EXPANSION_PROMPT
 from .schemas import GraphSubtopics
 from .topic_model import TopicModel
@@ -121,6 +122,10 @@ class Graph(TopicModel):
         self.llm_client = LLMClient(
             provider=self.provider,
             model_name=self.model_name,
+        )
+
+        trace(
+            "graph_created", {"provider": self.provider, "degree": self.degree, "depth": self.depth}
         )
 
         self.root: Node = Node(self.config.topic_prompt, 0)
@@ -244,6 +249,15 @@ class Graph(TopicModel):
 
             # Check if build was completely unsuccessful (only root node exists)
             _raise_if_build_failed()
+
+            trace(
+                "graph_built",
+                {
+                    "nodes_count": len(self.nodes),
+                    "failed_generations": len(self.failed_generations),
+                    "success": len(self.nodes) > 1,
+                },
+            )
 
             yield {
                 "event": "build_complete",

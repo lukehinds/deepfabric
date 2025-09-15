@@ -16,6 +16,7 @@ from .constants import (
 )
 from .exceptions import TreeError
 from .llm import LLMClient
+from .metrics import trace
 from .prompts import TOPIC_EXPANSION_PROMPT
 from .schemas import TopicList
 from .topic_model import TopicModel
@@ -145,6 +146,10 @@ class Tree(TopicModel):
             model_name=self.model_name,
         )
 
+        trace(
+            "tree_created", {"provider": self.provider, "degree": self.degree, "depth": self.depth}
+        )
+
         # Derived attributes
         self.system_prompt = self.config.topic_system_prompt
         self.tree_paths: list[list[str]] = []
@@ -186,6 +191,15 @@ class Tree(TopicModel):
 
             # Check if build was completely unsuccessful (no paths generated)
             _raise_if_build_failed()
+
+            trace(
+                "tree_built",
+                {
+                    "total_paths": len(self.tree_paths),
+                    "failed_generations": len(self.failed_generations),
+                    "success": len(self.tree_paths) > 0,
+                },
+            )
 
             yield {
                 "event": "build_complete",

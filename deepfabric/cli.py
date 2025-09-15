@@ -17,6 +17,7 @@ from .dataset import Dataset
 from .factory import create_topic_generator
 from .generator import DataSetGenerator
 from .graph import Graph
+from .metrics import trace
 from .tree import Tree
 from .tui import get_dataset_tui, get_graph_tui, get_tree_tui, get_tui
 from .utils import read_topic_tree_from_jsonl
@@ -280,6 +281,11 @@ def generate(  # noqa: PLR0912, PLR0913
     mode: str = "tree",
 ) -> None:
     """Generate training data from a YAML configuration file or CLI parameters."""
+    trace(
+        "cli_generate",
+        {"mode": mode, "has_config": config_file is not None, "provider": provider, "model": model},
+    )
+
     try:
         # Load configuration or create minimal config from CLI args
         if config_file:
@@ -569,6 +575,10 @@ def generate(  # noqa: PLR0912, PLR0913
             dataset_save_path = dataset_save_as or dataset_config.get("save_as", "dataset.jsonl")
             dataset.save(dataset_save_path)
             tui.success(f"Dataset saved to: {dataset_save_path}")
+            trace(
+                "dataset_generated",
+                {"samples": len(dataset.samples) if hasattr(dataset, "samples") else 0},
+            )
         except Exception as e:
             handle_error(click.get_current_context(), Exception(f"Error saving dataset: {str(e)}"))
 
@@ -601,6 +611,8 @@ def upload(
     tags: list[str] | None = None,
 ) -> None:
     """Upload a dataset to Hugging Face Hub."""
+    trace("cli_upload", {"has_tags": len(tags) > 0 if tags else False})
+
     try:
         # Get token from CLI arg or env var
         token = token or os.getenv("HF_TOKEN")
