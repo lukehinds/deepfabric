@@ -378,7 +378,7 @@ def generate(  # noqa: PLR0912, PLR0913
 
         # Get dataset parameters
         dataset_config = config.get_dataset_config()
-        dataset_params = dataset_config.get("creation", {})
+        dataset_params = dataset_config["creation"]
 
         # Prepare topic tree overrides
         tree_overrides = {}
@@ -419,18 +419,24 @@ def generate(  # noqa: PLR0912, PLR0913
             graph_overrides["base_url"] = base_url
 
         # Set provider and model
-        final_provider = provider or dataset_params.get("provider", "ollama")
-        final_model = model or dataset_params.get("model", "mistral:latest")
+        final_provider = provider or dataset_params.get("provider") or "ollama"
+        final_model = model or dataset_params.get("model") or "mistral:latest"
 
         # Validate path requirements before topic generation
-        final_num_steps = num_steps or dataset_params.get("num_steps", 5)
-        final_batch_size = batch_size or dataset_params.get("batch_size", 1)
-        final_depth = depth or (config.topic_tree or config.topic_graph or {}).get("args", {}).get(
-            "depth", 3
-        )
-        final_degree = degree or (config.topic_tree or config.topic_graph or {}).get(
-            "args", {}
-        ).get("degree", 3)
+        final_num_steps = num_steps or dataset_params["num_steps"]
+        final_batch_size = batch_size or dataset_params["batch_size"]
+        # Get depth and degree from config if not provided
+        config_depth = None
+        config_degree = None
+        if config.topic_tree:
+            config_depth = config.topic_tree.depth
+            config_degree = config.topic_tree.degree
+        elif config.topic_graph:
+            config_depth = config.topic_graph.depth
+            config_degree = config.topic_graph.degree
+
+        final_depth = depth or config_depth or 3
+        final_degree = degree or config_degree or 3
 
         # Early validation to prevent wasted token usage
         validate_path_requirements(
@@ -500,8 +506,10 @@ def generate(  # noqa: PLR0912, PLR0913
         if not load_tree and not load_graph:
             if isinstance(topic_model, Tree):
                 try:
-                    tree_save_path = save_tree or (config.topic_tree or {}).get(
-                        "save_as", "topic_tree.jsonl"
+                    tree_save_path = (
+                        save_tree
+                        or (config.topic_tree.save_as if config.topic_tree else None)
+                        or "topic_tree.jsonl"
                     )
                     topic_model.save(tree_save_path)
                     tui = get_tui()
@@ -514,8 +522,10 @@ def generate(  # noqa: PLR0912, PLR0913
                     )
             elif isinstance(topic_model, Graph):
                 try:
-                    graph_save_path = save_graph or (config.topic_graph or {}).get(
-                        "save_as", "topic_graph.json"
+                    graph_save_path = (
+                        save_graph
+                        or (config.topic_graph.save_as if config.topic_graph else None)
+                        or "topic_graph.json"
                     )
                     topic_model.save(graph_save_path)
                     tui = get_tui()
@@ -555,12 +565,12 @@ def generate(  # noqa: PLR0912, PLR0913
         # Create dataset with overrides - using generator pattern for TUI
         try:
             generator = engine.create_data_with_events(
-                num_steps=num_steps or dataset_params.get("num_steps", 5),
-                batch_size=batch_size or dataset_params.get("batch_size", 1),
+                num_steps=num_steps or dataset_params["num_steps"],
+                batch_size=batch_size or dataset_params["batch_size"],
                 topic_model=topic_model,
                 model_name=final_model,
                 sys_msg=sys_msg,
-                num_example_demonstrations=dataset_params.get("num_example_demonstrations", 3),
+                num_example_demonstrations=dataset_params.get("num_example_demonstrations") or 3,
             )
             dataset = handle_dataset_events(generator)
         except Exception as e:
@@ -577,7 +587,7 @@ def generate(  # noqa: PLR0912, PLR0913
 
         # Save dataset
         try:
-            dataset_save_path = dataset_save_as or dataset_config.get("save_as", "dataset.jsonl")
+            dataset_save_path = dataset_save_as or dataset_config["save_as"]
             dataset.save(dataset_save_path)
             tui.success(f"Dataset saved to: {dataset_save_path}")
             trace(
@@ -732,10 +742,8 @@ def validate(config_file: str) -> None:  # noqa: PLR0912
         # Check data_engine section
         if not config.data_engine:
             errors.append("data_engine section is required")
-        else:
-            engine_args = config.data_engine.get("args", {})
-            if not engine_args.get("instructions"):
-                warnings.append("No instructions defined in data_engine")
+        elif not config.data_engine.instructions:
+            warnings.append("No instructions defined in data_engine")
 
         # Check dataset section
         if not config.dataset:
@@ -763,19 +771,17 @@ def validate(config_file: str) -> None:  # noqa: PLR0912
         # Print configuration summary
         tui.console.print("\nConfiguration Summary:", style="cyan bold")
         if config.topic_tree:
-            tree_args = config.topic_tree.get("args", {})
             tui.info(
-                f"Topic Tree: depth={tree_args.get('depth', 'default')}, degree={tree_args.get('degree', 'default')}"
+                f"Topic Tree: depth={config.topic_tree.depth}, degree={config.topic_tree.degree}"
             )
         if config.topic_graph:
-            graph_args = config.topic_graph.get("args", {})
             tui.info(
-                f"Topic Graph: depth={graph_args.get('depth', 'default')}, degree={graph_args.get('degree', 'default')}"
+                f"Topic Graph: depth={config.topic_graph.depth}, degree={config.topic_graph.degree}"
             )
 
-        dataset_params = config.get_dataset_config().get("creation", {})
+        dataset_params = config.get_dataset_config()["creation"]
         tui.info(
-            f"Dataset: steps={dataset_params.get('num_steps', 'default')}, batch_size={dataset_params.get('batch_size', 'default')}"
+            f"Dataset: steps={dataset_params['num_steps']}, batch_size={dataset_params['batch_size']}"
         )
 
         if config.huggingface:

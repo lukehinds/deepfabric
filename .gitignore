@@ -129,6 +129,6 @@ target/
 venv/
 *.jsonl
 *.json
-
+formats/*
 # coverage files
 .coverage.*

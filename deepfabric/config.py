@@ -1,14 +1,166 @@
-from typing import Any
-
 import yaml
 
 from pydantic import BaseModel, Field
 
-from .constants import DEFAULT_MODEL, DEFAULT_PROVIDER
+from .constants import (
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_MODEL,
+    DEFAULT_PROVIDER,
+    ENGINE_DEFAULT_BATCH_SIZE,
+    ENGINE_DEFAULT_NUM_EXAMPLES,
+    ENGINE_DEFAULT_TEMPERATURE,
+    TOPIC_TREE_DEFAULT_DEGREE,
+    TOPIC_TREE_DEFAULT_DEPTH,
+    TOPIC_TREE_DEFAULT_TEMPERATURE,
+)
 from .exceptions import ConfigurationError
 from .metrics import trace
 
-# Config classes are no longer imported directly as they're not used in this module
+
+class TopicTreeConfig(BaseModel):
+    """Configuration for topic tree generation."""
+
+    topic_prompt: str = Field(
+        ..., min_length=1, description="The initial prompt to start the topic tree"
+    )
+    topic_system_prompt: str = Field(
+        default="", description="System prompt for topic exploration and generation"
+    )
+    provider: str = Field(
+        default=DEFAULT_PROVIDER,
+        min_length=1,
+        description="LLM provider (openai, anthropic, gemini, ollama)",
+    )
+    model: str = Field(
+        default=DEFAULT_MODEL,
+        min_length=1,
+        description="The name of the model to be used",
+    )
+    temperature: float = Field(
+        default=TOPIC_TREE_DEFAULT_TEMPERATURE,
+        ge=0.0,
+        le=2.0,
+        description="Temperature for model generation",
+    )
+    degree: int = Field(
+        default=TOPIC_TREE_DEFAULT_DEGREE,
+        ge=1,
+        le=50,
+        description="Number of subtopics per node",
+    )
+    depth: int = Field(
+        default=TOPIC_TREE_DEFAULT_DEPTH,
+        ge=1,
+        le=10,
+        description="Depth of the tree",
+    )
+    save_as: str | None = Field(default=None, description="Where to save the generated topic tree")
+
+
+class TopicGraphConfig(BaseModel):
+    """Configuration for topic graph generation."""
+
+    topic_prompt: str = Field(
+        ..., min_length=1, description="The initial prompt to start the topic graph"
+    )
+    topic_system_prompt: str = Field(
+        default="", description="System prompt for topic exploration and generation"
+    )
+    provider: str = Field(
+        default=DEFAULT_PROVIDER,
+        min_length=1,
+        description="LLM provider (openai, anthropic, gemini, ollama)",
+    )
+    model: str = Field(
+        default=DEFAULT_MODEL,
+        min_length=1,
+        description="The name of the model to be used",
+    )
+    temperature: float = Field(
+        default=0.6,
+        ge=0.0,
+        le=2.0,
+        description="Temperature for model generation",
+    )
+    degree: int = Field(default=3, ge=1, le=10, description="The branching factor of the graph")
+    depth: int = Field(default=2, ge=1, le=5, description="The depth of the graph")
+    save_as: str | None = Field(default=None, description="Where to save the generated topic graph")
+
+
+class DataEngineConfig(BaseModel):
+    """Configuration for data engine generation."""
+
+    instructions: str = Field(default="", description="Additional instructions for data generation")
+    generation_system_prompt: str = Field(
+        ..., min_length=1, description="System prompt for content generation"
+    )
+    provider: str = Field(
+        default=DEFAULT_PROVIDER,
+        min_length=1,
+        description="LLM provider (openai, anthropic, gemini, ollama)",
+    )
+    model: str = Field(
+        default=DEFAULT_MODEL,
+        min_length=1,
+        description="The name of the model to be used",
+    )
+    temperature: float = Field(
+        default=ENGINE_DEFAULT_TEMPERATURE,
+        ge=0.0,
+        le=2.0,
+        description="Temperature for model generation",
+    )
+    max_retries: int = Field(
+        default=DEFAULT_MAX_RETRIES,
+        ge=0,
+        le=10,
+        description="Maximum number of retries for failed generations",
+    )
+    save_as: str | None = Field(default=None, description="Where to save the generated data")
+
+
+class DatasetCreationConfig(BaseModel):
+    """Configuration for dataset creation parameters."""
+
+    num_steps: int = Field(
+        default=ENGINE_DEFAULT_NUM_EXAMPLES,
+        ge=1,
+        description="Number of training examples to generate",
+    )
+    batch_size: int = Field(
+        default=ENGINE_DEFAULT_BATCH_SIZE,
+        ge=1,
+        description="Number of examples to process at a time",
+    )
+    sys_msg: bool | None = Field(
+        default=None,
+        description="Include system messages in output format",
+    )
+    provider: str | None = Field(
+        default=None,
+        description="Optional provider override for dataset creation",
+    )
+    model: str | None = Field(
+        default=None,
+        description="Optional model override for dataset creation",
+    )
+
+
+class DatasetConfig(BaseModel):
+    """Configuration for dataset assembly and output."""
+
+    creation: DatasetCreationConfig = Field(
+        default_factory=DatasetCreationConfig,
+        description="Dataset creation parameters",
+    )
+    save_as: str = Field(..., min_length=1, description="Where to save the final dataset")
+
+
+class HuggingFaceConfig(BaseModel):
+    """Configuration for Hugging Face Hub integration."""
+
+    repository: str = Field(..., min_length=1, description="HuggingFace repository name")
+    tags: list[str] = Field(default_factory=list, description="Tags for the dataset")
 
 
 class DeepFabricConfig(BaseModel):
@@ -18,11 +170,63 @@ class DeepFabricConfig(BaseModel):
         None,
         description="System prompt that goes into the final dataset as the system message (falls back to generation_system_prompt if not provided)",
     )
-    topic_tree: dict[str, Any] | None = Field(None, description="Topic tree configuration")
-    topic_graph: dict[str, Any] | None = Field(None, description="Topic graph configuration")
-    data_engine: dict[str, Any] = Field(..., description="Data engine configuration")
-    dataset: dict[str, Any] = Field(..., description="Dataset configuration")
-    huggingface: dict[str, Any] | None = Field(None, description="Hugging Face configuration")
+    topic_tree: TopicTreeConfig | None = Field(None, description="Topic tree configuration")
+    topic_graph: TopicGraphConfig | None = Field(None, description="Topic graph configuration")
+    data_engine: DataEngineConfig = Field(..., description="Data engine configuration")
+    dataset: DatasetConfig = Field(..., description="Dataset configuration")
+    huggingface: HuggingFaceConfig | None = Field(None, description="Hugging Face configuration")
+
+    @classmethod
+    def _migrate_legacy_format(cls, config_dict: dict) -> dict:
+        """Migrate legacy 'args' wrapper format to new flat structure."""
+        migrated = config_dict.copy()
+
+        # Handle topic_tree args wrapper
+        if (
+            "topic_tree" in migrated
+            and isinstance(migrated["topic_tree"], dict)
+            and "args" in migrated["topic_tree"]
+        ):
+            print(
+                "Warning: 'args' wrapper in topic_tree config is deprecated. Please update your config."
+            )
+            args = migrated["topic_tree"]["args"]
+            save_as = migrated["topic_tree"].get("save_as")
+            migrated["topic_tree"] = args.copy()
+            if save_as:
+                migrated["topic_tree"]["save_as"] = save_as
+
+        # Handle topic_graph args wrapper
+        if (
+            "topic_graph" in migrated
+            and isinstance(migrated["topic_graph"], dict)
+            and "args" in migrated["topic_graph"]
+        ):
+            print(
+                "Warning: 'args' wrapper in topic_graph config is deprecated. Please update your config."
+            )
+            args = migrated["topic_graph"]["args"]
+            save_as = migrated["topic_graph"].get("save_as")
+            migrated["topic_graph"] = args.copy()
+            if save_as:
+                migrated["topic_graph"]["save_as"] = save_as
+
+        # Handle data_engine args wrapper
+        if (
+            "data_engine" in migrated
+            and isinstance(migrated["data_engine"], dict)
+            and "args" in migrated["data_engine"]
+        ):
+            print(
+                "Warning: 'args' wrapper in data_engine config is deprecated. Please update your config."
+            )
+            args = migrated["data_engine"]["args"]
+            save_as = migrated["data_engine"].get("save_as")
+            migrated["data_engine"] = args.copy()
+            if save_as:
+                migrated["data_engine"]["save_as"] = save_as
+
+        return migrated
 
     @classmethod
     def from_yaml(cls, yaml_path: str) -> "DeepFabricConfig":
@@ -39,6 +243,9 @@ class DeepFabricConfig(BaseModel):
 
         if not isinstance(config_dict, dict):
             raise ConfigurationError("must be dictionary")  # noqa: TRY003
+
+        # Handle backward compatibility for nested "args" format
+        config_dict = cls._migrate_legacy_format(config_dict)
 
         try:
             config = cls(**config_dict)
@@ -63,17 +270,8 @@ class DeepFabricConfig(BaseModel):
         if not self.topic_tree:
             raise ConfigurationError("missing 'topic_tree' configuration")  # noqa: TRY003
         try:
-            # Check for old format with deprecation warning
-            if "args" in self.topic_tree:
-                params = self.topic_tree["args"].copy()
-                print(
-                    "Warning: 'args' wrapper in topic_tree config is deprecated. Please update your config."
-                )
-            else:
-                params = self.topic_tree.copy()
-
-            # Remove non-constructor params
-            params.pop("save_as", None)
+            # Convert Pydantic model to dict and exclude save_as
+            params = self.topic_tree.model_dump(exclude={"save_as"})
 
             # Handle provider and model separately if present
             override_provider = overrides.pop("provider", None)
@@ -108,17 +306,8 @@ class DeepFabricConfig(BaseModel):
         if not self.topic_graph:
             raise ConfigurationError("missing 'topic_graph' configuration")  # noqa: TRY003
         try:
-            # Check for old format with deprecation warning
-            if "args" in self.topic_graph:
-                params = self.topic_graph["args"].copy()
-                print(
-                    "Warning: 'args' wrapper in topic_graph config is deprecated. Please update your config."
-                )
-            else:
-                params = self.topic_graph.copy()
-
-            # Remove non-constructor params
-            params.pop("save_as", None)
+            # Convert Pydantic model to dict and exclude save_as
+            params = self.topic_graph.model_dump(exclude={"save_as"})
 
             # Handle provider and model separately if present
             override_provider = overrides.pop("provider", None)
@@ -150,17 +339,8 @@ class DeepFabricConfig(BaseModel):
     def get_engine_params(self, **overrides) -> dict:
         """Get parameters for DataSetGenerator instantiation."""
         try:
-            # Check for old format with deprecation warning
-            if "args" in self.data_engine:
-                params = self.data_engine["args"].copy()
-                print(
-                    "Warning: 'args' wrapper in data_engine config is deprecated. Please update your config."
-                )
-            else:
-                params = self.data_engine.copy()
-
-            # Remove non-constructor params
-            params.pop("save_as", None)
+            # Convert Pydantic model to dict and exclude save_as
+            params = self.data_engine.model_dump(exclude={"save_as"})
 
             # Handle provider and model separately if present
             override_provider = overrides.pop("provider", None)
@@ -186,8 +366,11 @@ class DeepFabricConfig(BaseModel):
                 params["model_name"] = DEFAULT_MODEL
 
             # Get sys_msg from dataset config, defaulting to True
-            dataset_config = self.get_dataset_config()
-            params.setdefault("sys_msg", dataset_config.get("creation", {}).get("sys_msg", True))
+            sys_msg_value = self.dataset.creation.sys_msg
+            if sys_msg_value is not None:
+                params.setdefault("sys_msg", sys_msg_value)
+            else:
+                params.setdefault("sys_msg", True)
 
             # Set the dataset_system_prompt for the data engine, fall back to generation_system_prompt
             dataset_prompt = self.dataset_system_prompt or params.get("generation_system_prompt")
@@ -201,8 +384,8 @@ class DeepFabricConfig(BaseModel):
 
     def get_dataset_config(self) -> dict:
         """Get dataset configuration."""
-        return self.dataset
+        return self.dataset.model_dump(exclude_none=True)
 
     def get_huggingface_config(self) -> dict:
         """Get Hugging Face configuration."""
-        return self.huggingface or {}
+        return self.huggingface.model_dump() if self.huggingface else {}

@@ -114,9 +114,9 @@ def test_load_from_yaml(sample_yaml_file, sample_config_dict):
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
 
     assert config.dataset_system_prompt == sample_config_dict["dataset_system_prompt"]
-    assert config.topic_tree == sample_config_dict["topic_tree"]
-    assert config.data_engine == sample_config_dict["data_engine"]
-    assert config.dataset == sample_config_dict["dataset"]
+    assert config.topic_tree.model_dump(exclude_none=True) == sample_config_dict["topic_tree"]
+    assert config.data_engine.model_dump(exclude_none=True) == sample_config_dict["data_engine"]
+    assert config.dataset.model_dump(exclude_none=True) == sample_config_dict["dataset"]
 
 
 def test_get_topic_tree_args(sample_yaml_file):
