@@ -1,18 +1,18 @@
-# Generator Pattern & Clean Architecture
+# Generator Pattern
 
-DeepFabric uses a **Generator Pattern** to achieve clean separation between core library logic and user interface concerns. 
+DeepFabric uses a **Generator Pattern** to provide clean separation between core logic and user interface concerns, enabling flexible integration into different applications and workflows.
 
+## How Generators Work
 
-## Generator pattern
+The generator pattern allows DeepFabric's core components to yield events during processing, letting you handle progress monitoring, logging, and user interface updates as needed:
 
 ```python
-# ✅ New approach - Core logic is pure
 for event in tree.build():  # Core yields events, caller handles UI
     if event['event'] == 'build_complete':
         print(f"Done! {event['total_paths']} paths")
 ```
 
-This allows use of DeepFabric as a library without any UI dependencies:
+This approach enables using DeepFabric as a library without any UI dependencies:
 
 ```python
 from deepfabric import Tree, Graph, DataSetGenerator
@@ -141,7 +141,7 @@ process_build_events(tree.build())
 
 ## CLI Integration
 
-The CLI uses adapter functions to bridge generators to TUI:
+The CLI uses adapter functions to bridge generators to TUI components:
 
 ```python
 # cli.py - Adapts generator events to TUI
@@ -159,30 +159,4 @@ def handle_tree_events(tree, show_progress=True):
     return event  # Return final event
 ```
 
-This keeps all TUI logic in the CLI layer while maintaining clean separation.
-
-## Migration Guide
-
-### Old API (Deprecated)
-```python
-# ❌ Old way - coupled to UI
-tree.build(show_progress=True)
-graph.build(show_progress=False)
-engine.create_data(..., show_progress=True)
-```
-
-### New API (Current)
-```python
-# ✅ New way - clean separation
-for event in tree.build():
-    # Handle events as needed
-    pass
-
-for event in graph.build():
-    # Handle events as needed
-    pass
-
-dataset = engine.create_data(...)  # No show_progress parameter
-```
-
-The new approach provides the same functionality with much cleaner architecture and greater flexibility for different usage patterns.
+This approach maintains clean separation between core logic and user interface concerns while providing rich interactive experiences when needed.
