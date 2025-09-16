@@ -76,7 +76,7 @@ class Dataset:
         return instance
 
     @staticmethod
-    def validate_sample(sample: dict) -> bool:
+    def validate_sample(sample: dict) -> bool:  # noqa: PLR0911
         """Validate if a sample has the correct format.
 
         For structured generation samples (from Outlines), validation is minimal
