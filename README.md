@@ -308,19 +308,6 @@ Push to Kaggel
 
 ## Analytics
 
-We use fully anonymised analytics, to help use improve application performance and stablity. **We never** send personal indentifiable information.
-
-The analytics only captures:
-- Model names and providers (e.g., "ollama", "gpt-4")
-- Numeric parameters (temperature, depth, degree, batch_size)
-- Success/failure rates
-- Timing metrics
-
-But never:
-- Prompts
-- Generated content
-- File paths (only hashed versions)
-- API keys, Tokens etc
-- Any user data or content
+We use fully anonymised analytics, to help us improve application performance and stablity. **We never** send Personal identifiable information and we **do never** capture prompts, generated content, API keys etc. We capture model names and numeric parameters (temperature, depth, degree, batch_size), timing and success/failure rates - this then helps us find optimizations or bottlenecks.
 
 Should you wish to opt-out, just set `ANONYMIZED_TELEMETRY=False`.
