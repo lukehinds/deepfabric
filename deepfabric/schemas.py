@@ -27,9 +27,7 @@ class ReasoningStep(BaseModel):
 
     step_number: int = Field(description="The step number in the reasoning chain")
     thought: str = Field(description="The reasoning or thought for this step")
-    action: str | None = Field(
-        default=None, description="Any action taken as part of this reasoning step"
-    )
+    action: str = Field(description="Any action taken as part of this reasoning step")
 
 
 class StructuredConversation(BaseModel):
@@ -114,19 +112,55 @@ class GraphSubtopics(BaseModel):
     )
 
 
+# Chain of Thought schemas for reasoning-based dataset generation
+class FreeTextCoT(BaseModel):
+    """Chain of Thought dataset in free-text format (GSM8K style)."""
+
+    question: str = Field(description="The question or problem to solve")
+    chain_of_thought: str = Field(description="Natural language reasoning explanation")
+    final_answer: str = Field(description="The definitive answer to the question")
+
+
+class StructuredCoT(BaseModel):
+    """Chain of Thought dataset with structured reasoning trace."""
+
+    messages: list[ChatMessage] = Field(description="Conversation messages", min_length=1)
+    reasoning_trace: list[ReasoningStep] = Field(
+        description="Structured reasoning steps", min_length=1
+    )
+    final_answer: str = Field(description="The definitive answer to the question")
+
+
+class HybridCoT(BaseModel):
+    """Chain of Thought dataset with both free-text and structured reasoning."""
+
+    question: str = Field(description="The question or problem to solve")
+    chain_of_thought: str = Field(description="Natural language reasoning explanation")
+    reasoning_trace: list[ReasoningStep] = Field(
+        description="Structured reasoning steps", min_length=1
+    )
+    final_answer: str = Field(description="The definitive answer to the question")
+
+
 # Conversation type mapping for different generation modes
 CONVERSATION_SCHEMAS = {
     "basic": ChatTranscript,
     "structured": StructuredConversation,
     "tool_calling": ToolConversation,
+    "cot_freetext": FreeTextCoT,
+    "cot_structured": StructuredCoT,
+    "cot_hybrid": HybridCoT,
 }
 
 
-def get_conversation_schema(conversation_type: str = "basic") -> BaseModel:
+def get_conversation_schema(
+    conversation_type: str = "basic",
+) -> type[BaseModel]:
     """Get the appropriate schema for a conversation type.
 
     Args:
-        conversation_type: Type of conversation ("basic", "structured", "tool_calling")
+        conversation_type: Type of conversation (basic, structured, tool_calling,
+                          cot_freetext, cot_structured, cot_hybrid)
 
     Returns:
         Pydantic model class for the conversation type
@@ -135,6 +169,8 @@ def get_conversation_schema(conversation_type: str = "basic") -> BaseModel:
         ValueError: If conversation_type is not supported
     """
     if conversation_type not in CONVERSATION_SCHEMAS:
-        raise ValueError(f"Unsupported conversation type: {conversation_type}")  # noqa: TRY003
+        valid_types = ", ".join(CONVERSATION_SCHEMAS.keys())
+        msg = f"Unsupported conversation type: {conversation_type}. Valid types: {valid_types}"
+        raise ValueError(msg)
 
     return CONVERSATION_SCHEMAS[conversation_type]

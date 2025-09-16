@@ -1,4 +1,48 @@
-# DeepFabric
+<style>
+  .md-typeset h1,
+  .md-content__button {
+    display: none;
+  }
+</style>
+<div align="center">
+    <p align="center">
+        <img src="images/logo-light.png" alt="DeepFabric Logo" width="500"/>
+    </p>
+  <h3>Generate High-Quality Synthetic Datasets at Scale</h3>
+
+  <!-- CTA Buttons -->
+  <p>
+    <a href="https://github.com/lukehinds/deepfabric/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">
+      <img src="https://img.shields.io/badge/Contribute-Good%20First%20Issues-green?style=for-the-badge&logo=github" alt="Good First Issues"/>
+    </a>
+    &nbsp;
+    <a href="https://discord.gg/pPcjYzGvbS">
+      <img src="https://img.shields.io/badge/Chat-Join%20Discord-7289da?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"/>
+    </a>
+  </p>
+
+  <!-- Badges -->
+  <p>
+    <a href="https://opensource.org/licenses/Apache-2.0">
+      <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/>
+    </a>
+    <a href="https://github.com/lukehinds/deepfabric/actions/workflows/test.yml">
+      <img src="https://github.com/lukehinds/deepfabric/actions/workflows/test.yml/badge.svg" alt="CI Status"/>
+    </a>
+    <a href="https://pypi.org/project/deepfabric/">
+      <img src="https://img.shields.io/pypi/v/deepfabric.svg" alt="PyPI Version"/>
+    </a>
+    <a href="https://pepy.tech/project/deepfabric">
+      <img src="https://static.pepy.tech/badge/deepfabric" alt="Downloads"/>
+    </a>
+    <a href="https://discord.gg/pPcjYzGvbS">
+      <img src="https://img.shields.io/discord/1384081906773131274?color=7289da&label=Discord&logo=discord&logoColor=white" alt="Discord"/>
+    </a>
+  </p>
+  <br/>
+</div>
+
+
 
 DeepFabric transforms the process of creating synthetic datasets for language model training, evaluation, and research. Built around the concept of topic-driven data generation, it provides both hierarchical topic trees and experimental graph-based topic modeling to create diverse, contextually rich training examples.
 

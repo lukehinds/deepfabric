@@ -32,6 +32,8 @@ def sample_config_dict():
             "model": "model",
             "temperature": 0.9,
             "max_retries": 2,
+            "conversation_type": "basic",
+            "reasoning_style": "general",
         },
         "dataset": {
             "creation": {
@@ -68,6 +70,8 @@ def sample_config_dict_no_sys_msg():
             "model": "model",
             "temperature": 0.9,
             "max_retries": 2,
+            "conversation_type": "basic",
+            "reasoning_style": "general",
         },
         "dataset": {
             "creation": {

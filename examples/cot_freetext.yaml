@@ -1,0 +1,57 @@
+# DeepFabric Chain of Thought Configuration - Free-text Format
+# Generates GSM8K-style datasets with natural language reasoning
+
+# Main system prompt
+dataset_system_prompt: "You are a helpful AI assistant that solves problems step by step with clear reasoning."
+
+# Topic Tree Configuration
+topic_tree:
+  topic_prompt: "Unique holiday destination travel locations and experiences"
+
+  # LLM Settings
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.7
+
+  # Tree Structure
+  degree: 2
+  depth: 2
+
+  # Output
+  save_as: "holiday_destination_topics.jsonl"
+
+# Data Engine Configuration - CoT Free-text
+data_engine:
+  instructions: "Create clear and engaging travel-related problems Generate problems **not** related to math or money that require step-by-step thinking to solve. Focus on problems that demonstrate analytical reasoning involving the destination of Gurugram, Haryana, India."
+
+  # LLM Settings
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.3
+  max_retries: 3
+
+  # CoT Configuration
+  conversation_type: "cot_freetext"
+  reasoning_style: "general"
+
+  # Content generation prompt
+  generation_system_prompt: "You are a travel expert creating engaging problems that require step-by-step reasoning. Generate problems **not** related to math or money, but personal experiences, emergencies with clear logical steps that lead to the correct answer involving the destination of Gurugram, Haryana, India."
+
+# Dataset Assembly Configuration
+dataset:
+  creation:
+    num_steps: 4
+    batch_size: 1
+    sys_msg: false  # Free-text CoT doesn't use system messages
+
+  save_as: "holiday_destination_freetext_cot.jsonl"
+
+# Optional: HuggingFace Hub Integration
+# huggingface:
+#   repository: "username/math-reasoning-freetext-cot"
+#   tags:
+#     - "mathematics"
+#     - "reasoning"
+#     - "chain-of-thought"
+#     - "freetext"
+#     - "deepfabric"

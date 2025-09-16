@@ -1,16 +1,10 @@
 # Generator Pattern & Clean Architecture
 
-DeepFabric uses a **Generator Pattern** to achieve clean separation between core library logic and user interface concerns. This architectural choice provides several key benefits for both SDK users and CLI users.
+DeepFabric uses a **Generator Pattern** to achieve clean separation between core library logic and user interface concerns. 
 
-## Core Concept
 
-Traditional approach (problematic):
-```python
-# ❌ Old approach - TUI mixed with core logic
-tree.build(show_progress=True)  # Core logic knows about UI
-```
+## Generator pattern
 
-Generator pattern (clean):
 ```python
 # ✅ New approach - Core logic is pure
 for event in tree.build():  # Core yields events, caller handles UI
@@ -18,11 +12,7 @@ for event in tree.build():  # Core yields events, caller handles UI
         print(f"Done! {event['total_paths']} paths")
 ```
 
-## Benefits
-
-### 🎯 Pure SDK Usage
-
-Use DeepFabric as a library without any UI dependencies:
+This allows use of DeepFabric as a library without any UI dependencies:
 
 ```python
 from deepfabric import Tree, Graph, DataSetGenerator
@@ -33,7 +23,7 @@ list(tree.build())  # Build complete, no UI
 tree.save("ai_ethics.jsonl")
 ```
 
-### 📊 Custom Progress Monitoring
+### Custom Progress Monitoring
 
 Create your own progress handling:
 
@@ -62,7 +52,7 @@ def build_with_metrics(graph):
     return metrics
 ```
 
-### 🧪 Easy Testing
+### Easy Testing
 
 Test core logic without mocking UI:
 

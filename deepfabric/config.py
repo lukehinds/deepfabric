@@ -1,3 +1,5 @@
+from typing import Literal
+
 import yaml
 
 from pydantic import BaseModel, Field
@@ -117,6 +119,14 @@ class DataEngineConfig(BaseModel):
         description="Maximum number of retries for failed generations",
     )
     save_as: str | None = Field(default=None, description="Where to save the generated data")
+
+    # Chain of Thought parameters
+    conversation_type: Literal[
+        "basic", "structured", "tool_calling", "cot_freetext", "cot_structured", "cot_hybrid"
+    ] = Field(default="basic", description="Type of conversation to generate")
+    reasoning_style: Literal["mathematical", "logical", "general"] = Field(
+        default="general", description="Style of reasoning for CoT generation"
+    )
 
 
 class DatasetCreationConfig(BaseModel):

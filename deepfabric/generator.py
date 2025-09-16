@@ -1,7 +1,7 @@
 import math
 import random
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,8 +20,13 @@ from .dataset import Dataset
 from .exceptions import DataSetGeneratorError
 from .llm import LLMClient
 from .metrics import trace
-from .prompts import CONVERSATION_GENERATION_PROMPT
-from .schemas import ChatTranscript
+from .prompts import (
+    CONVERSATION_GENERATION_PROMPT,
+    FREETEXT_COT_PROMPT,
+    HYBRID_COT_PROMPT,
+    STRUCTURED_COT_PROMPT,
+)
+from .schemas import get_conversation_schema
 from .topic_model import TopicModel
 
 # Handle circular import for type hints
@@ -78,6 +83,14 @@ class DataSetGeneratorConfig(BaseModel):
         default=DEFAULT_REQUEST_TIMEOUT, ge=5, le=300, description="Request timeout in seconds"
     )
     sys_msg: bool = Field(default=True, description="Whether to include system message in dataset")
+
+    # Chain of Thought parameters
+    conversation_type: Literal[
+        "basic", "structured", "tool_calling", "cot_freetext", "cot_structured", "cot_hybrid"
+    ] = Field(default="basic", description="Type of conversation to generate")
+    reasoning_style: Literal["mathematical", "logical", "general"] = Field(
+        default="general", description="Style of reasoning for CoT generation"
+    )
 
 
 class DataSetGenerator:
@@ -193,16 +206,19 @@ class DataSetGenerator:
         prompts: list[str],
         include_sys_msg: bool,
     ) -> tuple[list, list]:
-        """Generate structured samples using Outlines."""
+        """Generate structured samples using Outlines with appropriate schema."""
         samples = []
         failed_responses = []
 
+        # Get the appropriate schema for the conversation type
+        schema_class = get_conversation_schema(self.config.conversation_type)
+
         for prompt in prompts:
             try:
-                # Generate structured conversation using ChatTranscript schema
+                # Generate structured content using the appropriate schema
                 conversation = self.llm_client.generate(
                     prompt=prompt,
-                    schema=ChatTranscript,
+                    schema=schema_class,
                     max_retries=self.config.max_retries,
                     max_tokens=2000,
                     temperature=self.config.temperature,
@@ -211,8 +227,8 @@ class DataSetGenerator:
                 # Convert Pydantic model to dict
                 sample = conversation.model_dump()
 
-                # Add system message at the start if sys_msg is True
-                if include_sys_msg:
+                # Add system message for conversation-based formats if sys_msg is True
+                if include_sys_msg and "messages" in sample:
                     sample["messages"].insert(
                         0,
                         {
@@ -302,7 +318,7 @@ class DataSetGenerator:
         topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
 
         total_samples = num_steps * batch_size
-        data_creation_prompt = CONVERSATION_GENERATION_PROMPT
+        data_creation_prompt = self._get_cot_prompt_template()
 
         # Use generator pattern for progress events (no TUI dependencies)
         generator = self._run_generation_loop(
@@ -376,7 +392,7 @@ class DataSetGenerator:
         topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
 
         total_samples = num_steps * batch_size
-        data_creation_prompt = CONVERSATION_GENERATION_PROMPT
+        data_creation_prompt = self._get_cot_prompt_template()
 
         # Yield from the generation loop
         yield from self._run_generation_loop(
@@ -477,14 +493,15 @@ class DataSetGenerator:
 
                 if samples:
                     failed_samples, failure_descriptions = self.dataset.add_samples(samples)
+
                     if failed_samples:
                         for sample, desc in zip(failed_samples, failure_descriptions, strict=True):
                             self.failed_samples.append(sample)
                             self.failure_analysis["invalid_schema"].append(desc)
 
                     successful_samples = len(samples) - len(failed_samples)
-
                     return True, successful_samples  # Success - exit retry loop
+
             except DataSetGeneratorError as e:
                 # Authentication and API errors are now wrapped in DataSetGeneratorError
                 error_str = str(e).lower()
@@ -509,6 +526,9 @@ class DataSetGenerator:
                     failure_type = self.analyze_failure(str(e), error=e)
                     self.failure_analysis[failure_type].append(str(e))
                     return False, 0
+            else:
+                # If no exception and no samples, return False, 0
+                return False, 0
 
         return False, 0
 
@@ -563,6 +583,15 @@ class DataSetGenerator:
         if subtopic_list is None:
             return ""
         return f"\nLastly, the topic of the training data should be related to the following subtopics: {' -> '.join(subtopic_list)}"
+
+    def _get_cot_prompt_template(self) -> str:
+        """Get the appropriate CoT prompt template based on conversation type."""
+        cot_prompts = {
+            "cot_freetext": FREETEXT_COT_PROMPT,
+            "cot_structured": STRUCTURED_COT_PROMPT,
+            "cot_hybrid": HYBRID_COT_PROMPT,
+        }
+        return cot_prompts.get(self.config.conversation_type, CONVERSATION_GENERATION_PROMPT)
 
     def save_dataset(self, save_path: str):
         """Save the dataset to a file."""
