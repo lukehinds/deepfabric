@@ -1,6 +1,6 @@
-# User Guide
+# Configuration Guide
 
-The DeepFabric user guide provides comprehensive coverage of the system's capabilities, from basic configuration concepts to advanced topic modeling techniques. This section builds systematically from foundational concepts to sophisticated workflows that leverage the full power of synthetic data generation.
+The DeepFabric configuration guide provides comprehensive coverage of YAML-based configuration for CLI usage, from basic setup to advanced topic modeling techniques. This section builds systematically from foundational concepts to sophisticated workflows that leverage the full power of synthetic data generation through configuration files.
 
 Understanding DeepFabric requires grasping its core philosophy: topic-driven generation creates more consistent and comprehensive datasets than prompt-based approaches alone. The system transforms a single root concept into a structured exploration of the domain, ensuring broad coverage while maintaining thematic coherence.
 
@@ -15,6 +15,8 @@ Each stage operates independently, allowing you to experiment with different par
 The YAML configuration system provides comprehensive control over every aspect of generation while maintaining readability and version control compatibility. Rather than requiring complex command-line arguments, configurations capture your complete experimental setup in a single, shareable file.
 
 The configuration structure mirrors the generation pipeline, with distinct sections for topic modeling, dataset generation, and output formatting. This separation allows precise control over each stage while providing sensible defaults for rapid experimentation.
+
+For programmatic usage and SDK integration, see the **[SDK Guide](generator-pattern.md)** which covers using DeepFabric directly in Python code.
 
 ## Topic Modeling Approaches
 

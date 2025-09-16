@@ -123,6 +123,6 @@ This command checks your configuration for common issues, missing required field
 
 ## Next Steps
 
-With your first dataset successfully generated, explore the [User Guide](../guide/index.md) to understand advanced configuration options, or review the [CLI Reference](../cli/index.md) to discover additional commands for dataset management and visualization.
+With your first dataset successfully generated, explore the [Configuration Guide](../guide/index.md) to understand advanced configuration options, or review the [CLI Reference](../cli/index.md) to discover additional commands for dataset management and visualization.
 
 The generated dataset is ready for immediate use in training frameworks, evaluation pipelines, or research experiments. The JSONL format integrates seamlessly with popular machine learning libraries and Hugging Face datasets.

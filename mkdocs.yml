@@ -10,13 +10,12 @@ nav:
     - Overview: getting-started/index.md
     - Installation: getting-started/installation.md
     - First Dataset: getting-started/first-dataset.md
-  - User Guide:
+  - Configuration Guide:
     - Overview: guide/index.md
     - Configuration: guide/configuration.md
     - Topic Trees: guide/topic-trees.md
     - Topic Graphs: guide/topic-graphs.md
     - Dataset Generation: guide/dataset-generation.md
-    - Generator Pattern: guide/generator-pattern.md
     - System Prompts: guide/system-prompts.md
     - Provider Integration: guide/provider-integration.md
     - Instruction Formats:
@@ -36,6 +35,8 @@ nav:
         - Reference:
           - Schemas: guide/instruction-formats/chain-of-thought/reference/schemas.md
           - Troubleshooting: guide/instruction-formats/chain-of-thought/reference/troubleshooting.md
+  - SDK Guide:
+    - Generator Pattern: guide/generator-pattern.md
   - CLI Reference:
     - Overview: cli/index.md
     - generate: cli/generate.md
