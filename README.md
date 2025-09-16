@@ -308,6 +308,6 @@ Push to Kaggel
 
 ## Analytics
 
-We use fully anonymised analytics, to help us improve application performance and stablity. **We never** send Personal identifiable information and we **do never** capture prompts, generated content, API keys etc. We capture model names and numeric parameters (temperature, depth, degree, batch_size), timing and success/failure rates - this then helps us find optimizations or bottlenecks.
+We use fully anonymised analytics, to help us improve application performance and stablity. **We never** send Personal identifiable information and **we do not** capture prompts, generated content, API keys etc. We capture model names, numeric parameters (temperature, depth, degree, batch_size), timing and success/failure rates - this then helps us find optimizations or bottlenecks.
 
 Should you wish to opt-out, just set `ANONYMIZED_TELEMETRY=False`.
