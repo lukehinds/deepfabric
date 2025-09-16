@@ -1,11 +1,12 @@
 import os
 import sys
-import tempfile
 
 from typing import NoReturn
 
 import click
 import yaml
+
+from pydantic import ValidationError
 
 from .config import DeepFabricConfig
 from .constants import (
@@ -366,15 +367,10 @@ def generate(  # noqa: PLR0912, PLR0913
                 }
 
             # Create config object from dict
-
-            with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-                yaml.dump(minimal_config, f)
-                temp_config_path = f.name
-
             try:
-                config = DeepFabricConfig.from_yaml(temp_config_path)
-            finally:
-                os.unlink(temp_config_path)
+                config = DeepFabricConfig.model_validate(minimal_config)
+            except ValidationError as e:
+                handle_error(click.get_current_context(), e)
 
         # Apply dataset system prompt override if provided
         if dataset_system_prompt:
