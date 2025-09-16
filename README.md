@@ -127,6 +127,16 @@ DeepFabric can generate topics using two approaches:
 
 **Topic Trees**: Traditional hierarchical structure where each topic branches into subtopics, perfect for well-organized domains.
 
+### Chain of Thought (CoT) Support
+
+DeepFabric now supports generating Chain of Thought datasets for training models on step-by-step reasoning tasks. Three formats are available:
+
+- **Free-text CoT**: Natural language reasoning in the style of GSM8K, ideal for mathematical and logical problem-solving
+- **Structured CoT**: Combines conversational interactions with explicit reasoning traces, perfect for educational and tutoring applications
+- **Hybrid CoT**: Merges free-text reasoning with structured steps, suitable for complex multi-modal reasoning tasks. This is particulary useful for reducing over-fit risk that might occur using exclusively Structured CoT.
+
+Each format can be configured with different reasoning styles (mathematical, logical, general) to optimize for your specific domain. The CoT generation leverages structured output with Pydantic schemas to ensure consistent, high-quality reasoning chains.
+
 ### Multi-Provider Support
 
 Leverage different LLMs for different tasks. Use GPT-4 for complex topic generation, then switch to a local model like Mixtral for bulk data creation:
@@ -138,7 +148,7 @@ topic_tree:
 
 data_engine:
   provider: "ollama"
-  model: "mixtral"  # Fast and efficient for bulk generation
+  model: "mistral:latest"  # Fast and efficient for bulk generation
 ```
 
 ### Automatic Dataset Upload
@@ -239,39 +249,6 @@ deepfabric generate config.yaml \
   --hf-tags tag1 --hf-tags tag2
 ```
 
-### Supported Providers
-
-DeepFabric supports serveral providers. Here are the most common:
-
-**OpenAI**
-```yaml
-provider: "openai"
-model: "gpt-4-turbo-preview"
-# Set: export OPENAI_API_KEY="your-key"
-```
-
-**Anthropic**
-```yaml
-provider: "anthropic"
-model: "claude-3-opus-20240229"
-# Set: export ANTHROPIC_API_KEY="your-key"
-```
-
-**Google**
-```yaml
-provider: "gemini"
-model: "gemini-pro"
-# Set: export GEMINI_API_KEY="your-key"
-```
-
-**Ollama (Local)**
-```yaml
-provider: "ollama"
-model: "qwen3:8b:latest"
-# No API key needed
-```
-
-
 ## Docs / Examples
 
 For more details, including how to use the SDK, see the [docs!](https://lukehinds.github.io/DeepFabric/)
@@ -283,6 +260,10 @@ There are also lots of [examples](./examples/README.md) to get you going.
 Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way to follow the project and to be instantly notified of new releases, **Star the repo**.
 
 <img src="/assets/star.gif" width="40%" height="40%"/>
+
+### Are you using DeepFabric
+
+We would love to hear you experience and do share with us how we might better serve your needs.
 
 ## Roadmap
 
@@ -300,7 +281,7 @@ formatters:
 
 ### More Conversations Types
 
-We will be introducing, multi-turn, reasoning, chain-of-thought etc.
+We will be introducing additional conversation patterns including multi-turn dialogues, tool-calling interactions, and more.
 
 ### Kaggel Support
 

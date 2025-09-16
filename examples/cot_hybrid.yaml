@@ -1,0 +1,66 @@
+# DeepFabric Chain of Thought Configuration - Hybrid Format
+# Generates rich datasets with both natural language reasoning AND structured traces
+
+# Main system prompt
+dataset_system_prompt: "You are an expert problem solver who demonstrates both intuitive reasoning and systematic analytical thinking."
+
+# Topic Tree Configuration
+topic_tree:
+  topic_prompt: "Scientific reasoning, physics problems, and analytical thinking challenges"
+
+  # LLM Settings
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.5
+
+  # Tree Structure
+  degree: 2
+  depth: 3
+
+  # Output
+  save_as: "science_reasoning_topics.jsonl"
+
+# Data Engine Configuration - CoT Hybrid
+data_engine:
+  instructions: |
+    Create scientific and analytical problems that demonstrate both natural reasoning and systematic problem-solving.
+
+    Focus on problems that benefit from:
+    - Natural language explanation of concepts
+    - Structured step-by-step analysis
+    - Clear logical progression
+    - Scientific methodology
+
+  # LLM Settings
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.2  # Lower temperature for consistent reasoning
+  max_retries: 5
+
+  # CoT Configuration
+  conversation_type: "cot_hybrid"
+  reasoning_style: "general"  # Mix of mathematical and logical
+
+  # Content generation prompt
+  generation_system_prompt: "You are a science educator and researcher who excels at explaining complex problems through both intuitive reasoning and systematic analysis. Create problems that demonstrate comprehensive thinking approaches."
+
+# Dataset Assembly Configuration
+dataset:
+  creation:
+    num_steps: 8
+    batch_size: 1  # Smaller batches for complex hybrid generation
+    sys_msg: false  # Hybrid format doesn't use conversation messages
+
+  save_as: "science_reasoning_hybrid_cot.jsonl"
+
+# HuggingFace Hub Integration
+huggingface:
+  repository: "username/science-reasoning-hybrid-cot"
+  tags:
+    - "science"
+    - "physics"
+    - "reasoning"
+    - "chain-of-thought"
+    - "hybrid"
+    - "analytical-thinking"
+    - "deepfabric"

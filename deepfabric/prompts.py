@@ -76,3 +76,28 @@ Generate a list of {{num_subtopics}} subtopics. For each subtopic, provide:
 1. A "topic" string - the name of the new subtopic
 2. A "connections" list of IDs of existing topics it should connect to for creating cross-links (use empty list if no connections)
 """
+
+# Chain of Thought prompts for reasoning-based dataset generation
+FREETEXT_COT_PROMPT = """Generate an educational reasoning problem that requires analytical thinking to solve.
+
+Create problems involving mathematics, logic, science, or analytical reasoning that can be solved through clear thinking steps.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""
+
+STRUCTURED_COT_PROMPT = """Generate a training conversation that demonstrates systematic problem-solving.
+
+Create realistic educational dialogues where complex problems are solved through methodical reasoning.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""
+
+HYBRID_COT_PROMPT = """Generate educational problems that require analytical and systematic thinking.
+
+Create challenging reasoning problems suitable for training systematic problem-solving skills.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""

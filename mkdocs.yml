@@ -16,8 +16,26 @@ nav:
     - Topic Trees: guide/topic-trees.md
     - Topic Graphs: guide/topic-graphs.md
     - Dataset Generation: guide/dataset-generation.md
+    - Generator Pattern: guide/generator-pattern.md
     - System Prompts: guide/system-prompts.md
     - Provider Integration: guide/provider-integration.md
+    - Instruction Formats:
+      - Chain of Thought:
+        - Overview: guide/instruction-formats/chain-of-thought/index.md
+        - Formats:
+          - Free-text CoT: guide/instruction-formats/chain-of-thought/formats/free-text.md
+          - Structured CoT: guide/instruction-formats/chain-of-thought/formats/structured.md
+          - Hybrid CoT: guide/instruction-formats/chain-of-thought/formats/hybrid.md
+        - Configuration:
+          - YAML Config: guide/instruction-formats/chain-of-thought/configuration/yaml-config.md
+          - Python API: guide/instruction-formats/chain-of-thought/configuration/python-api.md
+        - Tutorials:
+          - Math Reasoning: guide/instruction-formats/chain-of-thought/tutorials/math-reasoning.md
+        - Advanced:
+          - Reasoning Styles: guide/instruction-formats/chain-of-thought/advanced/reasoning-styles.md
+        - Reference:
+          - Schemas: guide/instruction-formats/chain-of-thought/reference/schemas.md
+          - Troubleshooting: guide/instruction-formats/chain-of-thought/reference/troubleshooting.md
   - CLI Reference:
     - Overview: cli/index.md
     - generate: cli/generate.md
@@ -43,7 +61,7 @@ theme:
     code: Fira Code
   palette:
     - scheme: default
-      primary: indigo
+      primary: black
       accent: indigo
       toggle:
         icon: material/brightness-7

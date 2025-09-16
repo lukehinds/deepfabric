@@ -1,0 +1,58 @@
+# DeepFabric Chain of Thought Configuration - Structured Format
+# Generates conversation-based datasets with structured reasoning traces
+
+# Main system prompt
+dataset_system_prompt: "You are a helpful AI assistant that demonstrates systematic problem-solving through structured reasoning steps."
+
+# Topic Graph Configuration (for more complex interconnected reasoning)
+topic_graph:
+  topic_prompt: "Computer science algorithms, data structures, and logical problem solving"
+
+  # LLM Settings
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.6
+
+  # Graph Structure
+  degree: 2
+  depth: 2
+
+  # Output
+  save_as: "cs_reasoning_graph.json"
+
+# Data Engine Configuration - CoT Structured
+data_engine:
+  instructions: "Create programming and algorithmic problems that require systematic thinking. Include conversations that demonstrate structured problem-solving approaches with clear reasoning steps."
+
+  # LLM Settings
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.4
+  max_retries: 4
+
+  # CoT Configuration
+  conversation_type: "cot_structured"
+  reasoning_style: "logical"
+
+  # Content generation prompt
+  generation_system_prompt: "You are a computer science instructor creating educational dialogues. Generate conversations where the assistant demonstrates systematic problem-solving with explicit reasoning steps for algorithmic and logical challenges."
+
+# Dataset Assembly Configuration
+dataset:
+  creation:
+    num_steps: 4
+    batch_size: 1
+    sys_msg: true  # Include system messages in conversations
+
+  save_as: "cs_reasoning_structured_cot.jsonl"
+
+# HuggingFace Hub Integration
+# huggingface:
+#   repository: "username/cs-reasoning-structured-cot"
+#   tags:
+#     - "computer-science"
+#     - "algorithms"
+#     - "reasoning"
+#     - "chain-of-thought"
+#     - "structured"
+#     - "deepfabric"

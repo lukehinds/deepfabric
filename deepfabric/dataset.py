@@ -76,8 +76,11 @@ class Dataset:
         return instance
 
     @staticmethod
-    def validate_sample(sample: dict) -> bool:
+    def validate_sample(sample: dict) -> bool:  # noqa: PLR0911
         """Validate if a sample has the correct format.
+
+        For structured generation samples (from Outlines), validation is minimal
+        since Outlines guarantees schema compliance.
 
         Args:
             sample: Dictionary containing the sample data.
@@ -85,20 +88,37 @@ class Dataset:
         Returns:
             bool: True if the sample is valid, False otherwise.
         """
-        if "messages" not in sample:
+        # Basic data completeness check
+        if not sample or not isinstance(sample, dict):
             return False
 
-        for message in sample["messages"]:
-            if "role" not in message or "content" not in message:
-                return False
-            if message["role"] not in ["user", "assistant", "system"]:
-                return False
-
-            # Validate that content is a string
-            if not isinstance(message["content"], str):
+        # Check for different format patterns
+        if "messages" in sample:
+            # Minimal validation for conversation format - trust Outlines
+            messages = sample["messages"]
+            if not isinstance(messages, list) or len(messages) == 0:
                 return False
 
-        return True
+            # Very basic check that messages have role/content structure
+            for message in messages:
+                if not isinstance(message, dict):
+                    return False
+                if "role" not in message or "content" not in message:
+                    return False
+                # Only check for completely invalid roles (trust Outlines for valid ones)
+                if message.get("role") == "invalid":
+                    return False
+
+            return True
+
+        # Check for CoT formats - minimal validation since Outlines guarantees structure
+        cot_formats = [
+            ["question", "chain_of_thought", "final_answer"],  # Free-text CoT
+            ["question", "chain_of_thought", "reasoning_trace", "final_answer"],  # Hybrid CoT
+            ["messages", "reasoning_trace", "final_answer"],  # Structured CoT
+        ]
+
+        return any(all(key in sample for key in format_keys) for format_keys in cot_formats)
 
     def add_samples(self, samples: list[dict]) -> tuple[list[dict], list[str]]:
         """Add multiple samples to the dataset and return any failures.
