@@ -37,7 +37,7 @@
   <br/>
 </div>
 
-**DeepFabric** is a CLI tool and SDK, that leverages large language models to generate high-quality synthetic datasets. It's designed for researchers and developers building teacher-student distillation pipelines, creating evaluation benchmarks for models and agents, or conducting research requiring diverse training data.
+**DeepFabric** (formerly promptwright) is a CLI tool and SDK, that leverages large language models to generate high-quality synthetic datasets. It's designed for researchers and developers building teacher-student distillation pipelines, creating evaluation benchmarks for models and agents, or conducting research requiring diverse training data.
 
 The key innovation lies in DeepFabric's graph and tree-based architecture, which uses structured topic nodes as generation seeds. This approach ensures the creation of datasets that are both highly diverse and domain-specific, while minimizing redundancy and duplication across generated samples.
 
