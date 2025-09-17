@@ -3,7 +3,6 @@ Integration tests for Graph generation.
 """
 
 import json
-import os
 
 import pytest
 
@@ -164,9 +163,6 @@ class TestGraphIntegration:
 
     def test_graph_with_github_provider(self):
         """Test graph creation specifically with GitHub provider."""
-        # Skip if no GitHub token
-        if not (os.environ.get("GITHUB_TOKEN") or os.environ.get("MODELS_TOKEN")):
-            pytest.skip("GITHUB_TOKEN or MODELS_TOKEN not available")
 
         graph = Graph(
             topic_prompt="Web development basics",

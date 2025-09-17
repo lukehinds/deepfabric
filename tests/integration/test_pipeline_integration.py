@@ -3,9 +3,6 @@ End-to-end pipeline integration tests.
 """
 
 import json
-import os
-
-import pytest
 
 from deepfabric import DataSetGenerator, DeepFabricConfig, Tree
 
@@ -267,8 +264,6 @@ class TestPipelineIntegration:
 
     def test_pipeline_with_github_provider(self, temp_output_dir):
         """Test complete pipeline with GitHub provider."""
-        if not (os.environ.get("GITHUB_TOKEN") or os.environ.get("MODELS_TOKEN")):
-            pytest.skip("GITHUB_TOKEN or MODELS_TOKEN not available")
 
         github_config = {
             "provider": "github",

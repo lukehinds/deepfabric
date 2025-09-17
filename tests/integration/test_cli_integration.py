@@ -123,8 +123,6 @@ class TestCLIIntegration:
 
     def test_cli_tree_mode(self, temp_output_dir):
         """Test CLI with tree mode explicitly."""
-        if not (os.environ.get("GITHUB_TOKEN") or os.environ.get("MODELS_TOKEN")):
-            pytest.skip("GITHUB_TOKEN or MODELS_TOKEN not available")
 
         tree_path = temp_output_dir / "cli_tree_mode.jsonl"
         dataset_path = temp_output_dir / "cli_tree_dataset.jsonl"
@@ -163,8 +161,6 @@ class TestCLIIntegration:
 
     def test_cli_graph_mode(self, temp_output_dir):
         """Test CLI with graph mode."""
-        if not (os.environ.get("GITHUB_TOKEN") or os.environ.get("MODELS_TOKEN")):
-            pytest.skip("GITHUB_TOKEN or MODELS_TOKEN not available")
 
         graph_path = temp_output_dir / "cli_graph.json"
         dataset_path = temp_output_dir / "cli_graph_dataset.jsonl"
@@ -254,8 +250,6 @@ class TestCLIIntegration:
 
     def test_cli_visualize_command(self, temp_output_dir):
         """Test CLI visualize command."""
-        if not (os.environ.get("GITHUB_TOKEN") or os.environ.get("MODELS_TOKEN")):
-            pytest.skip("GITHUB_TOKEN or MODELS_TOKEN not available")
 
         # First create a graph
         graph_path = temp_output_dir / "viz_graph.json"

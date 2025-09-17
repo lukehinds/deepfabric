@@ -2,8 +2,6 @@
 Integration tests for DataSetGenerator.
 """
 
-import os
-
 import pytest
 
 from deepfabric import Dataset, DataSetGenerator, Tree
@@ -189,8 +187,6 @@ class TestDataSetGeneratorIntegration:
 
     def test_generator_with_github_provider(self):
         """Test generator specifically with GitHub provider."""
-        if not (os.environ.get("GITHUB_TOKEN") or os.environ.get("MODELS_TOKEN")):
-            pytest.skip("GITHUB_TOKEN or MODELS_TOKEN not available")
 
         # Create tree
         tree = Tree(

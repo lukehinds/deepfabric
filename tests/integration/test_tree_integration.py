@@ -2,8 +2,6 @@
 Integration tests for Tree generation.
 """
 
-import os
-
 import pytest
 
 from deepfabric import Tree
@@ -132,9 +130,6 @@ class TestTreeIntegration:
 
     def test_tree_with_github_provider(self):
         """Test tree creation specifically with GitHub provider."""
-        # Skip if no GitHub token
-        if not (os.environ.get("GITHUB_TOKEN") or os.environ.get("MODELS_TOKEN")):
-            pytest.skip("GITHUB_TOKEN or MODELS_TOKEN not available")
 
         tree = Tree(
             topic_prompt="Machine learning basics",
