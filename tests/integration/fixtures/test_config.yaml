@@ -1,0 +1,31 @@
+dataset_system_prompt: "You are a helpful AI assistant focused on providing clear, accurate, and concise responses."
+
+topic_tree:
+  args:
+    topic_prompt: "Basic Python programming concepts"
+    topic_system_prompt: "You are an expert Python educator creating educational content."
+    degree: 2
+    depth: 2
+    provider: "github"
+    model_name: "openai/gpt-4o-mini"
+    temperature: 0.1
+  save_as: "test_tree.jsonl"
+
+data_engine:
+  instructions: "Create simple Python programming questions and answers suitable for beginners."
+  args:
+    generation_system_prompt: "You are a Python programming tutor. Create clear, educational content with practical examples."
+    provider: "github"
+    model_name: "openai/gpt-4o-mini"
+    temperature: 0.1
+    max_retries: 2
+    default_batch_size: 2
+    default_num_examples: 1
+    request_timeout: 30
+    sys_msg: true
+
+dataset:
+  creation:
+    num_steps: 5
+    batch_size: 2
+  save_as: "test_dataset.jsonl"

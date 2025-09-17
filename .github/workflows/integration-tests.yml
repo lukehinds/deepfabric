@@ -1,0 +1,177 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  models: read
+  contents: read
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30  # Prevent hanging tests
+
+    strategy:
+      matrix:
+        python-version: ['3.11']
+      fail-fast: false  # Continue testing other versions if one fails
+
+    steps:
+    - uses: actions/checkout@v5
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        cache-dependency-glob: "uv.lock"
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras
+
+    - name: Verify GitHub Models access
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        curl -s "https://models.github.ai/inference/chat/completions" \
+          -H "Content-Type: application/json" \
+          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -d '{
+            "messages": [{"role": "user", "content": "Hello"}],
+            "model": "openai/gpt-4o-mini",
+            "max_tokens": 10
+          }' || echo "GitHub Models API test failed - tests may be skipped"
+
+    - name: Run tree integration tests
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DEEPFABRIC_TESTING: "true"
+        ANONYMIZED_TELEMETRY: "False"
+      run: |
+        uv run pytest tests/integration/test_tree_integration.py -v \
+          --tb=short \
+          --durations=10 \
+          --timeout=300
+
+    - name: Run graph integration tests
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DEEPFABRIC_TESTING: "true"
+        ANONYMIZED_TELEMETRY: "False"
+      run: |
+        uv run pytest tests/integration/test_graph_integration.py -v \
+          --tb=short \
+          --durations=10 \
+          --timeout=300
+
+    - name: Run generator integration tests
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DEEPFABRIC_TESTING: "true"
+        ANONYMIZED_TELEMETRY: "False"
+      run: |
+        uv run pytest tests/integration/test_generator_integration.py -v \
+          --tb=short \
+          --durations=10 \
+          --timeout=300
+
+    - name: Run pipeline integration tests
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DEEPFABRIC_TESTING: "true"
+        ANONYMIZED_TELEMETRY: "False"
+      run: |
+        uv run pytest tests/integration/test_pipeline_integration.py -v \
+          --tb=short \
+          --durations=10 \
+          --timeout=300
+
+    - name: Run CLI integration tests
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        DEEPFABRIC_TESTING: "true"
+        ANONYMIZED_TELEMETRY: "False"
+      run: |
+        uv run pytest tests/integration/test_cli_integration.py -v \
+          --tb=short \
+          --durations=10 \
+          --timeout=300
+
+    - name: Generate integration test report
+      if: always()
+      run: |
+        echo "## Integration Test Summary" > integration_report.md
+        echo "- **Python Version**: ${{ matrix.python-version }}" >> integration_report.md
+        echo "- **Timestamp**: $(date)" >> integration_report.md
+        echo "- **Branch**: ${{ github.ref }}" >> integration_report.md
+        echo "- **Commit**: ${{ github.sha }}" >> integration_report.md
+
+        # Count test files
+        echo "- **Test Files**: $(find tests/integration -name 'test_*.py' | wc -l)" >> integration_report.md
+
+        # Show which tests were run
+        echo "" >> integration_report.md
+        echo "### Test Coverage" >> integration_report.md
+        echo "- Tree Generation Tests" >> integration_report.md
+        echo "- Graph Generation Tests" >> integration_report.md
+        echo "- Dataset Generator Tests" >> integration_report.md
+        echo "- End-to-End Pipeline Tests" >> integration_report.md
+        echo "- CLI Integration Tests" >> integration_report.md
+
+    - name: Upload test artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-test-results-${{ matrix.python-version }}
+        path: |
+          integration_report.md
+          .pytest_cache/
+        retention-days: 7
+
+    - name: Check for test failures
+      if: failure()
+      run: |
+        echo "❌ Integration tests failed!"
+        echo "Please check the logs above for details."
+        echo "Common issues:"
+        echo "- GitHub Models API rate limits"
+        echo "- Network connectivity"
+        echo "- Test timeouts"
+        exit 1
+
+  integration-test-summary:
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+    - name: Integration Test Summary
+      run: |
+        echo "## Integration Test Results"
+        echo "Status: ${{ needs.integration-tests.result }}"
+
+        if [ "${{ needs.integration-tests.result }}" == "success" ]; then
+          echo "✅ All integration tests passed!"
+          echo "The following components have been validated:"
+          echo "- GitHub Models provider integration"
+          echo "- Tree and Graph generation"
+          echo "- Dataset generation pipeline"
+          echo "- CLI functionality"
+          echo "- End-to-end workflows"
+        else
+          echo "❌ Integration tests failed or were skipped"
+          echo "This may be due to:"
+          echo "- Missing GITHUB_TOKEN (tests are skipped automatically)"
+          echo "- GitHub Models API issues"
+          echo "- Test timeouts or network issues"
+        fi

@@ -36,7 +36,7 @@ def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
     """Create an Outlines model for the specified provider and model.
 
     Args:
-        provider: Provider name (openai, anthropic, gemini, ollama)
+        provider: Provider name (openai, anthropic, gemini, ollama, github)
         model_name: Model identifier
         **kwargs: Additional parameters passed to the client
 
@@ -82,6 +82,20 @@ def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
             client = openai.OpenAI(
                 base_url=base_url,
                 api_key="ollama",  # Dummy key for Ollama
+                **{k: v for k, v in kwargs.items() if k != "base_url"},
+            )
+            return outlines.from_openai(client, model_name)
+
+        if provider == "github":
+            # Use GitHub Models API with OpenAI-compatible interface
+            api_key = os.getenv("GITHUB_TOKEN") or os.getenv("MODELS_TOKEN")
+            if not api_key:
+                _raise_api_key_error("GITHUB_TOKEN or MODELS_TOKEN")
+
+            base_url = kwargs.get("base_url", "https://models.github.ai/inference")
+            client = openai.OpenAI(
+                base_url=base_url,
+                api_key=api_key,
                 **{k: v for k, v in kwargs.items() if k != "base_url"},
             )
             return outlines.from_openai(client, model_name)
