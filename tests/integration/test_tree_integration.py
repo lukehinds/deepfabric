@@ -7,7 +7,7 @@ import os
 import pytest
 
 from deepfabric import Tree
-from deepfabric.exceptions import TreeError
+from deepfabric.exceptions import DataSetGeneratorError, TreeError
 
 MESSAGE_LIMIT = 2
 TOTAL_PATHS = 4
@@ -167,5 +167,5 @@ class TestTreeIntegration:
         )
 
         # Build should raise appropriate error
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(DataSetGeneratorError):
             list(tree.build())

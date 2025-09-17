@@ -60,8 +60,7 @@ jobs:
       run: |
         uv run pytest tests/integration/test_tree_integration.py -v \
           --tb=short \
-          --durations=10 \
-          --timeout=300
+          --durations=10
 
     - name: Run graph integration tests
       env:
@@ -71,8 +70,7 @@ jobs:
       run: |
         uv run pytest tests/integration/test_graph_integration.py -v \
           --tb=short \
-          --durations=10 \
-          --timeout=300
+          --durations=10
 
     - name: Run generator integration tests
       env:
@@ -82,8 +80,7 @@ jobs:
       run: |
         uv run pytest tests/integration/test_generator_integration.py -v \
           --tb=short \
-          --durations=10 \
-          --timeout=300
+          --durations=10
 
     - name: Run pipeline integration tests
       env:
@@ -93,8 +90,7 @@ jobs:
       run: |
         uv run pytest tests/integration/test_pipeline_integration.py -v \
           --tb=short \
-          --durations=10 \
-          --timeout=300
+          --durations=10
 
     - name: Run CLI integration tests
       env:
@@ -104,8 +100,7 @@ jobs:
       run: |
         uv run pytest tests/integration/test_cli_integration.py -v \
           --tb=short \
-          --durations=10 \
-          --timeout=300
+          --durations=10
 
     - name: Generate integration test report
       if: always()

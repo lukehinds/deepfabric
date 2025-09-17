@@ -8,6 +8,7 @@ import os
 import pytest
 
 from deepfabric import Graph
+from deepfabric.exceptions import DataSetGeneratorError
 
 MESSAGE_LIMIT = 2
 
@@ -223,5 +224,5 @@ class TestGraphIntegration:
         )
 
         # Build should raise appropriate error
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(DataSetGeneratorError):
             list(graph.build())
