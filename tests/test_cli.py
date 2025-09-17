@@ -128,7 +128,7 @@ def test_generate_help(cli_runner):
     assert "--sys-msg" in result.output
 
 
-@patch("deepfabric.cli.create_topic_generator")
+@patch("deepfabric.topic_manager.create_topic_generator")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_basic(
     mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
@@ -174,7 +174,7 @@ def test_generate_command_basic(
     mock_dataset.save.assert_called_once()
 
 
-@patch("deepfabric.cli.create_topic_generator")
+@patch("deepfabric.topic_manager.create_topic_generator")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_with_sys_msg_override(
     mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
@@ -218,7 +218,7 @@ def test_generate_command_with_sys_msg_override(
     assert kwargs["sys_msg"] is False
 
 
-@patch("deepfabric.cli.create_topic_generator")
+@patch("deepfabric.topic_manager.create_topic_generator")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_default_sys_msg(
     mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file_no_sys_msg
@@ -254,7 +254,7 @@ def test_generate_command_default_sys_msg(
     assert "sys_msg" not in kwargs or kwargs["sys_msg"] is None
 
 
-@patch("deepfabric.cli.create_topic_generator")
+@patch("deepfabric.topic_manager.create_topic_generator")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_with_overrides(
     mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
@@ -324,8 +324,8 @@ def test_generate_command_with_overrides(
     assert kwargs["sys_msg"] is False
 
 
-@patch("deepfabric.cli.read_topic_tree_from_jsonl")
-@patch("deepfabric.cli.Tree")
+@patch("deepfabric.topic_manager.read_topic_tree_from_jsonl")
+@patch("deepfabric.topic_manager.Tree")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_with_jsonl(
     mock_data_engine,
@@ -405,7 +405,7 @@ def test_generate_command_invalid_yaml(cli_runner):
             os.unlink(temp_path)
 
 
-@patch("deepfabric.cli.create_topic_generator")
+@patch("deepfabric.topic_manager.create_topic_generator")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_error_handling(
     _mock_data_engine,
@@ -422,7 +422,7 @@ def test_generate_command_error_handling(
 
     # Verify command failed with error
     assert result.exit_code != 0
-    assert "Error" in result.output
+    assert "error" in result.output.lower()  # Case-insensitive check
     assert "Test error" in result.output
 
 
@@ -475,7 +475,7 @@ def test_upload_command(mock_uploader, cli_runner):
             os.unlink(temp_path)
 
 
-@patch("deepfabric.cli.Graph.from_json")
+@patch("deepfabric.topic_manager.Graph.from_json")
 def test_visualize_command(mock_from_json, cli_runner):
     """Test visualize command."""
     # Create a temporary graph JSON file
