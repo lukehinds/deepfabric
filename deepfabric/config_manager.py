@@ -4,7 +4,6 @@ from pydantic import ValidationError
 
 from .config import DeepFabricConfig
 from .constants import (
-    DEFAULT_BATCH_SIZE,
     DEFAULT_MAX_RETRIES,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
