@@ -4,8 +4,19 @@ from pydantic import ValidationError
 
 from .config import DeepFabricConfig
 from .constants import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_MODEL,
+    DEFAULT_PROVIDER,
+    ENGINE_DEFAULT_BATCH_SIZE,
+    ENGINE_DEFAULT_NUM_EXAMPLES,
+    ENGINE_DEFAULT_TEMPERATURE,
+    TOPIC_GRAPH_DEFAULT_DEGREE,
+    TOPIC_GRAPH_DEFAULT_DEPTH,
+    TOPIC_GRAPH_DEFAULT_TEMPERATURE,
     TOPIC_TREE_DEFAULT_DEGREE,
     TOPIC_TREE_DEFAULT_DEPTH,
+    TOPIC_TREE_DEFAULT_TEMPERATURE,
 )
 from .exceptions import ConfigurationError
 from .tui import get_tui
@@ -80,17 +91,17 @@ def load_config(
         "data_engine": {
             "instructions": "Generate diverse and educational examples",
             "generation_system_prompt": default_prompt,
-            "provider": provider or "gemini",
-            "model": model or "gemini-2.5-flash-lite",
-            "temperature": temperature or 0.9,
-            "max_retries": 3,
+            "provider": provider or DEFAULT_PROVIDER,
+            "model": model or DEFAULT_MODEL,
+            "temperature": temperature or ENGINE_DEFAULT_TEMPERATURE,
+            "max_retries": DEFAULT_MAX_RETRIES,
         },
         "dataset": {
             "creation": {
-                "num_steps": num_steps or 5,
-                "batch_size": batch_size or 2,
-                "provider": provider or "gemini",
-                "model": model or "gemini-2.5-flash-lite",
+                "num_steps": num_steps or ENGINE_DEFAULT_NUM_EXAMPLES,
+                "batch_size": batch_size or ENGINE_DEFAULT_BATCH_SIZE,
+                "provider": provider or DEFAULT_PROVIDER,
+                "model": model or DEFAULT_MODEL,
                 "sys_msg": sys_msg if sys_msg is not None else True,
             },
             "save_as": dataset_save_as or "dataset.jsonl",
@@ -101,21 +112,21 @@ def load_config(
     if mode == "graph":
         minimal_config["topic_graph"] = {
             "topic_prompt": topic_prompt,
-            "provider": provider or "gemini",
-            "model": model or "gemini-2.5-flash-lite",
-            "temperature": temperature or 0.7,
-            "degree": degree or 3,
-            "depth": depth or 2,
+            "provider": provider or DEFAULT_PROVIDER,
+            "model": model or DEFAULT_MODEL,
+            "temperature": temperature or TOPIC_GRAPH_DEFAULT_TEMPERATURE,
+            "degree": degree or TOPIC_GRAPH_DEFAULT_DEGREE,
+            "depth": depth or TOPIC_GRAPH_DEFAULT_DEPTH,
             "save_as": save_graph or "topic_graph.json",
         }
     else:  # mode == "tree" (default)
         minimal_config["topic_tree"] = {
             "topic_prompt": topic_prompt,
-            "provider": provider or "gemini",
-            "model": model or "gemini-2.5-flash-lite",
-            "temperature": temperature or 0.7,
-            "degree": degree or 3,
-            "depth": depth or 3,
+            "provider": provider or DEFAULT_PROVIDER,
+            "model": model or DEFAULT_MODEL,
+            "temperature": temperature or TOPIC_TREE_DEFAULT_TEMPERATURE,
+            "degree": degree or TOPIC_TREE_DEFAULT_DEGREE,
+            "depth": depth or TOPIC_TREE_DEFAULT_DEPTH,
             "save_as": save_tree or "topic_tree.jsonl",
         }
 
