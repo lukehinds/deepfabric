@@ -237,10 +237,7 @@ class TestPipelineIntegration:
         graph_path = temp_output_dir / "pipeline_graph.json"
         graph.save(str(graph_path))
 
-        # Convert to tree for dataset generation
-        tree = graph.to_tree()  # type: ignore
-
-        # Generate dataset
+        # Generate dataset using graph as topic model
         generator = DataSetGenerator(
             instructions="Create software engineering content",
             generation_system_prompt="You are a software engineering instructor.",
@@ -250,7 +247,7 @@ class TestPipelineIntegration:
         dataset = generator.create_data(
             num_steps=2,
             batch_size=1,
-            topic_model=tree,
+            topic_model=graph,  # Use graph directly as topic model
         )
 
         # Save dataset
