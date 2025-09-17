@@ -140,7 +140,7 @@ dataset.save("output.jsonl")
 config = DeepFabricConfig.from_yaml("config.yaml")
 
 # Use configuration parameters
-tree_params = config.get_tree_params()
+tree_params = config.get_topic_tree_params()
 engine_params = config.get_engine_params()
 dataset_config = config.get_dataset_config()
 ```

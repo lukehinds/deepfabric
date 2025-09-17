@@ -76,7 +76,7 @@ class TestPipelineIntegration:
         dataset_path = temp_output_dir / "config_dataset.jsonl"
 
         # Step 1: Create tree from config
-        tree_params = config.get_tree_params()  # type: ignore
+        tree_params = config.get_topic_tree_params()  # type: ignore
         tree = Tree(**tree_params)
         list(tree.build())
         tree.save(str(tree_path))
