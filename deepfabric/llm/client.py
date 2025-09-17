@@ -79,10 +79,12 @@ def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
         if provider == "ollama":
             # Use OpenAI-compatible endpoint for Ollama
             base_url = kwargs.get("base_url", "http://localhost:11434/v1")
+            client_kwargs = kwargs.copy()
+            client_kwargs.pop("base_url", None)
             client = openai.OpenAI(
                 base_url=base_url,
                 api_key="ollama",  # Dummy key for Ollama
-                **{k: v for k, v in kwargs.items() if k != "base_url"},
+                **client_kwargs,
             )
             return outlines.from_openai(client, model_name)
 
@@ -93,10 +95,12 @@ def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
                 _raise_api_key_error("GITHUB_TOKEN or MODELS_TOKEN")
 
             base_url = kwargs.get("base_url", "https://models.github.ai/inference")
+            client_kwargs = kwargs.copy()
+            client_kwargs.pop("base_url", None)
             client = openai.OpenAI(
                 base_url=base_url,
                 api_key=api_key,
-                **{k: v for k, v in kwargs.items() if k != "base_url"},
+                **client_kwargs,
             )
             return outlines.from_openai(client, model_name)
 

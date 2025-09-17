@@ -50,7 +50,7 @@ class TestGraphIntegration:
         assert final_event["event"] == "build_complete"
 
         # Graph should have nodes
-        assert graph.root_node is not None  # type: ignore
+        assert graph.root is not None  # type: ignore
         assert len(graph.nodes) > 1  # Should have root + additional nodes
 
     def test_graph_save_load(self, minimal_test_config, temp_output_dir):
@@ -197,7 +197,7 @@ class TestGraphIntegration:
         list(graph.build())
 
         # Check root node exists
-        assert graph.root_node is not None  # type: ignore
+        assert graph.root is not None  # type: ignore
 
         # Verify relationships
         nodes_with_children = [node for node in graph.nodes.values() if node.children]
