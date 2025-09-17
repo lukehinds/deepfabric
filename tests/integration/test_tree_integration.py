@@ -151,17 +151,16 @@ class TestTreeIntegration:
 
     def test_tree_error_handling(self, minimal_test_config):
         """Test tree handles API errors gracefully."""
-        # Use invalid model to trigger error
+        # Use completely invalid provider to trigger error
         config = minimal_test_config.copy()
-        config["model_name"] = "invalid/model"
+        config["provider"] = "nonexistent_provider"
+        config["model_name"] = "invalid_model"
 
-        tree = Tree(
-            topic_prompt="Test",
-            degree=2,
-            depth=1,
-            **config,
-        )
-
-        # Build should raise appropriate error (could be various exception types)
+        # Creating tree with invalid provider should raise error
         with pytest.raises(Exception):  # noqa: B017
-            list(tree.build())
+            Tree(
+                topic_prompt="Test",
+                degree=2,
+                depth=1,
+                **config,
+            )
