@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from .config import DeepFabricConfig
+from .config_manager import DEFAULT_MODEL
 from .dataset import Dataset
 from .exceptions import ConfigurationError
 from .generator import DataSetGenerator
@@ -102,7 +103,7 @@ def create_dataset(
 
     # Set model for dataset creation
     engine_params = config.get_engine_params(**(engine_overrides or {}))
-    final_model = model or engine_params.get("model_name", "mistral:latest")
+    final_model = model or engine_params.get("model_name", DEFAULT_MODEL)
 
     # Create dataset with overrides - using generator pattern for TUI
     try:
