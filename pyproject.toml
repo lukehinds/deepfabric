@@ -7,7 +7,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "huggingface-hub==0.35.0",
-    "datasets==4.1.0",
+    "datasets==4.1.1",
     "outlines==1.2.5",
     "openai>=1.107.2",
     "anthropic>=0.67.0",
