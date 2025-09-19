@@ -10,6 +10,7 @@ from .config import DeepFabricConfig
 from .config_manager import apply_cli_overrides, get_final_parameters, load_config
 from .dataset_manager import create_dataset, save_dataset
 from .exceptions import ConfigurationError
+from .format_command import format_cli
 from .generator import DataSetGenerator
 from .graph import Graph
 from .metrics import trace
@@ -213,7 +214,7 @@ def generate(  # noqa: PLR0913
         # Save dataset
         dataset_config = config.get_dataset_config()
         dataset_save_path = dataset_save_as or dataset_config["save_as"]
-        save_dataset(dataset, dataset_save_path)
+        save_dataset(dataset, dataset_save_path, config)
 
         # Trace metrics
         trace(
@@ -478,6 +479,9 @@ def info() -> None:
         tui.error(f"Error getting info: {str(e)}")
         sys.exit(1)
 
+
+# Add the format command to the CLI group
+cli.add_command(format_cli)
 
 if __name__ == "__main__":
     cli()

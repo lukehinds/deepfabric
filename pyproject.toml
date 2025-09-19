@@ -18,6 +18,8 @@ dependencies = [
     "rich>=13.0.0",
     "google-genai>=1.36.0",
     "posthog>=3.0.0",
+    "mkdocstrings[python]>=0.30.0",
+    "mkdocstrings-python>=1.18.2",
 ]
 
 [project.optional-dependencies]

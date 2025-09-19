@@ -6,9 +6,11 @@ The CLI design follows Unix philosophy principles where each command does one th
 
 ## Command Overview
 
-The DeepFabric CLI provides five core commands, each addressing a specific aspect of synthetic data generation:
+The DeepFabric CLI provides six core commands, each addressing a specific aspect of synthetic data generation:
 
 **`generate`** transforms YAML configurations into synthetic datasets through the complete pipeline of topic modeling, dataset creation, and output formatting.
+
+**`format`** applies formatters to existing datasets, enabling transformation to different training formats without regeneration.
 
 **`validate`** checks configuration files for common issues, parameter compatibility problems, and authentication requirements before running expensive generation processes.
 
@@ -79,7 +81,8 @@ This pattern supports rapid iteration during development while maintaining repro
 Detailed documentation for each command covers syntax, options, examples, and common usage patterns:
 
 [**generate**](generate.md) - Complete dataset generation from YAML configuration
-[**validate**](validate.md) - Configuration validation and problem detection  
+[**format**](format.md) - Apply formatters to existing datasets
+[**validate**](validate.md) - Configuration validation and problem detection
 [**visualize**](visualize.md) - Topic graph visualization and analysis
 [**upload**](upload.md) - Hugging Face Hub integration and publishing
 

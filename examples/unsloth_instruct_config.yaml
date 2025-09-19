@@ -1,0 +1,68 @@
+# ============================================================================
+# UNSLOTH TRAINING CONFIG
+# ============================================================================
+# Purpose: Generate datasets formatted for Unsloth training notebooks
+# Output format: {"conversations": [{"role": "user", "content": "..."}, ...]}
+# Use case: Direct integration with Unsloth Qwen/Llama fine-tuning notebooks
+# ============================================================================
+
+dataset_system_prompt: |
+  You are an expert programming instructor creating high-quality educational content.
+  Generate clear, accurate, and pedagogically sound examples that teach programming concepts effectively.
+
+topic_tree:
+  topic_prompt: "Programming languages, algorithms, and software engineering best practices"
+  topic_system_prompt: "Generate diverse programming topics covering fundamentals to advanced concepts"
+  provider: "openai"  # Options: "openai", "anthropic", "gemini", "ollama"
+  model: "gpt-4o-mini"  # Cost-effective model for topic generation
+  temperature: 0.8  # Higher temperature for diverse topic generation
+  degree: 3  # Number of subtopics per node
+  depth: 3  # Depth of topic tree
+  save_as: "programming_topics.jsonl"
+
+data_engine:
+  generation_system_prompt: |
+    You are a programming mentor. Create educational Q&A pairs that:
+    - Explain concepts clearly with practical examples
+    - Include working code snippets where appropriate
+    - Address common misconceptions and edge cases
+    - Build understanding progressively from basics to advanced
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.7  # Balanced temperature for coherent but varied responses
+  max_retries: 3
+  conversation_type: "basic"  # Generate question-answer pairs
+
+dataset:
+  creation:
+    num_steps: 27  # Number of generation steps
+    batch_size: 1
+    sys_msg: false  # System messages handled by Unsloth
+  save_as: "programming_dataset_raw.jsonl"
+
+  # Formatter configuration for Unsloth
+  formatters:
+    - name: "unsloth_conversations"
+      template: "builtin://unsloth.py"
+      output: "programming_dataset_unsloth.jsonl"
+      config:
+        include_system: false  # Unsloth applies system messages via chat templates
+        roles_map:
+          user: "user"
+          assistant: "assistant"
+          system: "system"
+
+# HuggingFace Hub upload configuration
+huggingface:
+  repository: "your-username/programming-unsloth-dataset"
+  private: false  # Set to true for private repository
+  tags:
+    - "programming"
+    - "education"
+    - "question-answering"
+    - "synthetic"
+    - "unsloth"
+    - "conversations"
+  license: "apache-2.0"
+  # Note: Dataset cards (README.md) must be created manually on HuggingFace Hub
+  # DeepFabric will upload the dataset and apply the tags above

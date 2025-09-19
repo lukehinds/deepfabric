@@ -1,6 +1,14 @@
 import json
 import re
 
+from typing import Any
+
+from pydantic import ValidationError
+
+from .formatters import FormatterRegistry
+from .formatters.base import FormatterError
+from .formatters.models import FormatterConfigModel
+
 
 class Dataset:
     """
@@ -34,6 +42,7 @@ class Dataset:
         """Initialize an empty dataset."""
         self.samples = []
         self.failed_samples = []
+        self.formatter_registry = FormatterRegistry()
 
     @classmethod
     def from_jsonl(cls, file_path: str) -> "Dataset":
@@ -184,7 +193,7 @@ class Dataset:
             idx: Index of the sample to retrieve.
 
         Returns:
-            Dict: The sample at the specified index.
+            dict: The sample at the specified index.
         """
         return self.samples[idx]
 
@@ -195,7 +204,7 @@ class Dataset:
             role: The role to filter by ('user', 'assistant', or 'system').
 
         Returns:
-            List[Dict]: Filtered list of samples.
+            List[dict]: Filtered list of samples.
         """
         filtered_samples = []
         for sample in self.samples:
@@ -210,7 +219,7 @@ class Dataset:
         """Calculate basic statistics about the dataset.
 
         Returns:
-            Dict: Statistics about the dataset including:
+            dict: Statistics about the dataset including:
                 - Total number of samples
                 - Average messages per sample
                 - Role distribution
@@ -239,3 +248,85 @@ class Dataset:
             },
             "avg_content_length": total_content_length / message_count,
         }
+
+    def apply_formatters(self, formatter_configs: list[dict[str, Any]]) -> dict[str, "Dataset"]:
+        """
+        Apply formatters to the dataset and return formatted datasets.
+
+        Args:
+            formatter_configs: list of formatter configuration dictionaries or FormatterConfig objects
+
+        Returns:
+            Dictionary mapping formatter names to formatted Dataset instances
+
+        Raises:
+            FormatterError: If any formatter fails to process the dataset
+        """
+
+        formatted_datasets = {}
+
+        for config in formatter_configs:
+            # Parse config using Pydantic model for validation
+            try:
+                if isinstance(config, dict):
+                    formatter_config_model = FormatterConfigModel(**config)
+                else:
+                    formatter_config_model = config
+            except ValidationError as e:
+                raise FormatterError(f"Invalid formatter configuration: {e}") from e
+
+            formatter_name = formatter_config_model.name
+            template = formatter_config_model.template
+            formatter_config = formatter_config_model.config
+            output_path = formatter_config_model.output
+
+            try:
+                # Load and apply the formatter
+                formatter = self.formatter_registry.load_formatter(template, formatter_config)
+
+                # Use the new format_with_metadata method for better error reporting
+                if hasattr(formatter, "format_with_metadata"):
+                    result = formatter.format_with_metadata(self.samples)
+                    formatted_samples = result.samples
+
+                    # Log statistics if available
+                    if result.stats.failed_samples > 0:
+                        print(
+                            f"Warning: {result.stats.failed_samples} samples failed to format with {formatter_name}"
+                        )
+                    if result.errors:
+                        print(
+                            f"Formatter errors for {formatter_name}: {result.errors[:3]}..."
+                        )  # Show first 3 errors
+                else:
+                    # Fallback to basic format method
+                    formatted_samples = formatter.format(self.samples)
+
+                # Create a new dataset with the formatted samples
+                formatted_dataset = Dataset()
+                formatted_dataset.samples = formatted_samples
+
+                # Save to file if output path is specified
+                if output_path:
+                    formatted_dataset.save(output_path)
+                    print(
+                        f"Formatted dataset saved to {output_path} using {formatter_name} formatter"
+                    )
+
+                formatted_datasets[formatter_name] = formatted_dataset
+
+            except Exception as e:
+                raise FormatterError(
+                    f"Failed to apply formatter '{formatter_name}': {str(e)}"
+                ) from e
+
+        return formatted_datasets
+
+    def list_available_formatters(self) -> list[str]:
+        """
+        list all available built-in formatters.
+
+        Returns:
+            list of built-in formatter names
+        """
+        return self.formatter_registry.list_builtin_formatters()
