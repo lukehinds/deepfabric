@@ -1,0 +1,73 @@
+# ============================================================================
+# MULTI-FORMAT EXAMPLE CONFIG
+# ============================================================================
+# Purpose: Demonstrate generating one dataset with multiple output formats
+# Output formats: GRPO, Alpaca, ChatML (structured & text)
+# Use case: Generate once, format for multiple training frameworks
+# ============================================================================
+
+dataset_system_prompt: "You are a helpful assistant that provides clear, accurate responses."
+
+topic_tree:
+  topic_prompt: "Mathematics and problem solving"
+  topic_system_prompt: "Generate diverse mathematical problems and reasoning tasks"
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.7
+  degree: 2
+  depth: 2
+  save_as: "topics.jsonl"
+
+data_engine:
+  generation_system_prompt: "You are a math tutor. Create clear explanations with step-by-step reasoning."
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.6
+  max_retries: 3
+  conversation_type: "cot_structured"
+  reasoning_style: "mathematical"
+
+dataset:
+  creation:
+    num_steps: 4
+    batch_size: 1
+    sys_msg: true
+  save_as: "raw_dataset.jsonl"
+  formatters:
+    - name: "grpo_training"
+      template: "builtin://grpo.py"
+      output: "grpo_formatted.jsonl"
+      config:
+        reasoning_start_tag: "<think>"
+        reasoning_end_tag: "</think>"
+        solution_start_tag: "<answer>"
+        solution_end_tag: "</answer>"
+        validate_numerical: true
+        system_prompt: "Solve this step by step, showing your reasoning."
+
+    - name: "alpaca_instruct"
+      template: "builtin://alpaca.py"
+      output: "alpaca_formatted.jsonl"
+      config:
+        instruction_template: "### Instruction:\n{instruction}\n\n### Response:"
+        include_empty_input: false
+
+    - name: "chatml_chat"
+      template: "builtin://chatml.py"
+      output: "chatml_formatted.jsonl"
+      config:
+        output_format: "structured"
+        require_system_message: true
+        default_system_message: "You are a helpful math tutor."
+
+    - name: "chatml_text"
+      template: "builtin://chatml.py"
+      output: "chatml_text.jsonl"
+      config:
+        output_format: "text"
+        start_token: "<|im_start|>"
+        end_token: "<|im_end|>"
+
+# huggingface:
+#   repository: "your-username/math-reasoning-dataset"
+#   tags: ["mathematics", "reasoning", "grpo", "synthetic"]

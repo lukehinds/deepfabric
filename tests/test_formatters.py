@@ -1,0 +1,579 @@
+"""
+Tests for the DeepFabric formatter system.
+
+This module tests:
+- BaseFormatter interface
+- FormatterRegistry functionality
+- Built-in formatters (GRPO, Alpaca, ChatML)
+- Dataset integration
+- Error handling
+"""
+
+import os
+import tempfile
+
+from typing import Any
+
+import pytest
+
+from deepfabric.dataset import Dataset
+from deepfabric.formatters.base import BaseFormatter, FormatterError
+from deepfabric.formatters.builtin.alpaca import AlpacaFormatter
+from deepfabric.formatters.builtin.chatml import ChatmlFormatter
+from deepfabric.formatters.builtin.grpo import GrpoFormatter
+from deepfabric.formatters.registry import FormatterRegistry
+
+FORMATTED_LENGTH = 3
+
+
+class TestBaseFormatter:
+    """Test the BaseFormatter abstract interface."""
+
+    def test_base_formatter_is_abstract(self):
+        """Test that BaseFormatter cannot be instantiated directly."""
+        with pytest.raises(TypeError):
+            BaseFormatter()  # type: ignore
+
+    def test_base_formatter_methods_exist(self):
+        """Test that BaseFormatter has required abstract methods."""
+        assert hasattr(BaseFormatter, "format")
+        assert hasattr(BaseFormatter, "validate")
+        assert hasattr(BaseFormatter, "get_description")
+        assert hasattr(BaseFormatter, "get_supported_formats")
+
+
+class MockFormatter(BaseFormatter):
+    """Mock formatter for testing purposes."""
+
+    def __init__(self, config: dict[str, Any] | None = None):
+        super().__init__(config)
+        self.format_called = False
+        self.validate_called = False
+
+    def format(self, dataset: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        self.format_called = True
+        return [{"formatted": True, "original": sample} for sample in dataset]
+
+    def validate(self, entry: dict[str, Any]) -> bool:
+        self.validate_called = True
+        return "test_field" in entry
+
+    def get_description(self) -> str:
+        return "Mock formatter for testing"
+
+    def get_supported_formats(self) -> list[str]:
+        return ["test_format"]
+
+
+class TestFormatterRegistry:
+    """Test the FormatterRegistry functionality."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.registry = FormatterRegistry()
+
+    def test_load_builtin_grpo_formatter(self):
+        """Test loading the built-in GRPO formatter."""
+        formatter = self.registry.load_formatter("builtin://grpo.py")
+        assert isinstance(formatter, GrpoFormatter)
+
+    def test_load_builtin_alpaca_formatter(self):
+        """Test loading the built-in Alpaca formatter."""
+        formatter = self.registry.load_formatter("builtin://alpaca.py")
+        assert isinstance(formatter, AlpacaFormatter)
+
+    def test_load_builtin_chatml_formatter(self):
+        """Test loading the built-in ChatML formatter."""
+        formatter = self.registry.load_formatter("builtin://chatml.py")
+        assert isinstance(formatter, ChatmlFormatter)
+
+    def test_load_nonexistent_builtin_formatter(self):
+        """Test loading a non-existent built-in formatter."""
+        with pytest.raises(FormatterError, match="Built-in formatter 'nonexistent' not found"):
+            self.registry.load_formatter("builtin://nonexistent.py")
+
+    def test_load_custom_formatter_from_file(self):
+        """Test loading a custom formatter from file."""
+        # Create a temporary formatter file
+        formatter_code = """
+from deepfabric.formatters.base import BaseFormatter
+
+class CustomFormatter(BaseFormatter):
+    def _format_single_sample(self, sample):
+        return {"custom": True}
+"""
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(formatter_code)
+            temp_path = f.name
+
+        try:
+            formatter = self.registry.load_formatter(f"file://{temp_path}")
+            assert isinstance(formatter, BaseFormatter)
+
+            # Test the formatter works
+            result = formatter.format([{"test": "data"}])
+            assert len(result.samples) == 1
+            assert getattr(result.samples[0], "custom") is True  # noqa: B009
+        finally:
+            os.unlink(temp_path)
+
+    def test_load_invalid_file_path(self):
+        """Test loading formatter from non-existent file."""
+        with pytest.raises(FormatterError, match="Formatter file not found"):
+            self.registry.load_formatter("file://./nonexistent.py")
+
+    def test_load_invalid_template_format(self):
+        """Test loading with invalid template format."""
+        with pytest.raises(FormatterError, match="Invalid template format"):
+            self.registry.load_formatter("invalid://template")
+
+    def test_formatter_caching(self):
+        """Test that formatters are cached."""
+        formatter1 = self.registry.load_formatter("builtin://grpo.py")
+        formatter2 = self.registry.load_formatter("builtin://grpo.py")
+
+        # Should be different instances but same class
+        assert isinstance(formatter1, type(formatter2))
+        assert formatter1 is not formatter2
+
+    def test_clear_cache(self):
+        """Test clearing the formatter cache."""
+        self.registry.load_formatter("builtin://grpo.py")
+        assert len(self.registry._cache) > 0
+
+        self.registry.clear_cache()
+        assert len(self.registry._cache) == 0
+
+    def test_list_builtin_formatters(self):
+        """Test listing available built-in formatters."""
+        formatters = self.registry.list_builtin_formatters()
+        assert isinstance(formatters, list)
+        assert "grpo" in formatters
+        assert "alpaca" in formatters
+        assert "chatml" in formatters
+
+    def test_formatter_with_config(self):
+        """Test loading formatter with custom configuration."""
+        config = {"reasoning_start_tag": "<custom_start>"}
+        formatter = self.registry.load_formatter("builtin://grpo.py", config)
+        assert isinstance(formatter, GrpoFormatter)
+        assert formatter.reasoning_start_tag == "<custom_start>"
+
+
+class TestGrpoFormatter:
+    """Test the GRPO formatter specifically."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.formatter = GrpoFormatter()
+
+    def test_grpo_default_config(self):
+        """Test GRPO formatter with default configuration."""
+        assert self.formatter.reasoning_start_tag == "<start_working_out>"
+        assert self.formatter.reasoning_end_tag == "<end_working_out>"
+        assert self.formatter.solution_start_tag == "<SOLUTION>"
+        assert self.formatter.solution_end_tag == "</SOLUTION>"
+
+    def test_grpo_custom_config(self):
+        """Test GRPO formatter with custom configuration."""
+        config = {
+            "reasoning_start_tag": "<think>",
+            "reasoning_end_tag": "</think>",
+            "solution_start_tag": "<answer>",
+            "solution_end_tag": "</answer>",
+        }
+        formatter = GrpoFormatter(config)
+        assert formatter.reasoning_start_tag == "<think>"
+        assert formatter.reasoning_end_tag == "</think>"
+        assert formatter.solution_start_tag == "<answer>"
+        assert formatter.solution_end_tag == "</answer>"
+
+    def test_format_messages_sample(self):
+        """Test formatting a messages-based sample."""
+        sample = {
+            "messages": [
+                {"role": "system", "content": "You are a math tutor."},
+                {"role": "user", "content": "What is 2 + 2?"},
+                {"role": "assistant", "content": "I need to add 2 and 2. The answer is 4."},
+            ]
+        }
+
+        result = self.formatter.format([sample])
+        assert len(result) == 1
+
+        formatted = result[0]
+        # Convert FormattedOutput to dict for testing
+        formatted_dict = formatted.model_dump() if hasattr(formatted, "model_dump") else formatted
+        assert "messages" in formatted_dict
+
+        # Check assistant message is wrapped in GRPO format
+        assistant_msg = next(
+            msg for msg in formatted_dict["messages"] if msg["role"] == "assistant"
+        )
+        content = assistant_msg["content"]
+        assert "<start_working_out>" in content
+        assert "<end_working_out>" in content
+        assert "<SOLUTION>" in content
+        assert "</SOLUTION>" in content
+
+    def test_format_qa_sample(self):
+        """Test formatting a Q&A sample."""
+        sample = {"question": "What is 5 + 3?", "final_answer": "8"}
+
+        result = self.formatter.format([sample])
+        assert len(result) == 1
+
+        formatted = result[0]
+        assert hasattr(formatted, "messages")
+        assert len(formatted.messages) == FORMATTED_LENGTH  # system, user, assistant
+
+        # Check roles
+        roles = [msg["role"] for msg in formatted.messages]
+        assert "system" in roles
+        assert "user" in roles
+        assert "assistant" in roles
+
+    def test_validate_messages_format(self):
+        """Test validation of messages format."""
+        valid_sample = {
+            "messages": [
+                {"role": "user", "content": "Question"},
+                {"role": "assistant", "content": "Answer"},
+            ]
+        }
+        assert self.formatter.validate(valid_sample)
+
+        invalid_sample = {"messages": "not a list"}
+        assert not self.formatter.validate(invalid_sample)
+
+    def test_validate_qa_format(self):
+        """Test validation of Q&A format."""
+        valid_sample = {"question": "What is X?", "final_answer": "Y"}
+        assert self.formatter.validate(valid_sample)
+
+        invalid_sample = {"question": "What is X?"}  # Missing answer
+        assert not self.formatter.validate(invalid_sample)
+
+    def test_numerical_validation(self):
+        """Test numerical answer validation."""
+        formatter = GrpoFormatter({"validate_numerical": True})
+
+        # This would need more complex testing with actual GRPO format validation
+        assert formatter.validate_numerical is True
+
+    def test_get_description(self):
+        """Test formatter description."""
+        description = self.formatter.get_description()
+        assert isinstance(description, str)
+        assert "GRPO" in description
+
+    def test_get_supported_formats(self):
+        """Test supported formats."""
+        formats = self.formatter.get_supported_formats()
+        assert isinstance(formats, list)
+        assert "messages" in formats
+        assert "question_answer" in formats
+
+
+class TestAlpacaFormatter:
+    """Test the Alpaca formatter specifically."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.formatter = AlpacaFormatter()
+
+    def test_format_messages_sample(self):
+        """Test formatting a messages sample to Alpaca format."""
+        sample = {
+            "messages": [
+                {"role": "system", "content": "You are helpful."},
+                {"role": "user", "content": "Explain photosynthesis."},
+                {"role": "assistant", "content": "Photosynthesis is the process..."},
+            ]
+        }
+
+        result = self.formatter.format([sample])
+        assert len(result) == 1
+
+        formatted = result[0]
+        assert hasattr(formatted, "instruction")
+        assert hasattr(formatted, "output")
+        assert formatted.instruction == "You are helpful."
+        assert formatted.output == "Photosynthesis is the process..."
+
+    def test_format_qa_sample(self):
+        """Test formatting a Q&A sample to Alpaca format."""
+        sample = {"question": "What is the capital of France?", "answer": "Paris"}
+
+        result = self.formatter.format([sample])
+        assert len(result) == 1
+
+        formatted = result[0]
+        assert formatted.instruction == "What is the capital of France?"
+        assert formatted.output == "Paris"
+
+    def test_custom_instruction_template(self):
+        """Test Alpaca formatter with custom instruction template."""
+        config = {"instruction_template": "Task: {instruction}"}
+        formatter = AlpacaFormatter(config)
+
+        sample = {"instruction": "Solve this", "output": "Answer"}
+        result = formatter.format([sample])
+
+        assert result[0].instruction == "Task: Solve this"
+
+    def test_include_empty_input(self):
+        """Test include_empty_input configuration."""
+        # Test with include_empty_input=True (default)
+        sample = {"instruction": "Test", "output": "Answer"}
+        result = self.formatter.format([sample])
+        assert hasattr(result[0], "input")
+
+        # Test with include_empty_input=False
+        formatter = AlpacaFormatter({"include_empty_input": False})
+        result = formatter.format([sample])
+        assert not hasattr(result[0], "input")
+
+    def test_validate_output(self):
+        """Test output validation."""
+        valid_output = {
+            "instruction": "Test instruction",
+            "output": "Test output",
+            "input": "Test input",
+        }
+        assert self.formatter.validate_output(valid_output)
+
+        invalid_output = {"instruction": "Test"}  # Missing output
+        assert not self.formatter.validate_output(invalid_output)
+
+
+class TestChatmlFormatter:
+    """Test the ChatML formatter specifically."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.formatter = ChatmlFormatter()
+
+    def test_structured_output_format(self):
+        """Test ChatML formatter with structured output."""
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi there!"},
+            ]
+        }
+
+        result = self.formatter.format([sample])
+        assert len(result) == 1
+
+        formatted = result[0]
+        assert hasattr(formatted, "messages")
+        assert len(formatted.messages) == 2  # noqa: PLR2004
+
+    def test_text_output_format(self):
+        """Test ChatML formatter with text output."""
+        config = {"output_format": "text"}
+        formatter = ChatmlFormatter(config)
+
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi there!"},
+            ]
+        }
+
+        result = formatter.format([sample])
+        assert len(result) == 1
+
+        formatted = result[0]
+        assert hasattr(formatted, "text")
+        assert "<|im_start|>" in formatted.text
+        assert "<|im_end|>" in formatted.text
+
+    def test_custom_tokens(self):
+        """Test ChatML formatter with custom tokens."""
+        config = {"start_token": "<start>", "end_token": "<end>", "output_format": "text"}
+        formatter = ChatmlFormatter(config)
+
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Test"},
+                {"role": "assistant", "content": "Response"},
+            ]
+        }
+        result = formatter.format([sample])
+
+        text = result[0].text
+        assert "<start>" in text
+        assert "<end>" in text
+
+    def test_require_system_message(self):
+        """Test requiring system message."""
+        config = {"require_system_message": True}
+        formatter = ChatmlFormatter(config)
+
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi!"},
+            ]
+        }
+
+        result = formatter.format([sample])
+        messages = result[0].messages
+
+        # Should have system message added
+        assert any(msg["role"] == "system" for msg in messages)
+
+    def test_validate_output_structured(self):
+        """Test output validation for structured format."""
+        valid_output = {
+            "messages": [
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi!"},
+            ]
+        }
+        assert self.formatter.validate_output(valid_output)
+
+    def test_validate_output_text(self):
+        """Test output validation for text format."""
+        formatter = ChatmlFormatter({"output_format": "text"})
+
+        valid_output = {"text": "<|im_start|>user\nHello\n<|im_end|>"}
+        assert formatter.validate_output(valid_output)
+
+        invalid_output = {"text": "No ChatML tokens"}
+        assert not formatter.validate_output(invalid_output)
+
+
+class TestDatasetIntegration:
+    """Test formatter integration with Dataset class."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.dataset = Dataset()
+        self.test_samples = [
+            {
+                "messages": [
+                    {"role": "user", "content": "What is 2+2?"},
+                    {"role": "assistant", "content": "The answer is 4."},
+                ]
+            },
+            {"question": "What is the capital of France?", "answer": "Paris"},
+        ]
+        self.dataset.samples = self.test_samples
+
+    def test_apply_single_formatter(self):
+        """Test applying a single formatter to dataset."""
+        formatter_configs = [{"name": "grpo", "template": "builtin://grpo.py", "config": {}}]
+
+        result = self.dataset.apply_formatters(formatter_configs)
+
+        assert "grpo" in result
+        assert isinstance(result["grpo"], Dataset)
+        assert len(result["grpo"].samples) == 2  # noqa: PLR2004
+
+    def test_apply_multiple_formatters(self):
+        """Test applying multiple formatters to dataset."""
+        formatter_configs = [
+            {"name": "grpo", "template": "builtin://grpo.py", "config": {}},
+            {"name": "alpaca", "template": "builtin://alpaca.py", "config": {}},
+        ]
+
+        result = self.dataset.apply_formatters(formatter_configs)
+
+        assert "grpo" in result
+        assert "alpaca" in result
+        assert isinstance(result["grpo"], Dataset)
+        assert isinstance(result["alpaca"], Dataset)
+
+    def test_apply_formatter_with_output_file(self):
+        """Test applying formatter with output file specification."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = os.path.join(temp_dir, "test_output.jsonl")
+
+            formatter_configs = [
+                {
+                    "name": "grpo",
+                    "template": "builtin://grpo.py",
+                    "config": {},
+                    "output": output_path,
+                }
+            ]
+
+            result = self.dataset.apply_formatters(formatter_configs)
+
+            # Check file was created
+            assert os.path.exists(output_path)
+
+            # Check dataset was returned
+            assert "grpo" in result
+
+    def test_list_available_formatters(self):
+        """Test listing available formatters."""
+        formatters = self.dataset.list_available_formatters()
+        assert isinstance(formatters, list)
+        assert len(formatters) > 0
+
+    def test_formatter_error_handling(self):
+        """Test error handling in formatter application."""
+        formatter_configs = [
+            {"name": "invalid", "template": "builtin://nonexistent.py", "config": {}}
+        ]
+
+        with pytest.raises(FormatterError):
+            self.dataset.apply_formatters(formatter_configs)
+
+
+class TestErrorHandling:
+    """Test error handling across the formatter system."""
+
+    def test_formatter_error_creation(self):
+        """Test FormatterError creation and inheritance."""
+        error = FormatterError("Test message")
+        assert str(error) == "Test message"
+        assert isinstance(error, Exception)
+
+    def test_invalid_formatter_class(self):
+        """Test loading file with invalid formatter class."""
+        invalid_code = """
+class NotAFormatter:
+    pass
+"""
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(invalid_code)
+            temp_path = f.name
+
+        try:
+            registry = FormatterRegistry()
+            with pytest.raises(FormatterError, match="No BaseFormatter subclass found"):
+                registry.load_formatter(f"file://{temp_path}")
+        finally:
+            os.unlink(temp_path)
+
+    def test_formatter_instantiation_error(self):
+        """Test error when formatter instantiation fails."""
+        # Create a formatter that fails during __init__
+        failing_code = """
+from deepfabric.formatters.base import BaseFormatter
+
+class FailingFormatter(BaseFormatter):
+    def __init__(self, config=None):
+        raise ValueError("Initialization failed")
+
+    def format(self, dataset):
+        return dataset
+"""
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+            f.write(failing_code)
+            temp_path = f.name
+
+        try:
+            registry = FormatterRegistry()
+            with pytest.raises(FormatterError, match="Failed to instantiate formatter"):
+                registry.load_formatter(f"file://{temp_path}")
+        finally:
+            os.unlink(temp_path)

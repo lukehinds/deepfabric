@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 
@@ -156,6 +156,17 @@ class DatasetCreationConfig(BaseModel):
     )
 
 
+class FormatterConfig(BaseModel):
+    """Configuration for a single formatter."""
+
+    name: str = Field(..., min_length=1, description="Name identifier for this formatter")
+    template: str = Field(..., min_length=1, description="Template path (builtin:// or file://)")
+    config: dict[str, Any] = Field(
+        default_factory=dict, description="Formatter-specific configuration"
+    )
+    output: str | None = Field(None, description="Output file path for this formatter")
+
+
 class DatasetConfig(BaseModel):
     """Configuration for dataset assembly and output."""
 
@@ -164,6 +175,9 @@ class DatasetConfig(BaseModel):
         description="Dataset creation parameters",
     )
     save_as: str = Field(..., min_length=1, description="Where to save the final dataset")
+    formatters: list[FormatterConfig] = Field(
+        default_factory=list, description="List of formatters to apply to the dataset"
+    )
 
 
 class HuggingFaceConfig(BaseModel):
@@ -399,3 +413,7 @@ class DeepFabricConfig(BaseModel):
     def get_huggingface_config(self) -> dict:
         """Get Hugging Face configuration."""
         return self.huggingface.model_dump() if self.huggingface else {}
+
+    def get_formatter_configs(self) -> list[dict]:
+        """Get list of formatter configurations."""
+        return [formatter.model_dump() for formatter in self.dataset.formatters]

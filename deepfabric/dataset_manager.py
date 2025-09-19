@@ -126,20 +126,44 @@ def create_dataset(
     return dataset
 
 
-def save_dataset(dataset: Dataset, save_path: str) -> None:
+def save_dataset(dataset: Dataset, save_path: str, config: DeepFabricConfig | None = None) -> None:
     """
-    Save dataset to file.
+    Save dataset to file and apply formatters if configured.
 
     Args:
         dataset: Dataset object to save
         save_path: Path where to save the dataset
+        config: Optional configuration containing formatter settings
 
     Raises:
         ConfigurationError: If saving fails
     """
     tui = get_tui()
     try:
+        # Save the raw dataset
         dataset.save(save_path)
         tui.success(f"Dataset saved to: {save_path}")
+
+        # Apply formatters if configured
+        if config:
+            formatter_configs = config.get_formatter_configs()
+            if formatter_configs:
+                tui.info("Applying formatters...")
+                try:
+                    formatted_datasets = dataset.apply_formatters(formatter_configs)
+
+                    for formatter_name, formatted_dataset in formatted_datasets.items():
+                        if hasattr(formatted_dataset, "samples"):
+                            sample_count = len(formatted_dataset.samples)
+                            tui.success(
+                                f"Applied '{formatter_name}' formatter: {sample_count} samples"
+                            )
+                        else:
+                            tui.success(f"Applied '{formatter_name}' formatter")
+
+                except Exception as e:
+                    tui.error(f"Error applying formatters: {str(e)}")
+                    # Don't raise here - we want to continue even if formatters fail
+
     except Exception as e:
         raise ConfigurationError(f"Error saving dataset: {str(e)}") from e

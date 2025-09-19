@@ -44,6 +44,7 @@ def sample_config_dict():
                 "sys_msg": True,
             },
             "save_as": "test_dataset.jsonl",
+            "formatters": [],
         },
     }
 
@@ -81,6 +82,7 @@ def sample_config_dict_no_sys_msg():
                 "model": "model",
             },
             "save_as": "test_dataset.jsonl",
+            "formatters": [],
         },
     }
 

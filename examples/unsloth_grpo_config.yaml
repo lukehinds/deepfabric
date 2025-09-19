@@ -1,0 +1,71 @@
+# ============================================================================
+# UNSLOTH GRPO CONFIG FOR QWEN3 REASONING
+# ============================================================================
+# Purpose: Generate reasoning datasets for Unsloth Qwen3 GRPO training
+# Output format: Conversations with <think></think> reasoning tags
+# Use case: Direct integration with Qwen3-GRPO.ipynb notebook
+# Notebook: https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/Qwen3_(4B)-GRPO.ipynb
+# ============================================================================
+
+dataset_system_prompt: |
+  You are an expert problem solver. When answering questions:
+  1. Think through the problem step-by-step
+  2. Show your reasoning process
+  3. Provide a clear, accurate final answer
+
+topic_tree:
+  topic_prompt: "Mathematical problems, logical puzzles, and analytical reasoning tasks"
+  topic_system_prompt: "Generate problems that require step-by-step reasoning to solve"
+  provider: "gemini"  # or "anthropic", "gemini", "ollama"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.8
+  degree: 3
+  depth: 3
+  save_as: "reasoning_topics.jsonl"
+
+data_engine:
+  generation_system_prompt: |
+    Create problems that require careful reasoning. For each problem:
+    - First show the thinking process step-by-step
+    - Then provide the final answer
+    - Ensure the reasoning is clear and logical
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.7
+  max_retries: 3
+  conversation_type: "cot_structured"  # Generate chain-of-thought reasoning
+  reasoning_style: "logical"  # Options: mathematical, logical, general
+
+dataset:
+  creation:
+    num_steps: 9
+    batch_size: 1
+    sys_msg: false  # System message handled by formatter
+  save_as: "reasoning_dataset_raw.jsonl"
+
+  # Formatter for Unsloth GRPO training
+  formatters:
+    - name: "unsloth_grpo_reasoning"
+      template: "builtin://unsloth_grpo.py"
+      output: "reasoning_dataset_unsloth_grpo.jsonl"
+      config:
+        reasoning_start_tag: "<think>"
+        reasoning_end_tag: "</think>"
+        include_reasoning_instructions: true
+        system_message: |
+          You are a helpful assistant. When solving problems, show your
+          reasoning process between <think> and </think> tags, then provide
+          your final answer.
+
+# Upload to HuggingFace for direct use in notebook
+huggingface:
+  repository: "lukehinds/qwen3-grpo-reasoning"
+  private: false
+  tags:
+    - "reasoning"
+    - "chain-of-thought"
+    - "grpo"
+    - "qwen3"
+    - "unsloth"
+    - "synthetic"
+  license: "apache-2.0"

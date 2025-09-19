@@ -1,0 +1,103 @@
+# Example configuration for generating GRPO-compatible mathematical reasoning datasets
+# This configuration generates datasets suitable for training reasoning models like Qwen3-4B with GRPO
+
+dataset_system_prompt: |
+  You are a mathematical reasoning expert. Generate step-by-step solutions to mathematical problems.
+
+  Format your response as follows:
+  1. Show your working out between <start_working_out> and <end_working_out> tags
+  2. Provide the final numerical answer between <SOLUTION> and </SOLUTION> tags
+
+  Ensure the final answer is a clear numerical value that can be extracted and verified.
+
+topic_tree:
+  topic_prompt: "Generate diverse mathematical problem categories for reasoning model training"
+  topic_system_prompt: |
+    Create a comprehensive taxonomy of mathematical problems suitable for training reasoning models.
+    Focus on problems that:
+    - Have clear numerical answers
+    - Require step-by-step reasoning
+    - Cover various difficulty levels
+    - Include different mathematical domains
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.7
+  degree: 4
+  depth: 3
+  save_as: "math_topics.jsonl"
+
+data_engine:
+  instructions: |
+    Generate mathematical problems that require step-by-step reasoning.
+    Each problem should have a clear numerical answer.
+    Include problems from: arithmetic, algebra, geometry, statistics, word problems.
+    Vary difficulty from basic to intermediate level.
+  generation_system_prompt: |
+    You are an expert mathematics educator creating reasoning problems for AI training.
+
+    For each mathematical topic, generate a problem that:
+    1. Has a clear question
+    2. Requires multi-step reasoning to solve
+    3. Has a definitive numerical answer
+    4. Is appropriate for the given topic area
+
+    Present your solution with clear reasoning steps that show the mathematical thinking process.
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.8
+  max_retries: 3
+  conversation_type: "cot_structured"
+  reasoning_style: "mathematical"
+  save_as: "raw_math_problems.jsonl"
+
+dataset:
+  creation:
+    num_steps: 500
+    batch_size: 10
+    sys_msg: true
+  save_as: "math_reasoning_dataset.jsonl"
+  formatters:
+    # GRPO formatter for reasoning model training
+    - name: "grpo_reasoning"
+      template: "builtin://grpo.py"
+      config:
+        reasoning_start_tag: "<start_working_out>"
+        reasoning_end_tag: "<end_working_out>"
+        solution_start_tag: "<SOLUTION>"
+        solution_end_tag: "</SOLUTION>"
+        validate_numerical: true
+        system_prompt: |
+          You are given a problem.
+          Think about the problem and provide your working out.
+          Place it between <start_working_out> and <end_working_out>.
+          Then, provide your solution between <SOLUTION> and </SOLUTION>.
+      output: "grpo_math_dataset.jsonl"
+
+    # Alternative format with custom reasoning tags
+    - name: "grpo_custom_tags"
+      template: "builtin://grpo.py"
+      config:
+        reasoning_start_tag: "<think>"
+        reasoning_end_tag: "</think>"
+        solution_start_tag: "<answer>"
+        solution_end_tag: "</answer>"
+        validate_numerical: true
+      output: "grpo_custom_math_dataset.jsonl"
+
+    # Alpaca format for instruction-following training
+    - name: "alpaca_math"
+      template: "builtin://alpaca.py"
+      config:
+        instruction_template: "Solve this mathematical problem step by step:\n\n{instruction}"
+        include_empty_input: false
+      output: "alpaca_math_dataset.jsonl"
+
+# Optional: Upload to Hugging Face Hub
+huggingface:
+  repository: "your-username/math-reasoning-dataset"
+  tags:
+    - "mathematics"
+    - "reasoning"
+    - "grpo"
+    - "step-by-step"
+    - "synthetic"
