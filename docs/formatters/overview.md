@@ -110,5 +110,4 @@ The formatter system includes comprehensive error handling:
 
 - [Built-in Formatter Reference](built-in-reference.md) - Documentation for all included formatters
 - [Custom Formatter Guide](custom-formatter-guide.md) - How to create your own formatters
-- [Examples](examples/) - Example configurations and custom formatter implementations
 - [API Reference](api-reference.md) - Complete API documentation

@@ -218,9 +218,3 @@ deepfabric format dataset_raw.jsonl -f grpo -o dataset_grpo.jsonl
 ```
 
 This allows you to prepare the same dataset for different training frameworks without regenerating the data.
-
-## See Also
-
-- [Generate Command](generate.md) - Generate new datasets
-- [Formatters Guide](../formatters/index.md) - Detailed formatter documentation
-- [Custom Formatters](../formatters/custom-formatter-guide.md) - Create your own formatters

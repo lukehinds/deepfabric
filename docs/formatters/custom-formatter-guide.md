@@ -436,6 +436,5 @@ def _expensive_transformation(self, text: str) -> str:
 ## Next Steps
 
 - Review [Built-in Formatter Reference](built-in-reference.md) for inspiration
-- Check [Examples](examples/) for complete formatter implementations
 - See [API Reference](api-reference.md) for detailed API documentation
 - Join the community to share your formatters with others

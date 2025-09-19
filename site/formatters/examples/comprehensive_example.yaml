@@ -1,0 +1,127 @@
+# Comprehensive example showing the Pydantic-based formatter system
+# This configuration demonstrates type-safe formatter configuration with validation
+
+dataset_system_prompt: |
+  You are an expert educator creating diverse training examples.
+  Generate clear, well-structured responses that demonstrate proper reasoning.
+
+topic_tree:
+  topic_prompt: "Generate educational topics for AI training across multiple domains"
+  topic_system_prompt: |
+    Create a diverse set of educational topics that cover:
+    - Science and mathematics
+    - History and literature
+    - Technology and programming
+    - Philosophy and ethics
+    - Practical skills and how-to guides
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.7
+  degree: 3
+  depth: 2
+  save_as: "educational_topics.jsonl"
+
+data_engine:
+  instructions: |
+    Create high-quality educational content suitable for AI training.
+    Include clear explanations, examples, and step-by-step reasoning where appropriate.
+  generation_system_prompt: |
+    You are an expert educator creating training content for AI systems.
+
+    For each topic, create content that:
+    1. Provides clear, accurate information
+    2. Uses appropriate educational techniques
+    3. Includes relevant examples and explanations
+    4. Demonstrates proper reasoning processes
+
+    Ensure all content is educational, helpful, and well-structured.
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.8
+  max_retries: 3
+  conversation_type: "cot_structured"
+  reasoning_style: "general"
+  save_as: "raw_educational_content.jsonl"
+
+dataset:
+  creation:
+    num_steps: 100
+    batch_size: 8
+    sys_msg: true
+  save_as: "educational_dataset.jsonl"
+
+  # Multiple formatters with Pydantic validation
+  formatters:
+    # GRPO formatter for reasoning model training
+    - name: "grpo_reasoning"
+      template: "builtin://grpo.py"
+      config:
+        reasoning_start_tag: "<start_working_out>"
+        reasoning_end_tag: "<end_working_out>"
+        solution_start_tag: "<SOLUTION>"
+        solution_end_tag: "</SOLUTION>"
+        validate_numerical: false  # Educational content may not always have numerical answers
+        system_prompt: |
+          You are given a topic or question.
+          Think through your response step by step.
+          Place your reasoning between <start_working_out> and <end_working_out>.
+          Then provide your final answer between <SOLUTION> and </SOLUTION>.
+      output: "grpo_educational_dataset.jsonl"
+
+    # Alpaca formatter for instruction-following
+    - name: "alpaca_instruct"
+      template: "builtin://alpaca.py"
+      config:
+        instruction_field: "instruction"
+        input_field: "input"
+        output_field: "output"
+        include_empty_input: true
+        instruction_template: "### Educational Task:\n{instruction}\n\n### Response:"
+      output: "alpaca_educational_dataset.jsonl"
+
+    # ChatML structured format
+    - name: "chatml_structured"
+      template: "builtin://chatml.py"
+      config:
+        start_token: "<|im_start|>"
+        end_token: "<|im_end|>"
+        output_format: "structured"
+        default_system_message: "You are an expert educator providing clear, helpful explanations."
+        require_system_message: true
+      output: "chatml_structured_dataset.jsonl"
+
+    # ChatML text format for direct training
+    - name: "chatml_text"
+      template: "builtin://chatml.py"
+      config:
+        start_token: "<|im_start|>"
+        end_token: "<|im_end|>"
+        output_format: "text"
+        default_system_message: "You are an expert educator providing clear, helpful explanations."
+        require_system_message: true
+      output: "chatml_text_dataset.jsonl"
+
+    # Custom reasoning format using GRPO with different tags
+    - name: "custom_reasoning"
+      template: "builtin://grpo.py"
+      config:
+        reasoning_start_tag: "<thinking>"
+        reasoning_end_tag: "</thinking>"
+        solution_start_tag: "<answer>"
+        solution_end_tag: "</answer>"
+        validate_numerical: false
+        system_prompt: |
+          When given a question or topic, provide a thoughtful response.
+          Show your thinking process between <thinking> and </thinking> tags.
+          Provide your final answer between <answer> and </answer> tags.
+      output: "custom_reasoning_dataset.jsonl"
+
+# Optional: Upload to Hugging Face Hub
+huggingface:
+  repository: "your-username/educational-multi-format-dataset"
+  tags:
+    - "education"
+    - "reasoning"
+    - "multi-format"
+    - "instruction-following"
+    - "synthetic"
