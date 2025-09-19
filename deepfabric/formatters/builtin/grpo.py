@@ -14,12 +14,8 @@ import re
 
 from pydantic import BaseModel
 
-from ..base import BaseFormatter, FormatterError
+from ..base import BaseFormatter
 from ..models import (
-    DatasetInput,
-    DatasetOutput,
-    FormattedOutput,
-    GenericSample,
     GrpoConfig,
     GrpoOutput,
 )
@@ -83,46 +79,7 @@ Then, provide your solution between {self.solution_start_tag} and {self.solution
             flags=re.MULTILINE | re.DOTALL,
         )
 
-    def format(self, dataset: DatasetInput | list) -> DatasetOutput:
-        """
-        Transform dataset to GRPO format.
-
-        Args:
-            dataset: Input dataset (DatasetInput model or list of samples)
-
-        Returns:
-            DatasetOutput containing GRPO-formatted samples
-
-        Raises:
-            FormatterError: If formatting fails
-        """
-        # Convert to DatasetInput if it's a list
-        if isinstance(dataset, list):
-            dataset_samples = []
-            for sample in dataset:
-                if isinstance(sample, dict):
-                    dataset_samples.append(GenericSample(data=sample))
-                else:
-                    dataset_samples.append(sample)
-            dataset_input = DatasetInput(samples=dataset_samples)
-        else:
-            dataset_input = dataset
-
-        formatted_samples = []
-
-        for i, sample in enumerate(dataset_input.samples):
-            try:
-                # Convert Pydantic model to dict
-                sample_dict = getattr(sample, "data", None) or sample.model_dump()
-                formatted_sample = self._format_sample(sample_dict)
-                if formatted_sample:
-                    formatted_samples.append(FormattedOutput(**formatted_sample))
-            except Exception as e:
-                raise FormatterError(f"Failed to format sample {i}: {str(e)}") from e
-
-        return DatasetOutput(samples=formatted_samples)
-
-    def _format_sample(self, sample: dict) -> dict | None:
+    def _format_single_sample(self, sample: dict) -> dict | None:
         """
         Format a single sample for GRPO training.
 

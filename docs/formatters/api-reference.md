@@ -381,16 +381,24 @@ config = {
 
 ## Error Handling
 
-### Exception Hierarchy
+### FormatterError Exception
 
+`FormatterError` is the primary exception class used for all formatter-related errors. It can include optional details for debugging.
+
+```python
+class FormatterError(Exception):
+    """Exception raised when formatting operations fail."""
+
+    def __init__(self, message: str, details: dict | None = None):
+        super().__init__(message)
+        self.details = details or {}
 ```
-Exception
-└── FormatterError
-    ├── LoadingError (when formatter cannot be loaded)
-    ├── ConfigurationError (when configuration is invalid)
-    ├── ProcessingError (when formatting fails)
-    └── ValidationError (when validation fails)
-```
+
+This single exception type is raised for various failure scenarios:
+- **Loading errors**: When a formatter cannot be loaded from a template
+- **Configuration errors**: When formatter configuration is invalid
+- **Processing errors**: When formatting operations fail
+- **Validation errors**: When sample validation fails
 
 ### Common Error Scenarios
 

@@ -16,6 +16,7 @@ from .models import (
     DatasetInput,
     DatasetOutput,
     DatasetSample,
+    FormattedOutput,
     FormatterMetadata,
     FormatterResult,
     FormatterStats,
@@ -59,9 +60,25 @@ class BaseFormatter(ABC):
                 raise FormatterError(f"Invalid configuration: {e}") from e
 
     @abstractmethod
+    def _format_single_sample(self, sample: dict) -> dict | None:
+        """
+        Format a single sample. This is the core method that subclasses must implement.
+
+        Args:
+            sample: Single sample dictionary to format
+
+        Returns:
+            Formatted sample dictionary or None if formatting fails
+        """
+        raise NotImplementedError
+
     def format(self, dataset: DatasetInput | list) -> DatasetOutput:
         """
         Transform the dataset to the target format.
+
+        This method provides the standard implementation that iterates through samples
+        and calls _format_single_sample for each one. Subclasses should implement
+        _format_single_sample instead of overriding this method.
 
         Args:
             dataset: Input dataset (DatasetInput model or list of samples)
@@ -72,7 +89,31 @@ class BaseFormatter(ABC):
         Raises:
             FormatterError: If formatting fails
         """
-        raise NotImplementedError
+        # Convert to DatasetInput if it's a list
+        if isinstance(dataset, list):
+            dataset_samples = []
+            for sample in dataset:
+                if isinstance(sample, dict):
+                    dataset_samples.append(GenericSample(data=sample))
+                else:
+                    dataset_samples.append(sample)
+            dataset_input = DatasetInput(samples=dataset_samples)
+        else:
+            dataset_input = dataset
+
+        formatted_samples = []
+
+        for i, sample in enumerate(dataset_input.samples):
+            try:
+                # Convert Pydantic model to dict for formatting
+                sample_dict = getattr(sample, "data", None) or sample.model_dump()
+                formatted_sample = self._format_single_sample(sample_dict)
+                if formatted_sample:
+                    formatted_samples.append(FormattedOutput(**formatted_sample))
+            except Exception as e:
+                raise FormatterError(f"Failed to format sample {i}: {str(e)}") from e
+
+        return DatasetOutput(samples=formatted_samples)
 
     def format_with_metadata(self, dataset: DatasetInput | list) -> FormatterResult:
         """
@@ -148,21 +189,6 @@ class BaseFormatter(ABC):
         return FormatterResult(
             samples=processed_samples, metadata=metadata, stats=stats, errors=errors
         )
-
-    def _format_single_sample(self, sample: dict) -> dict | None:
-        """
-        Format a single sample. Override this method instead of format() for better error handling.
-
-        Args:
-            sample: Single sample dictionary to format
-
-        Returns:
-            Formatted sample dictionary or None if formatting fails
-        """
-        # Default implementation calls the abstract format method with single sample
-        dataset_input = DatasetInput(samples=[GenericSample(data=sample)])
-        result = self.format(dataset_input)
-        return result.samples[0].model_dump() if result.samples else None
 
     def validate_sample(self, entry: dict) -> ValidationResult:
         """

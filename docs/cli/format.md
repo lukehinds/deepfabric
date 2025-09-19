@@ -15,7 +15,7 @@ deepfabric format INPUT_FILE [OPTIONS]
 ## Options
 
 - `-c, --config-file PATH` - YAML config file containing formatter settings
-- `-f, --formatter [im_format|alpaca|chatml|grpo]` - Quick formatter selection with default settings
+- `-f, --formatter [im_format|unsloth|alpaca|chatml|grpo]` - Quick formatter selection with default settings
 - `-o, --output TEXT` - Output file path (default: `input_file_formatter.jsonl`)
 - `--help` - Show help message
 

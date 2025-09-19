@@ -99,8 +99,8 @@ class TestFormatterRegistry:
 from deepfabric.formatters.base import BaseFormatter
 
 class CustomFormatter(BaseFormatter):
-    def format(self, dataset):
-        return [{"custom": True} for _ in dataset]
+    def _format_single_sample(self, sample):
+        return {"custom": True}
 """
 
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
@@ -113,7 +113,8 @@ class CustomFormatter(BaseFormatter):
 
             # Test the formatter works
             result = formatter.format([{"test": "data"}])
-            assert result == [{"custom": True}]
+            assert len(result.samples) == 1
+            assert getattr(result.samples[0], "custom") is True  # noqa: B009
         finally:
             os.unlink(temp_path)
 

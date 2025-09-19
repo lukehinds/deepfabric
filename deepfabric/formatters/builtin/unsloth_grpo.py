@@ -7,13 +7,8 @@ reasoning tags for training models with chain-of-thought capabilities.
 
 from pydantic import BaseModel, Field
 
-from ..base import BaseFormatter, FormatterError
-from ..models import (
-    DatasetInput,
-    DatasetOutput,
-    FormattedOutput,
-    GenericSample,
-)
+from ..base import BaseFormatter
+from ..utils import extract_data
 
 
 class UnslothGrpoConfig(BaseModel):
@@ -44,55 +39,23 @@ class UnslothGrpoFormatter(BaseFormatter):
         """Return the configuration model for this formatter."""
         return UnslothGrpoConfig
 
-    def format(self, dataset: DatasetInput | list) -> DatasetOutput:
+    def _format_single_sample(self, sample: dict) -> dict | None:
         """
-        Format dataset to Unsloth GRPO conversations format.
+        Format a single sample to Unsloth GRPO conversations format.
 
         Args:
-            dataset: Input dataset containing conversations
+            sample: Sample to format
 
         Returns:
-            DatasetOutput with formatted samples
+            Formatted sample with conversations key
         """
-        # Convert list to DatasetInput if needed
-        if isinstance(dataset, list):
-            samples = []
-            for item in dataset:
-                if isinstance(item, dict):
-                    samples.append(GenericSample(data=item))
-                else:
-                    samples.append(item)
-            dataset = DatasetInput(samples=samples)
-
-        formatted_samples = []
         config: UnslothGrpoConfig = (
             self._config_model
             if isinstance(self._config_model, UnslothGrpoConfig)
             else UnslothGrpoConfig(**self.config)
         )
 
-        for sample in dataset.samples:
-            try:
-                conversations = self._format_sample(sample, config)
-                if conversations:
-                    formatted_samples.append(FormattedOutput(**{"conversations": conversations}))
-            except Exception as e:
-                raise FormatterError(f"Failed to format sample: {str(e)}") from e
-
-        return DatasetOutput(samples=formatted_samples)
-
-    def _format_sample(self, sample, config: UnslothGrpoConfig) -> list[dict]:
-        """
-        Format a single sample to Unsloth GRPO conversations format.
-
-        Args:
-            sample: Sample to format
-            config: Formatter configuration
-
-        Returns:
-            List of conversation messages with reasoning embedded
-        """
-        data = self._extract_data(sample)
+        data = extract_data(sample)
         conversations = []
 
         # Add system message if configured
@@ -129,15 +92,7 @@ class UnslothGrpoFormatter(BaseFormatter):
 
             conversations.append({"role": "assistant", "content": formatted_answer})
 
-        return conversations
-
-    def _extract_data(self, sample):
-        """Extract data from various sample types."""
-        if isinstance(sample, GenericSample):
-            return sample.data
-        if hasattr(sample, "model_dump"):
-            return sample.model_dump()
-        return sample
+        return {"conversations": conversations}
 
     def _extract_question(self, data: dict) -> str:
         """Extract question/user input from data."""
@@ -244,7 +199,7 @@ class UnslothGrpoFormatter(BaseFormatter):
             True if valid, False otherwise
         """
         try:
-            data = self._extract_data(entry)
+            data = extract_data(entry)
             question = self._extract_question(data)
             answer = self._extract_answer(data)
             return bool(question and answer)
