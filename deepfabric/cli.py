@@ -111,12 +111,12 @@ def generate(  # noqa: PLR0913
 
     try:
         if mode == "graph" and save_tree:
-            raise ConfigurationError(
+            raise ConfigurationError(  # noqa: TRY301
                 "Cannot use --save-tree when mode is graph. Use --save-graph to persist graph data.",
             )
 
         if mode == "tree" and save_graph:
-            raise ConfigurationError(
+            raise ConfigurationError(  # noqa: TRY301
                 "Cannot use --save-graph when mode is tree. Use --save-tree to persist tree data.",
             )
 
