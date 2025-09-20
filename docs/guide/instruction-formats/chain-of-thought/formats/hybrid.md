@@ -13,19 +13,6 @@ structured reasoning text can provide.
 - **Complex problem-solving**: Multi-faceted problems requiring different reasoning types
 - **Research methodology**: Combining intuitive insights with methodical analysis
 
-### Strengths
-- **Dual reasoning modes**: Both natural and structured approaches
-- **Maximum expressiveness**: Can handle any type of reasoning pattern
-- **Rich metadata**: Step-by-step breakdown with action classification
-- **Flexible structure**: Adapts to problem complexity
-- **Comprehensive coverage**: Captures both high-level strategy and detailed steps
-
-### Limitations
-- **Highest complexity**: Requires coordination of multiple reasoning types
-- **Token intensive**: Largest format due to dual representation
-- **Generation challenge**: Most difficult for models to produce consistently
-- **Validation complexity**: Multiple layers to verify for quality
-
 ## Schema Specification
 
 ```python
@@ -46,65 +33,7 @@ class ReasoningStep(BaseModel):
     action: str = Field(description="Any action taken as part of this reasoning step")
 ```
 
-### Field Descriptions
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `question` | string | ✅ | The problem statement or question to be solved |
-| `chain_of_thought` | string | ✅ | Natural language reasoning explanation |
-| `reasoning_trace` | array | ✅ | Structured breakdown of reasoning steps |
-| `final_answer` | string | ✅ | The definitive answer or conclusion |
-
-#### Reasoning Step Fields
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `step_number` | integer | ✅ | Sequential step number (1, 2, 3...) |
-| `thought` | string | ✅ | The specific reasoning or analysis for this step |
-| `action` | string | ✅ | Classification of the type of reasoning action |
-
 ## Examples by Domain
-
-### Algorithm Analysis - Quicksort
-
-```json
-{
-  "question": "Explain how the quicksort algorithm works and analyze its time complexity.",
-  "chain_of_thought": "Quicksort is a divide-and-conquer algorithm that sorts arrays efficiently by partitioning. The key insight is choosing a 'pivot' element and rearranging the array so all elements smaller than the pivot come before it, and all larger elements come after it. We then recursively apply the same process to the sub-arrays on either side of the pivot. The beauty of quicksort lies in its average-case performance of O(n log n), achieved because each partitioning step roughly halves the problem size. However, the worst-case scenario occurs when we consistently pick the smallest or largest element as the pivot, leading to O(n²) performance. In practice, random pivot selection or median-of-three pivot selection helps avoid worst-case behavior.",
-  "reasoning_trace": [
-    {
-      "step_number": 1,
-      "thought": "Identify quicksort as a divide-and-conquer algorithm and explain the core concept of partitioning around a pivot.",
-      "action": "classify_algorithm"
-    },
-    {
-      "step_number": 2,
-      "thought": "Describe the partitioning process: elements smaller than pivot go left, larger go right.",
-      "action": "explain_mechanism"
-    },
-    {
-      "step_number": 3,
-      "thought": "Explain the recursive nature: apply quicksort to both sub-arrays created by partitioning.",
-      "action": "describe_recursion"
-    },
-    {
-      "step_number": 4,
-      "thought": "Analyze average-case time complexity: each level of recursion processes n elements, and there are log n levels on average.",
-      "action": "analyze_average_case"
-    },
-    {
-      "step_number": 5,
-      "thought": "Analyze worst-case scenario: when pivot is always the minimum or maximum, leading to n levels of recursion.",
-      "action": "analyze_worst_case"
-    },
-    {
-      "step_number": 6,
-      "thought": "Mention practical optimizations like random pivot selection to avoid worst-case behavior.",
-      "action": "suggest_optimizations"
-    }
-  ],
-  "final_answer": "Quicksort works by partitioning arrays around a pivot element and recursively sorting the sub-arrays. Time complexity: Average case O(n log n), Worst case O(n²). The algorithm's efficiency comes from the divide-and-conquer approach that typically halves the problem size at each step."
-}
-```
 
 ### Mathematical Proof - Triangle Inequality
 
@@ -190,45 +119,40 @@ class ReasoningStep(BaseModel):
 }
 ```
 
-### Computer Science - Database Optimization
+### Physics - Quantum Entanglement
 
 ```json
 {
-  "question": "Explain how database indexing improves query performance and when it might hurt performance.",
-  "chain_of_thought": "Database indexing is like creating a specialized lookup table that points to the actual data locations, similar to an index in a book. When you create an index on a column, the database builds a sorted data structure (often a B-tree) that allows for much faster searching. Instead of scanning every row (O(n) complexity), the database can use the index to jump directly to relevant rows (O(log n) complexity). However, indexes aren't free - they require additional storage space and must be maintained whenever the underlying data changes. Every INSERT, UPDATE, or DELETE operation must also update all relevant indexes, which can slow down write operations. The key is finding the right balance: index frequently queried columns, but avoid over-indexing tables that have heavy write workloads.",
+  "question": "How can two particles remain entangled over vast distances, and what implications does this have for information transfer?",
+  "chain_of_thought": "Quantum entanglement is a phenomenon where two particles become linked, such that the state of one particle instantly influences the state of the other, regardless of the distance separating them. This raises questions about the nature of information transfer and challenges classical notions of locality and causality.",
   "reasoning_trace": [
     {
       "step_number": 1,
-      "thought": "Explain the concept of indexing using the book index analogy for intuitive understanding.",
-      "action": "build_analogy"
+      "thought": "Understand the concept of quantum entanglement.",
+      "action": "Research the basics of quantum entanglement, including how particles become entangled and the implications of this entanglement."
     },
     {
       "step_number": 2,
-      "thought": "Describe the technical implementation: indexes are typically B-tree data structures that maintain sorted order.",
-      "action": "explain_implementation"
+      "thought": "Explore the principle of non-locality in quantum mechanics.",
+      "action": "Investigate how entangled particles exhibit non-local behavior, meaning their states are correlated even when separated by large distances."
     },
     {
       "step_number": 3,
-      "thought": "Quantify the performance benefit: reduce search complexity from O(n) to O(log n).",
-      "action": "analyze_complexity"
+      "thought": "Consider the implications for information transfer.",
+      "action": "Analyze whether entanglement allows for faster-than-light communication or if it simply reflects a deeper quantum correlation."
     },
     {
       "step_number": 4,
-      "thought": "Identify the costs: additional storage space required for index structures.",
-      "action": "identify_storage_cost"
+      "thought": "Evaluate the role of measurement in entanglement.",
+      "action": "Examine how measuring one particle affects the state of the other and the implications for information transfer."
     },
     {
       "step_number": 5,
-      "thought": "Explain maintenance overhead: indexes must be updated on every data modification operation.",
-      "action": "explain_maintenance_cost"
-    },
-    {
-      "step_number": 6,
-      "thought": "Provide guidance on when to use indexes: balance read performance gains against write performance costs.",
-      "action": "provide_guidelines"
+      "thought": "Synthesize findings to address the question.",
+      "action": "Combine insights from previous steps to form a coherent explanation of how entanglement affects information transfer and its broader implications."
     }
   ],
-  "final_answer": "Database indexes improve query performance by providing O(log n) lookup time instead of O(n) table scans. However, they consume additional storage and slow down write operations due to maintenance overhead. Use indexes for frequently queried columns, but avoid over-indexing write-heavy tables."
+  "final_answer": "While quantum entanglement suggests a form of instantaneous correlation between particles, it does not allow for faster-than-light communication. The phenomenon challenges classical ideas of locality but adheres to the principles of quantum mechanics, where information transfer is constrained by the no-communication theorem."
 }
 ```
 
@@ -364,22 +288,6 @@ Hybrid CoT reasoning steps use more sophisticated action classifications:
 - Inconsistent information between elements
 - Artificial separation of reasoning modes
 
-### Quality Guidelines
-
-**Excellent Hybrid CoT Example:**
-- Rich, intuitive explanation in chain_of_thought
-- Systematic breakdown in reasoning_trace
-- Appropriate action classifications
-- Seamless integration of reasoning modes
-- Addresses both "what" and "why"
-
-**Poor Hybrid CoT Example:**
-- Redundant information between sections
-- Shallow reasoning in either section
-- Generic or incorrect action classifications
-- Disconnected explanation modes
-- Missing key insights or steps
-
 ## Advanced Patterns
 
 ### Multi-Domain Reasoning
@@ -400,36 +308,6 @@ For complex research problems:
 - Systematic testing in reasoning_trace
 - Literature integration and synthesis
 
-## Performance Considerations
-
-### Model Requirements
-- **Recommended**: GPT-4, GPT-4o, Claude-3 Opus
-- **Minimum**: GPT-3.5-turbo may struggle with consistency
-- **Local models**: Generally not recommended for hybrid format
-
-### Token Usage
-- Highest token usage: 1000-2500 tokens per sample
-- Most expensive format to generate
-- Longest generation times
-
-### Quality vs. Quantity Tradeoffs
-- Generate fewer, higher-quality samples
-- Focus on complex, valuable problems
-- Use for specialized domains requiring deep reasoning
-
-## Validation and Quality Control
-
-### Automated Checks
-- **Length validation**: Both chain_of_thought and reasoning_trace should be substantial
-- **Consistency check**: Information alignment between reasoning modes
-- **Step completeness**: Reasoning trace should cover all major points from chain_of_thought
-- **Action appropriateness**: Verify action classifications make sense
-
-### Human Evaluation
-- **Reasoning quality**: Are both explanation modes effective?
-- **Integration**: Do the reasoning modes work together well?
-- **Accuracy**: Is the domain knowledge correct?
-- **Completeness**: Are all aspects of the problem addressed?
 
 ## Troubleshooting Common Issues
 
