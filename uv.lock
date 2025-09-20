@@ -372,7 +372,7 @@ toml = [
 
 [[package]]
 name = "datasets"
-version = "4.1.0"
+version = "4.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dill" },
@@ -389,14 +389,14 @@ dependencies = [
     { name = "tqdm" },
     { name = "xxhash" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/35/7e/a8659e96f0646568c1fe2d4295a0bde89ccf07059c8c87ed8e6651a60cf2/datasets-4.1.0.tar.gz", hash = "sha256:42e0330780d5d4d5d664bb22a3eafe02adf073c1f4612c79582403bd8f703ae0", size = 579067, upload-time = "2025-09-15T16:33:22.443Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/91/a4/73f8e6ef52c535e1d20d5b2ca83bfe6de399d8b8b8a61ccc8d63d60735aa/datasets-4.1.1.tar.gz", hash = "sha256:7d8d5ba8b12861d2c44bfff9c83484ebfafff1ff553371e5901a8d3aab5450e2", size = 579324, upload-time = "2025-09-18T13:14:27.108Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e1/b1/80a59608b0c6030d63aad16390aeddec531a75971dc16ac9cd422defd64b/datasets-4.1.0-py3-none-any.whl", hash = "sha256:abc5e61fa605ad09b4d790579c96a4e100329f3a3b57cc6c53ab040a927d48cd", size = 503367, upload-time = "2025-09-15T16:33:20.783Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/c8/09012ac195a0aab58755800d2efdc0e7d5905053509f12cb5d136c911cda/datasets-4.1.1-py3-none-any.whl", hash = "sha256:62e4f6899a36be9ec74a7e759a6951253cc85b3fcfa0a759b0efa8353b149dac", size = 503623, upload-time = "2025-09-18T13:14:25.111Z" },
 ]
 
 [[package]]
 name = "deepfabric"
-version = "2.4.0"
+version = "2.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
@@ -435,7 +435,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.67.0" },
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7.10" },
     { name = "click", specifier = ">=8.1.7" },
-    { name = "datasets", specifier = "==4.1.0" },
+    { name = "datasets", specifier = "==4.1.1" },
     { name = "google-genai", specifier = ">=1.36.0" },
     { name = "huggingface-hub", specifier = "==0.35.0" },
     { name = "mermaid-py", specifier = ">=0.8.0" },
