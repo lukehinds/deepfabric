@@ -101,3 +101,82 @@ Create challenging reasoning problems suitable for training systematic problem-s
 {{{{instructions}}}}
 {{{{examples}}}}
 {{{{subtopics}}}}"""
+
+# Mathematical variants with strict numerical output requirements
+FREETEXT_COT_MATHEMATICAL_PROMPT = """Generate mathematical word problems with clear numerical solutions.
+
+CRITICAL FORMATTING RULES for final_answer field:
+
+**Always provide ONLY the numerical value (no units, symbols, or text).**
+
+**Problem Type Guidelines:**
+- Money/Currency problems → Always format as X.XX (2 decimal places): "104.00", "6.50"
+- Time duration problems → Integer minutes: "90", "135"
+- Clock time problems → 24-hour format (4 digits): "1615" (for 4:15 PM), "0830" (for 8:30 AM), "0600" (for 6:00 AM)
+- Counting problems → Integers: "42", "100"
+- Percentage problems → Number only: "25" (not "25%")
+- Scientific/measurement → Preserve precision: "3.14", "2.5"
+
+**Examples:**
+✓ CORRECT: "104.00" (money), "90" (duration), "1615" (4:15 PM), "0830" (8:30 AM), "42" (count)
+✗ INCORRECT: "$104", "104", "90 minutes", "4:15 PM", "830", "42 apples"
+
+**Key Rule: Read the problem type carefully and format accordingly!**
+
+Create problems that test mathematical reasoning skills with unambiguous numerical answers.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""
+
+STRUCTURED_COT_MATHEMATICAL_PROMPT = """Generate mathematical problems with structured reasoning steps and numerical answers.
+
+CRITICAL FORMATTING RULES for final_answer field:
+
+**Always provide ONLY the numerical value (no units, symbols, or text).**
+
+**Problem Type Guidelines:**
+- Money/Currency problems → Always format as X.XX (2 decimal places): "104.00", "6.50"
+- Time duration problems → Integer minutes: "90", "135"
+- Clock time problems → 24-hour format (4 digits): "1615" (for 4:15 PM), "0830" (for 8:30 AM), "0600" (for 6:00 AM)
+- Counting problems → Integers: "42", "100"
+- Percentage problems → Number only: "25" (not "25%")
+- Scientific/measurement → Preserve precision: "3.14", "2.5"
+
+**Examples:**
+✓ CORRECT: "104.00" (money), "90" (duration), "1615" (4:15 PM), "0830" (8:30 AM), "42" (count)
+✗ INCORRECT: "$104", "104", "90 minutes", "4:15 PM", "830", "42 apples"
+
+**Key Rule: Read the problem type carefully and format accordingly!**
+
+Create clear step-by-step reasoning traces that lead to precise numerical answers.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""
+
+HYBRID_COT_MATHEMATICAL_PROMPT = """Generate mathematical word problems with both natural and structured reasoning.
+
+CRITICAL FORMATTING RULES for final_answer field:
+
+**Always provide ONLY the numerical value (no units, symbols, or text).**
+
+**Problem Type Guidelines:**
+- Money/Currency problems → Always format as X.XX (2 decimal places): "104.00", "6.50"
+- Time duration problems → Integer minutes: "90", "135"
+- Clock time problems → 24-hour format (4 digits): "1615" (for 4:15 PM), "0830" (for 8:30 AM), "0600" (for 6:00 AM)
+- Counting problems → Integers: "42", "100"
+- Percentage problems → Number only: "25" (not "25%")
+- Scientific/measurement → Preserve precision: "3.14", "2.5"
+
+**Examples:**
+✓ CORRECT: "104.00" (money), "90" (duration), "1615" (4:15 PM), "0830" (8:30 AM), "42" (count)
+✗ INCORRECT: "$104", "104", "90 minutes", "4:15 PM", "830", "42 apples"
+
+**Key Rule: Read the problem type carefully and format accordingly!**
+
+Create problems that combine intuitive explanations with systematic step-by-step solutions.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""
