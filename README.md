@@ -41,6 +41,10 @@
 
 The key innovation lies in DeepFabric's graph and tree-based architecture, which uses structured topic nodes as generation seeds. This approach ensures the creation of datasets that are both highly diverse and domain-specific, while minimizing redundancy and duplication across generated samples.
 
+Deepfabric also applies structured output using Pydantic and Outlines, this results in much less failures then other synthetic dataset generators, which rely on natural language prompts to conform with output requirements.
+
+Multiple formats and conversation structures are supported (reasoning / chain-of-thought, single / multi-turn), allowing you to generate date and move directly to fine-tuning, without the need to write refacting scripts. 
+
 <div align="center">
   <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="DeepFabric Demo";">
 </div>
