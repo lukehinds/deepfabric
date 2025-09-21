@@ -244,33 +244,35 @@ if dataset.samples:
     print(f"Average step length: {sum(len(step['thought']) for step in sample['reasoning_trace']) / len(sample['reasoning_trace']):.0f} chars")
 ```
 
-## Action Classifications for Hybrid CoT
+## Action Field Guidelines for Hybrid CoT
 
-Hybrid CoT reasoning steps use more sophisticated action classifications:
+The `action` field in `ReasoningStep` is a free-form string that describes what action is being taken in that reasoning step. While not enforced by the schema, here are suggested patterns for different reasoning styles:
 
-### Analytical Actions
-- `classify_algorithm`: Categorizing computational approaches
-- `analyze_complexity`: Examining algorithmic or mathematical complexity
-- `decompose_problem`: Breaking down into sub-problems
-- `synthesize_solution`: Combining multiple approaches
+**Note**: These are documentation suggestions only. The `action` field accepts any string value and there's no validation against these specific values in the code.
 
-### Explanatory Actions
-- `build_intuition`: Developing conceptual understanding
-- `build_analogy`: Using metaphors or comparisons
-- `explain_mechanism`: Describing how something works
-- `provide_context`: Giving background information
+### Analytical Actions (Suggested)
+- `"classify_algorithm"`: When categorizing computational approaches
+- `"analyze_complexity"`: When examining algorithmic or mathematical complexity
+- `"decompose_problem"`: When breaking down into sub-problems
+- `"synthesize_solution"`: When combining multiple approaches
 
-### Logical Actions
-- `state_theorem`: Presenting formal statements
-- `proof_by_contradiction`: Using indirect proof methods
-- `apply_principle`: Using established rules or laws
-- `verify_logic`: Checking reasoning validity
+### Explanatory Actions (Suggested)
+- `"build_intuition"`: When developing conceptual understanding
+- `"build_analogy"`: When using metaphors or comparisons
+- `"explain_mechanism"`: When describing how something works
+- `"provide_context"`: When giving background information
 
-### Strategic Actions
-- `identify_constraints`: Recognizing limitations or requirements
-- `suggest_optimizations`: Proposing improvements
-- `evaluate_tradeoffs`: Analyzing competing factors
-- `provide_guidelines`: Offering decision criteria
+### Logical Actions (Suggested)
+- `"state_theorem"`: When presenting formal statements
+- `"proof_by_contradiction"`: When using indirect proof methods
+- `"apply_principle"`: When using established rules or laws
+- `"verify_logic"`: When checking reasoning validity
+
+### Strategic Actions (Suggested)
+- `"identify_constraints"`: When recognizing limitations or requirements
+- `"suggest_optimizations"`: When proposing improvements
+- `"evaluate_tradeoffs"`: When analyzing competing factors
+- `"provide_guidelines"`: When offering decision criteria
 
 ## Best Practices
 
