@@ -22,8 +22,11 @@ from .llm import LLMClient
 from .metrics import trace
 from .prompts import (
     CONVERSATION_GENERATION_PROMPT,
+    FREETEXT_COT_MATHEMATICAL_PROMPT,
     FREETEXT_COT_PROMPT,
+    HYBRID_COT_MATHEMATICAL_PROMPT,
     HYBRID_COT_PROMPT,
+    STRUCTURED_COT_MATHEMATICAL_PROMPT,
     STRUCTURED_COT_PROMPT,
 )
 from .schemas import get_conversation_schema
@@ -211,7 +214,9 @@ class DataSetGenerator:
         failed_responses = []
 
         # Get the appropriate schema for the conversation type
-        schema_class = get_conversation_schema(self.config.conversation_type)
+        schema_class = get_conversation_schema(
+            self.config.conversation_type, self.config.reasoning_style
+        )
 
         for prompt in prompts:
             try:
@@ -585,7 +590,18 @@ class DataSetGenerator:
         return f"\nLastly, the topic of the training data should be related to the following subtopics: {' -> '.join(subtopic_list)}"
 
     def _get_cot_prompt_template(self) -> str:
-        """Get the appropriate CoT prompt template based on conversation type."""
+        """Get the appropriate CoT prompt template based on conversation type and reasoning style."""
+        # Use mathematical prompts when reasoning_style is mathematical
+        if self.config.reasoning_style == "mathematical":
+            mathematical_prompts = {
+                "cot_freetext": FREETEXT_COT_MATHEMATICAL_PROMPT,
+                "cot_structured": STRUCTURED_COT_MATHEMATICAL_PROMPT,
+                "cot_hybrid": HYBRID_COT_MATHEMATICAL_PROMPT,
+            }
+            if self.config.conversation_type in mathematical_prompts:
+                return mathematical_prompts[self.config.conversation_type]
+
+        # Default CoT prompts for non-mathematical reasoning
         cot_prompts = {
             "cot_freetext": FREETEXT_COT_PROMPT,
             "cot_structured": STRUCTURED_COT_PROMPT,

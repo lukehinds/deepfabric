@@ -1,0 +1,59 @@
+# DeepFabric Chain of Thought Configuration - Hybrid Format
+# Generates rich datasets with both natural language reasoning AND structured traces
+
+# Main system prompt
+dataset_system_prompt: "You are an expert problem solver who demonstrates both intuitive reasoning and systematic analytical thinking."
+
+# Topic Tree Configuration
+topic_tree:
+  topic_prompt: "Generate grade school level math word problems involving basic arithmetic operations (addition, subtraction, multiplication, division). Focus on real-world scenarios like shopping, time, money, measurements, and simple multi-step calculations that elementary and middle school students would encounter."
+
+  # LLM Settings
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.5
+
+  # Tree Structure
+  degree: 3
+  depth: 3
+
+  # Output
+  save_as: "GSM8K-topics.jsonl"
+
+# Data Engine Configuration - CoT Hybrid
+data_engine:
+  instructions: "Create challenging problems that require both intuitive understanding and systematic analysis. Each problem should have multiple layers - students must grasp the conceptual foundation, then work through logical steps methodically. The problems should test both 'why' (conceptual insight) and 'how' (procedural reasoning)."
+
+  # LLM Settings
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.2  # Lower temperature for consistent reasoning
+  max_retries: 5
+
+  # CoT Configuration
+  conversation_type: "cot_hybrid"
+  reasoning_style: "mathematical"  # Mix of mathematical and logical
+
+  # Content generation prompt
+  generation_system_prompt: "You are an expert who combines natural explanation with rigorous step-by-step reasoning. When generating responses, first provide intuitive insight into the problem, then follow with detailed analytical steps. Balance conceptual understanding with methodical problem-solving approaches."
+
+# Dataset Assembly Configuration
+dataset:
+  creation:
+    num_steps: 9
+    batch_size: 1  # Smaller batches for complex hybrid generation
+    sys_msg: false  # Hybrid format doesn't use conversation messages
+
+  save_as: "GSM8K-dataset.jsonl"
+
+# # HuggingFace Hub Integration
+# huggingface:
+#   repository: "username/science-reasoning-hybrid-cot"
+#   tags:
+#     - "science"
+#     - "physics"
+#     - "reasoning"
+#     - "chain-of-thought"
+#     - "hybrid"
+#     - "analytical-thinking"
+#     - "deepfabric"
