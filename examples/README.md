@@ -16,6 +16,7 @@ its training and therefore has limited knowledge compared to the bigger models.
 | **programmatic_usage.py** | Intermediate | Comprehensive patterns | All generation modes, error handling, statistics |
 | **integrations.py** | Intermediate | External systems | YAML loading, multi-provider, HF Hub, CLI patterns |
 | **production_pipeline.py** | Advanced | Production-ready workflow | Quality validation, monitoring, retry logic, metadata |
+| **agent_tool_calling_example.py** | Advanced | Agent tool-calling datasets | Chain of thought reasoning with embedded tool execution traces |
 
 ### YAML Configuration Examples
 
@@ -24,13 +25,15 @@ its training and therefore has limited knowledge compared to the bigger models.
 | **basic.yaml** | Tree | Simple beginner config | Single provider, clear comments, minimal settings |
 | **advanced.yaml** | Graph | Multi-provider setup | Cross-connections, different models per stage |
 | **specialized.yaml** | Tree | Domain-specific prompts | Medical education example, specialized system prompts |
+| **agent_tool_calling_config.yaml** | Tree | Agent tool-calling with rich CoT | Tool reasoning, embedded execution traces, formatter integration |
 
 ## Quick Start
 
 1. **Complete beginner**: Start with `quickstart.py` and `basic.yaml`
 2. **Exploring features**: Try `programmatic_usage.py` to see all capabilities
-3. **External integrations**: Use `integrations.py` for YAML configs and HF Hub
-4. **Production deployment**: Follow `production_pipeline.py` for robust workflows
+3. **Agent tool-calling**: Use `agent_tool_calling_example.py` for chain of thought reasoning with tools
+4. **External integrations**: Use `integrations.py` for YAML configs and HF Hub
+5. **Production deployment**: Follow `production_pipeline.py` for robust workflows
 
 ## Running Examples
 
@@ -51,6 +54,7 @@ export ANTHROPIC_API_KEY=sk-ant-your-key-here
 # Run any Python example directly
 python examples/quickstart.py
 python examples/programmatic_usage.py
+python examples/agent_tool_calling_example.py
 python examples/integrations.py
 python examples/production_pipeline.py
 ```
@@ -61,6 +65,7 @@ python examples/production_pipeline.py
 deepfabric start examples/basic.yaml
 deepfabric start examples/advanced.yaml --model gpt-4o  # Override model
 deepfabric start examples/specialized.yaml
+deepfabric start examples/agent_tool_calling_config.yaml
 ```
 
 ## Example Descriptions
@@ -89,6 +94,12 @@ deepfabric start examples/specialized.yaml
 - **Best for**: Large-scale dataset generation, quality-critical applications
 - **Output**: Dataset + comprehensive metadata and statistics
 
+### agent_tool_calling_example.py
+- **Purpose**: Agent chain of thought reasoning with tool calling capabilities
+- **What it does**: Generates datasets showing step-by-step reasoning for tool selection and usage, then formats them into embedded execution traces
+- **Best for**: Training models to reason about tool usage, function calling, and multi-step problem solving
+- **Output**: Raw agent reasoning data + formatted embedded execution traces with `<think>`, `<tool_call>`, and `<tool_response>` tags
+
 ## Configuration Examples
 
 ### basic.yaml
@@ -109,6 +120,13 @@ Domain-specific prompts for medical education:
 - Specialized system prompts for each pipeline stage
 - Higher quality settings for accuracy-critical domains
 - Shows prompt engineering for specific use cases
+
+### agent_tool_calling_config.yaml
+Agent chain of thought with tool calling and embedded execution traces:
+- Uses agent_cot_tools conversation type for structured reasoning
+- Includes tool-calling formatter for embedded execution format
+- Demonstrates step-by-step reasoning, tool selection, and result interpretation
+- Produces training data with `<think>`, `<tool_call>`, and `<tool_response>` tags
 
 ## Tips for Success
 

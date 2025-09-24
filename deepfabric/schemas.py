@@ -8,6 +8,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 
+# Basic message schema
 class ChatMessage(BaseModel):
     """A single message in a conversation."""
 
@@ -47,6 +48,127 @@ class StructuredConversation(BaseModel):
     )
 
 
+# Tool definition schemas for structured tool system
+class ToolParameter(BaseModel):
+    """A single parameter for a tool/function."""
+
+    name: str = Field(description="Parameter name")
+    type: Literal["str", "int", "float", "bool", "list", "dict"] = Field(
+        description="Parameter type"
+    )
+    description: str = Field(description="What this parameter does")
+    required: bool = Field(default=True, description="Whether this parameter is required")
+    default: Any = Field(default=None, description="Default value if not provided")
+
+
+class ToolDefinition(BaseModel):
+    """Complete definition of a tool/function."""
+
+    name: str = Field(description="Tool name (function name)")
+    description: str = Field(description="What this tool does")
+    parameters: list[ToolParameter] = Field(description="List of parameters this tool accepts")
+    returns: str = Field(description="Description of what this tool returns")
+    category: str = Field(default="general", description="Tool category for grouping")
+
+    def to_signature(self) -> str:
+        """Generate a function signature string."""
+        params = []
+        for p in self.parameters:
+            if p.required:
+                params.append(f"{p.name}: {p.type}")
+            else:
+                params.append(f"{p.name}: {p.type} = {p.default}")
+        return f"{self.name}({', '.join(params)}) → {self.returns}"
+
+
+class ToolRegistry(BaseModel):
+    """Registry of available tools."""
+
+    tools: list[ToolDefinition] = Field(description="List of available tool definitions")
+
+    def get_tool(self, name: str) -> ToolDefinition | None:
+        """Get a tool by name."""
+        return next((t for t in self.tools if t.name == name), None)
+
+    def get_tools_by_category(self, category: str) -> list[ToolDefinition]:
+        """Get all tools in a category."""
+        return [t for t in self.tools if t.category == category]
+
+    def get_tool_names(self) -> list[str]:
+        """Get list of all tool names."""
+        return [t.name for t in self.tools]
+
+
+# Agent tool-calling schemas
+class ToolReasoningStep(BaseModel):
+    """A reasoning step that leads to tool selection and parameter construction."""
+
+    step_number: int = Field(description="The step number in the tool planning sequence")
+    reasoning: str = Field(description="Why this tool is needed at this point")
+    selected_tool: ToolDefinition = Field(description="The actual tool definition being selected")
+    parameter_reasoning: dict[str, str] = Field(description="Reasoning for each parameter value")
+    expected_result: str = Field(description="What the tool should return and how it helps")
+
+
+class ToolExecution(BaseModel):
+    """Represents actual execution of a tool with reasoning context."""
+
+    function: str = Field(description="Name of the function/tool being called")
+    arguments: dict[str, Any] = Field(description="Arguments passed to the function")
+    reasoning: str = Field(description="Brief explanation of why executing now")
+    result: str = Field(description="The result returned from the tool execution")
+
+
+class SimpleAgentCoT(BaseModel):
+    """Simplified Agent Chain of Thought that models can actually generate."""
+
+    question: str = Field(description="The user's question or request")
+    initial_analysis: str = Field(description="Initial understanding of what's needed")
+    reasoning_steps: list[str] = Field(description="Step-by-step reasoning", min_length=1)
+    tool_selection_rationale: str = Field(description="Why this tool was chosen")
+    parameter_reasoning: str = Field(description="How tool parameters were determined")
+    result_interpretation: str = Field(description="What the tool result means")
+    tool_used: str = Field(description="Name of the tool that was used")
+    tool_input: str = Field(description="JSON string of tool input parameters")
+    tool_output: str = Field(description="The result from the tool execution")
+    answer: str = Field(description="Final answer to the user's question")
+
+
+class HybridAgentCoT(BaseModel):
+    """Hybrid Agent CoT with structured reasoning trace and tool calling."""
+
+    question: str = Field(description="The question or problem to solve")
+    chain_of_thought: str = Field(description="Natural language reasoning explanation")
+    reasoning_trace: list[ReasoningStep] = Field(
+        description="Structured reasoning steps", min_length=1
+    )
+    tool_selection_rationale: str = Field(description="Why this tool was chosen")
+    parameter_reasoning: str = Field(description="How tool parameters were determined")
+    result_interpretation: str = Field(description="What the tool result means")
+    tool_used: str = Field(description="Name of the tool that was used")
+    tool_input: str = Field(description="JSON string of tool input parameters")
+    tool_output: str = Field(description="The result from the tool execution")
+    final_answer: str = Field(description="The definitive answer to the question")
+
+
+class AgentCoTMultiTurn(BaseModel):
+    """Multi-turn agent conversation with tool calling and reasoning."""
+
+    messages: list[ChatMessage] = Field(
+        description="Conversation messages between user and agent", min_length=1
+    )
+    tool_planning_trace: list[ToolReasoningStep] = Field(
+        description="Complete planning trace for all tool usage", min_length=1
+    )
+    tool_execution_trace: list[ToolExecution] = Field(
+        description="All tool executions across conversation turns", min_length=1
+    )
+    reasoning_summary: str = Field(
+        description="Overall reasoning strategy across the multi-turn conversation"
+    )
+
+
+# Tool calling schemas for conversations that include function calls
 class FunctionCall(BaseModel):
     """A function call with arguments."""
 
@@ -77,45 +199,7 @@ class ToolConversation(BaseModel):
     )
 
 
-# Topic generation schemas for tree and graph
-class TopicList(BaseModel):
-    """A list of subtopics for tree/graph generation."""
-
-    subtopics: list[str] = Field(
-        description="List of subtopic names",
-        min_length=1,
-    )
-
-
-class TopicNode(BaseModel):
-    """A topic node with subtopics for graph generation."""
-
-    topic: str = Field(description="The topic name")
-    subtopics: list[str] = Field(
-        description="List of subtopic names",
-        default_factory=list,
-    )
-
-
-class GraphSubtopic(BaseModel):
-    """A subtopic with connections for graph generation."""
-
-    topic: str = Field(description="The subtopic name")
-    connections: list[int] = Field(
-        description="List of existing node IDs to connect to, empty list if none"
-    )
-
-
-class GraphSubtopics(BaseModel):
-    """List of subtopics with connections for graph generation."""
-
-    subtopics: list[GraphSubtopic] = Field(
-        description="List of subtopics with their connections",
-        min_length=1,
-    )
-
-
-# Chain of Thought schemas for reasoning-based dataset generation
+# Chain of Thought schemas
 class FreeTextCoT(BaseModel):
     """Chain of Thought dataset in free-text format (GSM8K style)."""
 
@@ -176,14 +260,6 @@ class MathematicalAnswerMixin:
                     num = Decimal(v_clean)
                     rounded = num.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                     v_clean = str(rounded)
-                # Ensure currency amounts always have 2 decimal places
-                elif decimal_places == 1 and cls._looks_like_currency_value(v_clean):
-                    v_clean = f"{v_clean}0"  # Add trailing zero
-        # Handle integer values
-        elif cls._is_clock_time_format(v_clean):
-            v_clean = cls._format_clock_time_4digit(v_clean)
-        elif cls._looks_like_large_currency(v_clean):
-            v_clean = f"{v_clean}.00"  # Add .00 to large currency amounts
 
         return v_clean
 
@@ -191,50 +267,6 @@ class MathematicalAnswerMixin:
     def _is_scientific_notation(value: str) -> bool:
         """Detect scientific notation."""
         return "e" in value.lower()
-
-    @staticmethod
-    def _looks_like_currency_value(value: str) -> bool:
-        """Check if decimal value looks like currency (common decimal endings)."""
-        try:
-            num = float(value)
-            # Currency typically >= $1 and ends in common decimal patterns
-            return num >= 1.0 and value.split(".")[1] in ["0", "5", "25", "50", "75"]
-        except (ValueError, IndexError):
-            return False
-
-    @staticmethod
-    def _is_clock_time_format(value: str) -> bool:
-        """Check if integer value is likely a clock time (based on range and length)."""
-        try:
-            num = int(value)
-        except ValueError:
-            return False
-        else:
-            # Clock times are typically 3-4 digits in specific ranges
-            # 600-2359 (6:00 AM to 11:59 PM) are most likely times
-            # Exclude common counts/durations (1-180 minutes)
-            return 600 <= num <= 2359 or num in [0, 100, 200, 300, 400, 500]  # noqa: PLR2004
-
-    @staticmethod
-    def _format_clock_time_4digit(value: str) -> str:
-        """Format clock time as 4-digit HHMM (e.g., 600 -> 0600)."""
-        try:
-            num = int(value)
-        except ValueError:
-            return value
-        else:
-            return f"{num:04d}"  # Zero-pad to 4 digits
-
-    @staticmethod
-    def _looks_like_large_currency(value: str) -> bool:
-        """Check if integer value is likely a large currency amount."""
-        try:
-            num = int(value)
-        except ValueError:
-            return False
-        else:
-            # Common currency amounts that should have .00
-            return num >= 100 or num in [10, 15, 20, 25, 50, 75]  # noqa: PLR2004
 
 
 class FreeTextCoTMathematical(BaseModel, MathematicalAnswerMixin):
@@ -247,15 +279,7 @@ class FreeTextCoTMathematical(BaseModel, MathematicalAnswerMixin):
     @field_validator("final_answer")
     @classmethod
     def validate_numerical(cls, v: str) -> str:
-        """Validate and format numerical answers with strict consistency rules.
-
-        Formatting rules:
-        - Currency amounts: always 2 decimal places (e.g., "104.00", "6.50")
-        - Time durations: integers only (e.g., "90" for 90 minutes)
-        - Clock times: 24-hour format as integers (e.g., "1615" for 4:15 PM)
-        - Counts/quantities: integers (e.g., "42", "100")
-        - Scientific values: preserve precision (e.g., "3.14", "2.5e10")
-        """
+        """Validate and format numerical answers with strict consistency rules."""
         return cls._format_mathematical_answer(v)
 
 
@@ -300,6 +324,9 @@ CONVERSATION_SCHEMAS = {
     "cot_freetext": FreeTextCoT,
     "cot_structured": StructuredCoT,
     "cot_hybrid": HybridCoT,
+    "agent_cot_tools": SimpleAgentCoT,
+    "agent_cot_hybrid": HybridAgentCoT,
+    "agent_cot_multi_turn": AgentCoTMultiTurn,
 }
 
 
@@ -311,7 +338,8 @@ def get_conversation_schema(
 
     Args:
         conversation_type: Type of conversation (basic, structured, tool_calling,
-                          cot_freetext, cot_structured, cot_hybrid)
+                          cot_freetext, cot_structured, cot_hybrid,
+                          agent_cot_tools, agent_cot_multi_turn)
         reasoning_style: Style of reasoning (mathematical, logical, general)
 
     Returns:
@@ -335,3 +363,51 @@ def get_conversation_schema(
         return mathematical_schemas.get(conversation_type, CONVERSATION_SCHEMAS[conversation_type])
 
     return CONVERSATION_SCHEMAS[conversation_type]
+
+
+# Topic generation schemas for tree and graph (needed by other modules)
+class TopicList(BaseModel):
+    """A list of subtopics for tree/graph generation."""
+
+    subtopics: list[str] = Field(
+        description="List of subtopic names",
+        min_length=1,
+    )
+
+
+class TopicNode(BaseModel):
+    """A topic node with subtopics for graph generation."""
+
+    topic: str = Field(description="The topic name")
+    subtopics: list[str] = Field(
+        description="List of subtopic names",
+        default_factory=list,
+    )
+
+
+class GraphSubtopic(BaseModel):
+    """A subtopic with connections for graph generation."""
+
+    topic: str = Field(description="The subtopic name")
+    connections: list[int] = Field(
+        description="List of existing node IDs to connect to, empty list if none"
+    )
+
+
+class GraphSubtopics(BaseModel):
+    """List of subtopics with connections for graph generation."""
+
+    subtopics: list[GraphSubtopic] = Field(
+        description="List of subtopics with their connections",
+        min_length=1,
+    )
+
+
+# Update the conversation schemas to include agent schemas
+CONVERSATION_SCHEMAS.update(
+    {
+        "agent_cot_tools": SimpleAgentCoT,
+        "agent_cot_hybrid": HybridAgentCoT,
+        "agent_cot_multi_turn": AgentCoTMultiTurn,
+    }
+)

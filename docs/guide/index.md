@@ -6,9 +6,11 @@ Understanding DeepFabric requires grasping its core philosophy: topic-driven gen
 
 ## Generation Pipeline
 
-DeepFabric operates through a three-stage pipeline that transforms abstract concepts into concrete training data. The topic modeling stage expands your root prompt into a comprehensive structure representing your domain. The dataset generation stage creates training examples based on these topics. The output formatting stage packages everything into standard formats ready for immediate use.
+DeepFabric operates through a three-stage pipeline that transforms abstract concepts into concrete training data. The topic modeling stage expands your root prompt into a comprehensive structure representing your domain. The dataset generation stage creates training examples based on these topics, supporting multiple instruction formats from simple conversations to complex agent tool-calling scenarios. The output formatting stage packages everything into standard formats ready for immediate use.
 
 Each stage operates independently, allowing you to experiment with different parameters without regenerating previous stages. This modularity accelerates iterative development and enables sophisticated workflows where different components use different model providers or configurations.
+
+**Instruction Format Support**: DeepFabric supports multiple instruction formats including basic conversations, Chain of Thought reasoning datasets, and advanced agent tool-calling formats that capture systematic reasoning about external tool usage. This enables creation of training data for everything from conversational AI to sophisticated function-calling agents.
 
 ## Configuration Philosophy
 

@@ -46,13 +46,15 @@
 
 DeepFabric transforms the process of creating synthetic datasets for language model training, evaluation, and research. Built around the concept of topic-driven data generation, it provides both hierarchical topic trees and experimental graph-based topic modeling to create diverse, contextually rich training examples.
 
-The library serves researchers, engineers, and practitioners who need high-quality synthetic data for model distillation, agent evaluation, or statistical research. Whether you're generating conversational datasets, creating domain-specific training examples, or building evaluation benchmarks, DeepFabric provides the tools to scale your data generation process while maintaining quality and diversity.
+The library serves researchers, engineers, and practitioners who need high-quality synthetic data for model distillation, agent evaluation, or statistical research. Whether you're generating conversational datasets, creating domain-specific training examples, building evaluation benchmarks, or training agents for systematic tool usage, DeepFabric provides the tools to scale your data generation process while maintaining quality and diversity.
 
 ## Core Capabilities
 
-DeepFabric operates through a three-stage pipeline that transforms a simple prompt into a comprehensive dataset. The process begins with topic generation, where the system creates either a hierarchical tree structure or a more complex graph representation of your domain. These topics then feed into the dataset generation engine, which produces contextually appropriate training examples. Finally, the system packages everything into standard formats ready for immediate use.
+DeepFabric operates through a three-stage pipeline that transforms a simple prompt into a comprehensive dataset. The process begins with topic generation, where the system creates either a hierarchical tree structure or a more complex graph representation of your domain. These topics then feed into the dataset generation engine, which produces contextually appropriate training examples including traditional conversations, Chain of Thought reasoning, and advanced agent tool-calling scenarios. Finally, the system packages everything into standard formats ready for immediate use.
 
 The topic modeling approach sets DeepFabric apart from simple prompt-based generation. Rather than creating isolated examples, the system builds a conceptual map of your domain and generates examples that explore different aspects systematically. This ensures broader coverage and more consistent quality across your dataset.
+
+**Agent Tool-Calling Capabilities**: DeepFabric includes specialized formats for training models in systematic tool usage, capturing not just what tools to use but why they're selected and how parameters are constructed. This enables creation of datasets for training more effective function-calling models and agents that work seamlessly with Model Context Protocol (MCP) servers.
 
 ## Topic Trees and Graphs
 

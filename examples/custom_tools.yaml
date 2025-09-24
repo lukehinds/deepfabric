@@ -1,0 +1,62 @@
+# Custom tool definitions for DeepFabric
+tools:
+  - name: "book_restaurant"
+    description: "Book a restaurant reservation"
+    parameters:
+      - name: "restaurant"
+        type: "str"
+        description: "Restaurant name"
+        required: true
+      - name: "party_size"
+        type: "int"
+        description: "Number of people"
+        required: true
+      - name: "date"
+        type: "str"
+        description: "Reservation date"
+        required: true
+      - name: "time"
+        type: "str"
+        description: "Preferred time"
+        required: true
+    returns: "Reservation confirmation with details"
+    category: "booking"
+
+  - name: "get_workout_plan"
+    description: "Generate a personalized workout plan"
+    parameters:
+      - name: "fitness_level"
+        type: "str"
+        description: "beginner/intermediate/advanced"
+        required: true
+      - name: "goal"
+        type: "str"
+        description: "fitness goal (strength, cardio, weight_loss)"
+        required: true
+      - name: "duration"
+        type: "int"
+        description: "workout duration in minutes"
+        required: false
+        default: 30
+    returns: "Personalized workout plan with exercises"
+    category: "fitness"
+
+  - name: "analyze_stock"
+    description: "Analyze stock performance and trends"
+    parameters:
+      - name: "symbol"
+        type: "str"
+        description: "Stock ticker symbol (e.g., AAPL, GOOGL)"
+        required: true
+      - name: "period"
+        type: "str"
+        description: "Analysis period (1d, 1w, 1m, 3m, 1y)"
+        required: false
+        default: "1m"
+      - name: "include_news"
+        type: "bool"
+        description: "Include recent news in analysis"
+        required: false
+        default: true
+    returns: "Stock analysis with trends, metrics, and news"
+    category: "finance"

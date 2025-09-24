@@ -41,7 +41,8 @@ The examples reflect actual use cases encountered in production environments:
 Detailed examples are organized into focused sections:
 
 [**Basic Usage**](basic-usage.md) - Simple configurations and common patterns
-[**Advanced Workflows**](advanced-workflows.md) - Complex multi-stage generation processes  
+[**Advanced Workflows**](advanced-workflows.md) - Complex multi-stage generation processes
+[**Agent Tool-Calling**](agent-tool-calling.md) - Agent reasoning with systematic tool usage
 [**Hugging Face Integration**](huggingface-integration.md) - Dataset publishing and sharing patterns
 
 Each section includes complete, runnable examples with detailed explanations of configuration choices, expected outputs, and adaptation guidance for different requirements.
