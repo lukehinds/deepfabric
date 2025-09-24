@@ -28,7 +28,11 @@ Research shows CoT training significantly improves performance on:
 
 ## CoT Format Types in DeepFabric
 
-DeepFabric supports three distinct Chain of Thought formats, each optimized for different use cases:
+DeepFabric supports five distinct Chain of Thought formats, including specialized agent formats for tool-calling scenarios:
+
+### Traditional CoT Formats
+
+The classic Chain of Thought formats focus on reasoning without external tools:
 
 ### 1. Free-text CoT
 **Best for**: Natural language reasoning, math problems, general problem-solving
@@ -74,6 +78,57 @@ DeepFabric supports three distinct Chain of Thought formats, each optimized for 
 }
 ```
 
+### Agent CoT Formats
+
+Advanced Chain of Thought formats that include external tool usage and reasoning:
+
+### 4. Agent CoT with Tools (`agent_cot_tools`)
+**Best for**: Training models to reason about tool selection and usage
+
+```json
+{
+  "question": "What's the weather in Paris and what's 15% of the temperature?",
+  "available_tools": [{"name": "get_weather", ...}, {"name": "calculator", ...}],
+  "initial_analysis": "Need weather data for Paris, then calculate 15% of temperature",
+  "tool_planning": [
+    {
+      "step_number": 1,
+      "reasoning": "Get current weather for Paris to obtain temperature",
+      "selected_tool": {"name": "get_weather", ...},
+      "parameter_reasoning": {"location": "Paris specified by user"},
+      "expected_result": "Current weather including temperature"
+    }
+  ],
+  "tool_executions": [
+    {
+      "function": "get_weather",
+      "arguments": {"location": "Paris"},
+      "reasoning": "Getting Paris weather as planned",
+      "result": "Paris: 18°C, partly cloudy"
+    }
+  ],
+  "result_synthesis": "Combined weather data with calculation",
+  "final_answer": "Paris is 18°C and partly cloudy. 15% of 18°C is 2.7°C."
+}
+```
+
+### 5. Multi-Turn Agent CoT (`agent_cot_multi_turn`)
+**Best for**: Conversational agents with progressive tool usage
+
+```json
+{
+  "messages": [
+    {"role": "user", "content": "What's the weather?"},
+    {"role": "assistant", "content": "I need to know your location first."},
+    {"role": "user", "content": "Paris"},
+    {"role": "assistant", "content": "Let me check Paris weather..."}
+  ],
+  "tool_planning_trace": [...],
+  "tool_execution_trace": [...],
+  "reasoning_summary": "Progressive information gathering and tool usage"
+}
+```
+
 ## Quick Start Guide
 
 Get started with Chain of Thought datasets in under 5 minutes:
@@ -85,6 +140,8 @@ Get started with Chain of Thought datasets in under 5 minutes:
 | **Free-text** | Simple reasoning problems | Low | Math, logic, general Q&A |
 | **Structured** | Educational conversations | Medium | Tutoring, step-by-step learning |
 | **Hybrid** | Complex explanations | High | Algorithm analysis, proofs |
+| **Agent CoT Tools** | Tool reasoning & selection | High | Function calling, tool usage training |
+| **Agent Multi-Turn** | Conversational tool usage | Very High | Multi-turn agents, progressive reasoning |
 
 ### 2. Basic Configuration
 
@@ -164,6 +221,7 @@ head -n 1 my_cot_dataset.jsonl | jq .
 - [Free-text CoT](formats/free-text.md) - Natural language reasoning
 - [Structured CoT](formats/structured.md) - Conversation-based learning
 - [Hybrid CoT](formats/hybrid.md) - Complex multi-modal reasoning
+- [Agent Tool-Calling CoT](../agent-tool-calling/index.md) - Tool reasoning and function calling
 
 ### **Step-by-Step Tutorials**
 - [Math Reasoning Dataset](tutorials/math-reasoning.md) - GSM8K-style problems

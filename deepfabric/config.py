@@ -122,10 +122,33 @@ class DataEngineConfig(BaseModel):
 
     # Chain of Thought parameters
     conversation_type: Literal[
-        "basic", "structured", "tool_calling", "cot_freetext", "cot_structured", "cot_hybrid"
+        "basic",
+        "structured",
+        "tool_calling",
+        "cot_freetext",
+        "cot_structured",
+        "cot_hybrid",
+        "agent_cot_tools",
+        "agent_cot_hybrid",
+        "agent_cot_multi_turn",
     ] = Field(default="basic", description="Type of conversation to generate")
     reasoning_style: Literal["mathematical", "logical", "general"] = Field(
         default="general", description="Style of reasoning for CoT generation"
+    )
+
+    # Agent-specific parameters
+    available_tools: list[str] = Field(
+        default_factory=list,
+        description="List of tool names available to the agent (empty means all tools)",
+    )
+    custom_tools: list[dict] = Field(
+        default_factory=list, description="Custom tool definitions as dictionaries"
+    )
+    max_tools_per_query: int = Field(
+        default=3, ge=1, le=10, description="Maximum number of tools an agent can use per query"
+    )
+    tool_registry_path: str | None = Field(
+        default=None, description="Path to custom tool definitions file (JSON/YAML)"
     )
 
 

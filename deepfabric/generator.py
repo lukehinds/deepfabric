@@ -21,6 +21,9 @@ from .exceptions import DataSetGeneratorError
 from .llm import LLMClient
 from .metrics import trace
 from .prompts import (
+    AGENT_COT_HYBRID_PROMPT,
+    AGENT_COT_MULTI_TURN_PROMPT,
+    AGENT_COT_TOOLS_PROMPT,
     CONVERSATION_GENERATION_PROMPT,
     FREETEXT_COT_MATHEMATICAL_PROMPT,
     FREETEXT_COT_PROMPT,
@@ -28,8 +31,10 @@ from .prompts import (
     HYBRID_COT_PROMPT,
     STRUCTURED_COT_MATHEMATICAL_PROMPT,
     STRUCTURED_COT_PROMPT,
+    AgentPromptBuilder,
 )
 from .schemas import get_conversation_schema
+from .tools.loader import get_available_tools, load_tools_from_dict
 from .topic_model import TopicModel
 
 # Handle circular import for type hints
@@ -89,10 +94,30 @@ class DataSetGeneratorConfig(BaseModel):
 
     # Chain of Thought parameters
     conversation_type: Literal[
-        "basic", "structured", "tool_calling", "cot_freetext", "cot_structured", "cot_hybrid"
+        "basic",
+        "structured",
+        "tool_calling",
+        "cot_freetext",
+        "cot_structured",
+        "cot_hybrid",
+        "agent_cot_tools",
+        "agent_cot_hybrid",
+        "agent_cot_multi_turn",
     ] = Field(default="basic", description="Type of conversation to generate")
     reasoning_style: Literal["mathematical", "logical", "general"] = Field(
         default="general", description="Style of reasoning for CoT generation"
+    )
+
+    # Agent-specific parameters
+    available_tools: list[str] = Field(
+        default_factory=list,
+        description="List of tool names available to the agent (empty means all tools)",
+    )
+    custom_tools: list[dict] = Field(
+        default_factory=list, description="Custom tool definitions as dictionaries"
+    )
+    max_tools_per_query: int = Field(
+        default=3, ge=1, le=10, description="Maximum number of tools an agent can use per query"
     )
 
 
@@ -124,6 +149,32 @@ class DataSetGenerator:
         )
         # Store generation prompt for content generation
         self.generation_prompt = self.config.generation_system_prompt
+
+        # Initialize tool registry for agent conversation types
+        self.tool_registry = None
+        if self.config.conversation_type in {
+            "agent_cot_tools",
+            "agent_cot_hybrid",
+            "agent_cot_multi_turn",
+        }:
+            self._initialize_tool_registry()
+
+    def _initialize_tool_registry(self):
+        """Initialize tool registry from configuration."""
+        try:
+            # Load custom tools if specified
+            custom_registry = None
+            if self.config.custom_tools:
+                custom_registry = load_tools_from_dict(self.config.custom_tools)
+
+            # Get available tools based on configuration
+            self.tool_registry = get_available_tools(
+                available_tool_names=self.config.available_tools or None,
+                custom_registry=custom_registry,
+            )
+
+        except Exception as e:
+            raise DataSetGeneratorError(f"Failed to initialize tool registry: {str(e)}") from e
 
     def _validate_create_data_params(
         self,
@@ -241,6 +292,17 @@ class DataSetGenerator:
                             "content": self.dataset_system_prompt,
                         },
                     )
+
+                # Add tool registry information for agent conversation types
+                if (
+                    self.config.conversation_type
+                    in {"agent_cot_tools", "agent_cot_hybrid", "agent_cot_multi_turn"}
+                    and self.tool_registry is not None
+                ):
+                    # Add available tools as metadata
+                    sample["available_tools"] = [
+                        tool.model_dump() for tool in self.tool_registry.tools
+                    ]
 
                 samples.append(sample)
 
@@ -589,7 +651,7 @@ class DataSetGenerator:
             return ""
         return f"\nLastly, the topic of the training data should be related to the following subtopics: {' -> '.join(subtopic_list)}"
 
-    def _get_cot_prompt_template(self) -> str:
+    def _get_cot_prompt_template(self) -> str:  # noqa: PLR0911
         """Get the appropriate CoT prompt template based on conversation type and reasoning style."""
         # Use mathematical prompts when reasoning_style is mathematical
         if self.config.reasoning_style == "mathematical":
@@ -600,6 +662,22 @@ class DataSetGenerator:
             }
             if self.config.conversation_type in mathematical_prompts:
                 return mathematical_prompts[self.config.conversation_type]
+
+        # Agent tool-calling prompts use structured generation
+        if self.config.conversation_type == "agent_cot_tools":
+            if self.tool_registry is not None:
+                return AgentPromptBuilder.build_tool_context_prompt(self.tool_registry)
+            return AGENT_COT_TOOLS_PROMPT
+
+        if self.config.conversation_type == "agent_cot_hybrid":
+            if self.tool_registry is not None:
+                return AgentPromptBuilder.build_tool_context_prompt(self.tool_registry)
+            return AGENT_COT_HYBRID_PROMPT
+
+        if self.config.conversation_type == "agent_cot_multi_turn":
+            if self.tool_registry is not None:
+                return AgentPromptBuilder.build_multi_turn_context_prompt(self.tool_registry)
+            return AGENT_COT_MULTI_TURN_PROMPT
 
         # Default CoT prompts for non-mathematical reasoning
         cot_prompts = {

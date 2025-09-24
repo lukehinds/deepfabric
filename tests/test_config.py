@@ -121,7 +121,15 @@ def test_load_from_yaml(sample_yaml_file, sample_config_dict):
 
     assert config.dataset_system_prompt == sample_config_dict["dataset_system_prompt"]
     assert config.topic_tree.model_dump(exclude_none=True) == sample_config_dict["topic_tree"]
-    assert config.data_engine.model_dump(exclude_none=True) == sample_config_dict["data_engine"]
+
+    # Add the new agent fields to the expected config for comparison
+    expected_data_engine = sample_config_dict["data_engine"].copy()
+    expected_data_engine["available_tools"] = []  # Default value
+    expected_data_engine["custom_tools"] = []  # Default value
+    expected_data_engine["max_tools_per_query"] = 3  # Default value
+
+    actual_data_engine = config.data_engine.model_dump(exclude_none=True)
+    assert actual_data_engine == expected_data_engine
     assert config.dataset.model_dump(exclude_none=True) == sample_config_dict["dataset"]
 
 

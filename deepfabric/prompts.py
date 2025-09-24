@@ -180,3 +180,86 @@ Create problems that combine intuitive explanations with systematic step-by-step
 {{{{instructions}}}}
 {{{{examples}}}}
 {{{{subtopics}}}}"""
+
+
+# Structured Agent Tool-Calling Prompt Builder
+class AgentPromptBuilder:
+    """Build structured prompts for agent tool-calling training."""
+
+    @staticmethod
+    def build_tool_context_prompt(
+        tool_registry, instructions: str = "", subtopics: str = ""
+    ) -> str:
+        """Build a minimal context prompt that relies on structured generation."""
+        tool_signatures = []
+        for tool in tool_registry.tools:
+            tool_signatures.append(f"- {tool.to_signature()}")
+
+        return f"""Generate a realistic agent training example with tool usage reasoning.
+
+Available tools:
+{chr(10).join(tool_signatures)}
+
+Focus on WHY each tool is selected and HOW parameters are constructed.
+
+{instructions}
+{subtopics}
+
+Generate a complete agent reasoning example using structured output."""
+
+    @staticmethod
+    def build_multi_turn_context_prompt(
+        tool_registry, instructions: str = "", subtopics: str = ""
+    ) -> str:
+        """Build context for multi-turn conversations."""
+        tool_signatures = []
+        for tool in tool_registry.tools:
+            tool_signatures.append(f"- {tool.to_signature()}")
+
+        return f"""Generate a multi-turn agent conversation with evolving tool usage.
+
+Available tools:
+{chr(10).join(tool_signatures)}
+
+Show tool dependencies and reasoning across conversation turns.
+
+{instructions}
+{subtopics}
+
+Generate a complete multi-turn conversation using structured output."""
+
+
+# Simplified prompts that delegate to structured generation
+AGENT_COT_TOOLS_PROMPT = """Generate an agent tool-calling training example using the available tool definitions.
+
+Focus on the reasoning process: WHY tools are selected, HOW parameters are constructed, and WHAT results are expected.
+
+Create realistic scenarios that teach proper tool reasoning patterns.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""
+
+AGENT_COT_HYBRID_PROMPT = """Generate agent tool-calling examples with rich CoT reasoning traces and tool execution.
+
+Combine natural language reasoning with structured step-by-step traces that include:
+- Chain of thought analysis
+- Structured reasoning steps with thoughts and actions
+- Clear tool selection and parameter reasoning
+- Tool execution with results
+
+Focus on teaching both the reasoning process AND tool usage patterns.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""
+
+AGENT_COT_MULTI_TURN_PROMPT = """Generate a multi-turn agent conversation with tool usage across turns.
+
+Show how reasoning evolves: tool dependencies, progressive refinement, and result synthesis.
+
+Create realistic tool chaining patterns and decision-making processes.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""
