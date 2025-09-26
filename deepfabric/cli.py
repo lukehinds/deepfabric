@@ -81,6 +81,11 @@ def cli():
     default="tree",
     help="Topic generation mode (default: tree)",
 )
+@click.option(
+    "--debug",
+    is_flag=True,
+    help="Enable debug mode for detailed error output",
+)
 def generate(  # noqa: PLR0913
     config_file: str | None,
     dataset_system_prompt: str | None = None,
@@ -102,6 +107,7 @@ def generate(  # noqa: PLR0913
     base_url: str | None = None,
     sys_msg: bool | None = None,
     mode: str = "tree",
+    debug: bool = False,
 ) -> None:
     """Generate training data from a YAML configuration file or CLI parameters."""
     trace(
@@ -194,6 +200,7 @@ def generate(  # noqa: PLR0913
             provider=provider,
             model=model,
             base_url=base_url,
+            debug=debug,
         )
 
         # Save topic model if newly created
@@ -219,6 +226,7 @@ def generate(  # noqa: PLR0913
             provider=provider,
             model=model,
             engine_overrides=engine_overrides,
+            debug=debug,
         )
 
         # Save dataset

@@ -281,3 +281,112 @@ class DatasetOutput(BaseModel):
 
     def __getitem__(self, index):
         return self.samples[index]
+
+
+# Additional models for handling structured CoT and unified sample processing
+
+
+class ReasoningStep(BaseModel):
+    """A single step in a structured reasoning trace."""
+
+    step_number: int | None = None
+    thought: str = ""
+    action: str = ""
+
+
+class StructuredCoTSample(BaseModel):
+    """Sample format for structured Chain of Thought reasoning."""
+
+    messages: list[Message]
+    reasoning_trace: list[ReasoningStep] | str
+    final_answer: str
+
+    def get_reasoning_text(self) -> str:
+        """Extract reasoning as text from the trace."""
+        if isinstance(self.reasoning_trace, str):
+            return self.reasoning_trace
+
+        parts = []
+        for step in self.reasoning_trace:
+            if step.thought:
+                parts.append(step.thought)
+            if step.action and step.action != step.thought:
+                parts.append(step.action)
+        return " ".join(parts) if parts else ""
+
+    def has_assistant_message(self) -> bool:
+        """Check if there's an assistant message."""
+        return any(msg.role == "assistant" for msg in self.messages)
+
+    def create_assistant_content(
+        self, reasoning_start: str, reasoning_end: str, solution_start: str, solution_end: str
+    ) -> str:
+        """Create formatted assistant content with reasoning and solution tags."""
+        reasoning = self.get_reasoning_text()
+        if not reasoning:
+            reasoning = "Let me solve this step by step."
+
+        return f"{reasoning_start}{reasoning}{reasoning_end}{solution_start}{self.final_answer}{solution_end}"
+
+
+class UnifiedSample(BaseModel):
+    """Unified model that can handle multiple input formats with type-safe detection."""
+
+    data: dict[str, Any]
+
+    def detect_format(self) -> Literal["structured_cot", "messages", "qa", "generic", "unknown"]:
+        """Detect the format of the sample with type safety."""
+        # Check for structured CoT format
+        if (
+            "messages" in self.data
+            and "reasoning_trace" in self.data
+            and "final_answer" in self.data
+        ):
+            return "structured_cot"
+
+        # Check for messages format
+        if "messages" in self.data:
+            messages = self.data["messages"]
+            if isinstance(messages, list) and messages:
+                return "messages"
+
+        # Check for Q&A format
+        if "question" in self.data and ("answer" in self.data or "final_answer" in self.data):
+            return "qa"
+
+        # Check for generic format with recognizable fields
+        question_fields = ["question", "prompt", "problem", "input", "instruction"]
+        answer_fields = ["answer", "output", "response", "solution", "final_answer"]
+
+        has_question = any(field in self.data for field in question_fields)
+        has_answer = any(field in self.data for field in answer_fields)
+
+        if has_question or has_answer:
+            return "generic"
+
+        return "unknown"
+
+    def as_structured_cot(self) -> StructuredCoTSample | None:
+        """Try to parse as structured CoT sample."""
+        try:
+            return StructuredCoTSample(**self.data)
+        except Exception:
+            return None
+
+    def as_conversation(self) -> ConversationSample | None:
+        """Try to parse as conversation sample."""
+        try:
+            return ConversationSample(**self.data)
+        except Exception:
+            return None
+
+    def as_qa(self) -> QASample | None:
+        """Try to parse as Q&A sample."""
+        try:
+            return QASample(**self.data)
+        except Exception:
+            return None
+
+    def as_generic(self) -> GenericSample:
+        """Parse as generic sample (always succeeds)."""
+        return GenericSample(data=self.data)

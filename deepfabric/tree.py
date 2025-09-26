@@ -17,7 +17,7 @@ from .constants import (
 from .exceptions import TreeError
 from .llm import LLMClient
 from .metrics import trace
-from .prompts import TOPIC_EXPANSION_PROMPT
+from .prompts import TreePromptBuilder
 from .schemas import TopicList
 from .topic_model import TopicModel
 
@@ -222,10 +222,15 @@ class Tree(TopicModel):
     ) -> list[str]:
         """Generate subtopics using structured generation."""
 
-        prompt = TOPIC_EXPANSION_PROMPT
-        prompt = prompt.replace("{{{{system_prompt}}}}", system_prompt if system_prompt else "")
-        prompt = prompt.replace("{{{{subtopics_list}}}}", " -> ".join(node_path))
-        prompt = prompt.replace("{{{{num_subtopics}}}}", str(num_subtopics))
+        # Determine domain based on system prompt or path content
+        domain = self._detect_domain(system_prompt, node_path)
+
+        prompt = TreePromptBuilder.build_expansion_prompt(
+            topic_path=node_path,
+            num_subtopics=num_subtopics,
+            system_prompt=system_prompt if system_prompt else "",
+            domain=domain,
+        )
 
         try:
             # Generate structured subtopics using TopicList schema
@@ -261,6 +266,27 @@ class Tree(TopicModel):
             # Generate default subtopics
             return [f"subtopic_{i + 1}_for_{node_path[-1]}" for i in range(num_subtopics)]
 
+    def _detect_domain(self, system_prompt: str, node_path: list[str]) -> str:
+        """Detect the appropriate domain for prompt examples based on context."""
+        combined_text = f"{system_prompt} {' '.join(node_path)}".lower()
+
+        if any(
+            word in combined_text
+            for word in ["math", "calculus", "algebra", "geometry", "equation"]
+        ):
+            return "educational"
+        if any(
+            word in combined_text
+            for word in ["programming", "code", "software", "python", "algorithm"]
+        ):
+            return "technical"
+        if any(
+            word in combined_text
+            for word in ["chat", "conversation", "talk", "friendly", "assistant"]
+        ):
+            return "conversational"
+        return "general"
+
     def _build_subtree_generator(
         self,
         node_path: list[str],
@@ -290,12 +316,20 @@ class Tree(TopicModel):
 
         subtopics = self.get_subtopics(system_prompt, node_path, n_child)
 
-        yield {
+        event = {
             "event": "subtopics_generated",
             "parent_path": node_path,
             "count": len(subtopics),
             "success": bool(subtopics),
         }
+
+        # Include error information if generation failed
+        if not event["success"] and self.failed_generations:
+            # Get the most recent failure
+            recent_failure = self.failed_generations[-1]
+            event["error"] = recent_failure.get("error", "Unknown error")
+
+        yield event
 
         if not subtopics:
             self.tree_paths.append(node_path)

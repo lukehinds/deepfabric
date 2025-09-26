@@ -14,8 +14,8 @@ topic_tree:
   provider: "openai"
   model: "gpt-4"
   temperature: 0.7
-  degree: 4
-  depth: 3
+  degree: 2
+  depth: 2
   save_as: "math_topics.jsonl"
 
 data_engine:
@@ -29,8 +29,8 @@ data_engine:
 
 dataset:
   creation:
-    num_steps: 50
-    batch_size: 5
+    num_steps: 4
+    batch_size: 1
     sys_msg: true
   save_as: "raw_math_dataset.jsonl"
   formatters:

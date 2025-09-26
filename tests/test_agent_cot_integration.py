@@ -9,7 +9,7 @@ This module tests the complete integration between:
 
 from unittest.mock import MagicMock, patch  # noqa: F401
 
-import pytest  # noqa: F401
+import pytest  # type: ignore # noqa: F401
 
 from deepfabric.config import DeepFabricConfig
 from deepfabric.formatters.builtin.tool_calling import ToolCallingFormatter
@@ -41,7 +41,7 @@ class TestAgentCoTIntegration:
         }
 
         instance = schema(**test_data)
-        assert instance.question == "Test question" # type: ignore
+        assert instance.question == "Test question"  # type: ignore
 
     @patch("deepfabric.generator.LLMClient")
     def test_generator_with_agent_cot_tools(self, mock_llm_client):  # noqa: ARG002
@@ -96,7 +96,9 @@ class TestAgentCoTIntegration:
         messages = formatted["messages"]
 
         # Should have proper message structure
-        assert len(messages) == 4  # user, assistant+thinking, tool, assistant+answer  # noqa: PLR2004
+        assert (
+            len(messages) == 4  # noqa: PLR2004
+        )  # user, assistant+thinking, tool, assistant+answer  # noqa: PLR2004
 
         # Check that all rich reasoning is preserved in thinking
         thinking_content = messages[1]["content"]
