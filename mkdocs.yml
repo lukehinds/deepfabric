@@ -35,14 +35,30 @@ nav:
         - Reference:
           - Schemas: guide/instruction-formats/chain-of-thought/reference/schemas.md
           - Troubleshooting: guide/instruction-formats/chain-of-thought/reference/troubleshooting.md
+      - Agent Tool-Calling:
+        - Overview: guide/instruction-formats/agent-tool-calling/index.md
+        - Single-Turn: guide/instruction-formats/agent-tool-calling/single-turn.md
+        - Multi-Turn: guide/instruction-formats/agent-tool-calling/multi-turn.md
+        - Configuration:
+          - YAML Config: guide/instruction-formats/agent-tool-calling/configuration/yaml-config.md
+          - Python API: guide/instruction-formats/agent-tool-calling/configuration/python-api.md
+        - Tutorials:
+          - Getting Started: guide/instruction-formats/agent-tool-calling/tutorials/getting-started.md
+    - Tool Configuration: guide/yaml-tool-configuration.md
   - SDK Guide:
     - Generator Pattern: guide/generator-pattern.md
+  - Formatters:
+    - Overview: formatters/overview.md
+    - Built-in Reference: formatters/built-in-reference.md
+    - Custom Formatter Guide: formatters/custom-formatter-guide.md
+    - API Reference: formatters/api-reference.md
   - CLI Reference:
     - Overview: cli/index.md
     - generate: cli/generate.md
     - validate: cli/validate.md
     - visualize: cli/visualize.md
     - upload: cli/upload.md
+    - format: cli/format.md
   - API Reference:
     - Overview: api/index.md
     - Tree: api/tree.md
@@ -54,6 +70,7 @@ nav:
     - Basic Usage: examples/basic-usage.md
     - Advanced Workflows: examples/advanced-workflows.md
     - Hugging Face Integration: examples/huggingface-integration.md
+    - Agent Tool-Calling: examples/agent-tool-calling.md
 
 theme:
   name: material
