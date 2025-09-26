@@ -448,4 +448,4 @@ You've successfully created your first agent tool-calling dataset! This dataset 
 - **Explain their thinking** at each step
 - **Synthesize results** into helpful responses
 
-Next, explore [custom tools](custom-tools.md) or try [multi-turn conversations](../multi-turn.md) for more advanced scenarios.
+Next, try [multi-turn conversations](../multi-turn.md) for more advanced scenarios.

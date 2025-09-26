@@ -156,17 +156,12 @@ python examples/agent_tool_calling.py
 - [Single-Turn Agent CoT](single-turn.md) - Complete task resolution with tools
 - [Multi-Turn Agent CoT](multi-turn.md) - Conversational tool usage
 
+### **Tutorials**
+- [Getting Started](tutorials/getting-started.md) - First agent tool-calling dataset
+
 ### **Configuration**
 - [YAML Configuration](configuration/yaml-config.md) - Agent-specific parameters
 - [Python API](configuration/python-api.md) - Programmatic usage
-
-### **Tutorials**
-- [Getting Started](tutorials/getting-started.md) - First agent tool-calling dataset
-- [Custom Tools](tutorials/custom-tools.md) - Creating domain-specific tools
-
-### **Reference**
-- [Schema Reference](reference/schemas.md) - Complete format specifications
-- [Tool Definitions](reference/tool-definitions.md) - Tool definition format guide
 
 ---
 
