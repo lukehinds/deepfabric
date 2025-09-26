@@ -1,3 +1,218 @@
+class TreePromptBuilder:
+    """Build dynamic prompts for topic tree expansion with domain-specific examples."""
+
+    # Domain-specific expansion examples
+    EXAMPLES = {
+        "general": [
+            {
+                "path": ["Technology", "Artificial Intelligence"],
+                "subtopics": [
+                    "machine learning",
+                    "neural networks",
+                    "computer vision",
+                    "natural language processing",
+                    "robotics",
+                ],
+            },
+            {
+                "path": ["Entertainment", "Movies", "Actors"],
+                "subtopics": [
+                    "Tom Hanks",
+                    "Meryl Streep",
+                    "Leonardo DiCaprio",
+                    "Jennifer Lawrence",
+                    "Denzel Washington",
+                ],
+            },
+        ],
+        "conversational": [
+            {
+                "path": ["Small Talk Topics"],
+                "subtopics": [
+                    "weather",
+                    "weekend plans",
+                    "hobbies",
+                    "family",
+                    "books",
+                    "food",
+                    "music",
+                ],
+            },
+            {
+                "path": ["Small Talk Topics", "Family"],
+                "subtopics": [
+                    "parents",
+                    "grandparents",
+                    "siblings",
+                    "family traditions",
+                    "family vacations",
+                ],
+            },
+            {
+                "path": ["Small Talk Topics", "Hobbies", "Cooking"],
+                "subtopics": [
+                    "recipes",
+                    "asian food",
+                    "favourite dishes",
+                    "cookbooks",
+                    "kitchen gadgets",
+                    "vegan cooking",
+                ],
+            },
+        ],
+        "technical": [
+            {
+                "path": ["Programming"],
+                "subtopics": [
+                    "algorithms",
+                    "data structures",
+                    "debugging",
+                    "testing",
+                    "version control",
+                ],
+            },
+            {
+                "path": ["Programming", "Python"],
+                "subtopics": ["pandas", "flask", "pytest", "asyncio", "django"],
+            },
+        ],
+        "educational": [
+            {
+                "path": ["Mathematics"],
+                "subtopics": ["algebra", "geometry", "calculus", "statistics", "probability"],
+            },
+            {
+                "path": ["Mathematics", "Algebra"],
+                "subtopics": [
+                    "linear equations",
+                    "quadratic functions",
+                    "polynomials",
+                    "matrices",
+                    "systems",
+                ],
+            },
+        ],
+    }
+
+    @classmethod
+    def build_expansion_prompt(
+        cls,
+        topic_path: list[str],
+        num_subtopics: int,
+        system_prompt: str = "",
+        domain: str = "general",
+    ) -> str:
+        """Build a topic expansion prompt with relevant examples."""
+
+        path_str = " -> ".join(f'"{topic}"' for topic in topic_path)
+        examples = cls._format_examples(cls.EXAMPLES.get(domain, cls.EXAMPLES["general"]))
+
+        return f"""Generate {num_subtopics} subtopics for training data organization.
+
+Task: Create diverse but related subtopics that expand on the given topic path.
+
+Examples:
+{examples}
+
+Context: {system_prompt}
+
+Topic path: {path_str}
+Generate {num_subtopics} subtopics as a Python list. Return only the list, nothing else."""
+
+    @classmethod
+    def _format_examples(cls, examples: list) -> str:
+        """Format examples for inclusion in prompt."""
+        formatted = []
+        for ex in examples[:3]:  # Limit to 3 examples
+            path_str = " -> ".join(f'"{topic}"' for topic in ex["path"])
+            subtopics_str = str(ex["subtopics"])
+            formatted.append(f"Path: {path_str}\nSubtopics: {subtopics_str}")
+        return "\n\n".join(formatted)
+
+
+# Structured Agent Tool-Calling Prompt Builder
+class AgentPromptBuilder:
+    """Build structured prompts for agent tool-calling training."""
+
+    @staticmethod
+    def build_tool_context_prompt(
+        tool_registry, instructions: str = "", subtopics: str = ""
+    ) -> str:
+        """Build a minimal context prompt that relies on structured generation."""
+        tool_signatures = []
+        for tool in tool_registry.tools:
+            tool_signatures.append(f"- {tool.to_signature()}")
+
+        return f"""Generate a realistic agent training example with tool usage reasoning.
+
+Available tools:
+{chr(10).join(tool_signatures)}
+
+Focus on WHY each tool is selected and HOW parameters are constructed.
+
+{instructions}
+{subtopics}
+
+Generate a complete agent reasoning example using structured output."""
+
+    @staticmethod
+    def build_multi_turn_context_prompt(
+        tool_registry, instructions: str = "", subtopics: str = ""
+    ) -> str:
+        """Build context for multi-turn conversations."""
+        tool_signatures = []
+        for tool in tool_registry.tools:
+            tool_signatures.append(f"- {tool.to_signature()}")
+
+        return f"""Generate a multi-turn agent conversation with evolving tool usage.
+
+Available tools:
+{chr(10).join(tool_signatures)}
+
+Show tool dependencies and reasoning across conversation turns.
+
+{instructions}
+{subtopics}
+
+Generate a complete multi-turn conversation using structured output."""
+
+
+# Simplified prompts that delegate to structured generation
+AGENT_COT_TOOLS_PROMPT = """Generate an agent tool-calling training example using the available tool definitions.
+
+Focus on the reasoning process: WHY tools are selected, HOW parameters are constructed, and WHAT results are expected.
+
+Create realistic scenarios that teach proper tool reasoning patterns.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""
+
+AGENT_COT_HYBRID_PROMPT = """Generate agent tool-calling examples with rich CoT reasoning traces and tool execution.
+
+Combine natural language reasoning with structured step-by-step traces that include:
+- Chain of thought analysis
+- Structured reasoning steps with thoughts and actions
+- Clear tool selection and parameter reasoning
+- Tool execution with results
+
+Focus on teaching both the reasoning process AND tool usage patterns.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""
+
+AGENT_COT_MULTI_TURN_PROMPT = """Generate a multi-turn agent conversation with tool usage across turns.
+
+Show how reasoning evolves: tool dependencies, progressive refinement, and result synthesis.
+
+Create realistic tool chaining patterns and decision-making processes.
+
+{{{{instructions}}}}
+{{{{examples}}}}
+{{{{subtopics}}}}"""
+
+
 CONVERSATION_GENERATION_PROMPT = """Generate a training conversation for a language model with this system prompt:
 
 <system_prompt>
@@ -15,54 +230,14 @@ Create a realistic conversation that demonstrates the system's capabilities. The
 
 Generate one training sample as a conversation."""
 
-TOPIC_EXPANSION_PROMPT = """Generate subtopics for training data organization. You'll receive a topic path and need to create relevant subtopics that expand on the given topic.
+# Legacy constant for backward compatibility
+TOPIC_EXPANSION_PROMPT = """Generate subtopics for training data organization.
 
-Your task: Given a topic path, generate specific subtopics that are related but diverse enough to create varied training content.
+Create diverse but related subtopics that expand on the given topic path.
 
-Examples:
-
-Example 1:
-node path: "News Topics" -> "Sports" -> "Football"
-desired number of subtopics: 5
-subtopics: ["college football", "football stadiums", "health consequences football", "Seattle Seahawks", "football sponsorships"]
-
-
-Example 2:
-node path: "News Topics" -> "Entertainment" -> "Movies" -> "Star Portraits"
-desired number of subtopics: 8
-subtopics: ["Tom Hanks", "Meryl Streep", "Leonardo DiCaprio", "Jennifer Lawrence", "Denzel Washington", "Charlize Theron", "Robert Downey Jr.", "Emma Stone"]
-
-
-Here are three new examples, this time for generating smalltalk topics for a friendly chat assistant:
-
-Example 1:
-node path: "Small Talk Topics"
-desired number of subtopics: 7
-subtopics: ["weather", "weekend plans", "hobbies", "family", "books", "food", "music"]
-
-Example 2:
-node path: "Small Talk Topics" -> "Family"
-desired number of subtopics: 5
-subtopics: ["parents", "grandparents", "siblings", "family traditions", "family vacations"]
-
-Example 3:
-node path: "Small Talk Topics" -> "Hobbies" -> "Cooking"
-desired number of subtopics: 6
-subtopics: ["recipes", "asian food", "favourite dishes", "cookbooks", "kitchen gadgets", "vegan cooking"]
-
-
-Here is a description / the system prompt for the model we want to train:
-
-<system_prompt>
-{{{{system_prompt}}}}
-</system_prompt>
-
-
-Here is your topic input. When generating subtopics, remain somewhat vague. Things can only be tangentially related and they don't have to be interpreted in a single way. Importantly, make sure that the subtopics fit the system prompt, if one was supplied:
-node path: {{{{subtopics_list}}}}
-desired number of subtopics: {{{{num_subtopics}}}}
-
-Now return the subtopics as a python list, and return it in just one line, not multiple ones. Don't return anything else."""
+Topic path: {{{{subtopics_list}}}}
+System prompt: {{{{system_prompt}}}}
+Generate {{{{num_subtopics}}}} subtopics as a Python list. Return only the list."""
 
 GRAPH_EXPANSION_PROMPT = """
 You are an expert in knowledge graph generation. Your task is to expand a topic into a set of subtopics. For each subtopic, you should also identify if it connects to any other existing topics in the graph.
@@ -176,89 +351,6 @@ CRITICAL FORMATTING RULES for final_answer field:
 **Key Rule: Read the problem type carefully and format accordingly!**
 
 Create problems that combine intuitive explanations with systematic step-by-step solutions.
-
-{{{{instructions}}}}
-{{{{examples}}}}
-{{{{subtopics}}}}"""
-
-
-# Structured Agent Tool-Calling Prompt Builder
-class AgentPromptBuilder:
-    """Build structured prompts for agent tool-calling training."""
-
-    @staticmethod
-    def build_tool_context_prompt(
-        tool_registry, instructions: str = "", subtopics: str = ""
-    ) -> str:
-        """Build a minimal context prompt that relies on structured generation."""
-        tool_signatures = []
-        for tool in tool_registry.tools:
-            tool_signatures.append(f"- {tool.to_signature()}")
-
-        return f"""Generate a realistic agent training example with tool usage reasoning.
-
-Available tools:
-{chr(10).join(tool_signatures)}
-
-Focus on WHY each tool is selected and HOW parameters are constructed.
-
-{instructions}
-{subtopics}
-
-Generate a complete agent reasoning example using structured output."""
-
-    @staticmethod
-    def build_multi_turn_context_prompt(
-        tool_registry, instructions: str = "", subtopics: str = ""
-    ) -> str:
-        """Build context for multi-turn conversations."""
-        tool_signatures = []
-        for tool in tool_registry.tools:
-            tool_signatures.append(f"- {tool.to_signature()}")
-
-        return f"""Generate a multi-turn agent conversation with evolving tool usage.
-
-Available tools:
-{chr(10).join(tool_signatures)}
-
-Show tool dependencies and reasoning across conversation turns.
-
-{instructions}
-{subtopics}
-
-Generate a complete multi-turn conversation using structured output."""
-
-
-# Simplified prompts that delegate to structured generation
-AGENT_COT_TOOLS_PROMPT = """Generate an agent tool-calling training example using the available tool definitions.
-
-Focus on the reasoning process: WHY tools are selected, HOW parameters are constructed, and WHAT results are expected.
-
-Create realistic scenarios that teach proper tool reasoning patterns.
-
-{{{{instructions}}}}
-{{{{examples}}}}
-{{{{subtopics}}}}"""
-
-AGENT_COT_HYBRID_PROMPT = """Generate agent tool-calling examples with rich CoT reasoning traces and tool execution.
-
-Combine natural language reasoning with structured step-by-step traces that include:
-- Chain of thought analysis
-- Structured reasoning steps with thoughts and actions
-- Clear tool selection and parameter reasoning
-- Tool execution with results
-
-Focus on teaching both the reasoning process AND tool usage patterns.
-
-{{{{instructions}}}}
-{{{{examples}}}}
-{{{{subtopics}}}}"""
-
-AGENT_COT_MULTI_TURN_PROMPT = """Generate a multi-turn agent conversation with tool usage across turns.
-
-Show how reasoning evolves: tool dependencies, progressive refinement, and result synthesis.
-
-Create realistic tool chaining patterns and decision-making processes.
 
 {{{{instructions}}}}
 {{{{examples}}}}

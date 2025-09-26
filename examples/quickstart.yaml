@@ -13,26 +13,26 @@ dataset_system_prompt: |
 
 # Topic generation settings
 topic_tree:
-  topic_prompt: "General knowledge and helpful assistance"  # Change this to your domain
-  provider: "openai"  # or "anthropic", "gemini", "ollama"
-  model: "gpt-4o-mini"  # Cost-effective model
+  topic_prompt: "Vehicle mechanics and advancements"  # Change this to your domain
+  provider: "gemini"  # or "anthropic", "gemini", "ollama"
+  model: "gemini-2.5-flash-lite"  # Cost-effective model
   temperature: 0.8
-  degree: 3  # Number of subtopics per branch
-  depth: 2  # Tree depth (2-3 is usually enough)
+  degree: 4  # Number of subtopics per branch
+  depth: 4  # Tree depth (2-3 is usually enough)
   save_as: "topics.jsonl"
 
 # Data generation settings
 data_engine:
   generation_system_prompt: "Create informative Q&A pairs that are helpful and accurate."
-  provider: "openai"
-  model: "gpt-4o-mini"
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
   temperature: 0.7
   conversation_type: "basic"  # Options: basic, cot_structured, cot_freetext
 
 # Dataset configuration
 dataset:
   creation:
-    num_steps: 10  # Number of generation steps
+    num_steps: 9  # Number of generation steps
     batch_size: 1
     sys_msg: false
   save_as: "dataset_raw.jsonl"

@@ -16,8 +16,12 @@ from pydantic import BaseModel
 
 from ..base import BaseFormatter
 from ..models import (
+    ConversationSample,
     GrpoConfig,
     GrpoOutput,
+    Message,
+    StructuredCoTSample,
+    UnifiedSample,
 )
 
 PARTS_LENGTH = 3  # Minimum parts length when splitting on answer/solution keywords
@@ -81,7 +85,7 @@ Then, provide your solution between {self.solution_start_tag} and {self.solution
 
     def _format_single_sample(self, sample: dict) -> dict | None:
         """
-        Format a single sample for GRPO training.
+        Format a single sample for GRPO training using Pydantic models.
 
         Args:
             sample: A single dataset sample
@@ -92,33 +96,130 @@ Then, provide your solution between {self.solution_start_tag} and {self.solution
         if not self.validate(sample):
             return None
 
-        # Handle different input formats
-        if "messages" in sample:
-            return self._format_messages_sample(sample)
-        if "question" in sample and "final_answer" in sample:
-            return self._format_qa_sample(sample)
-        # Try to extract problem and solution from any available fields
-        return self._format_generic_sample(sample)
+        # Use UnifiedSample for type-safe format detection
+        unified = UnifiedSample(data=sample)
+        format_type = unified.detect_format()
+
+        match format_type:
+            case "structured_cot":
+                return self._format_structured_cot(unified.as_structured_cot())
+            case "messages":
+                return self._format_conversation(unified.as_conversation())
+            case "qa":
+                return self._format_qa_sample(unified.as_qa())
+            case "generic":
+                return self._format_generic_sample(unified.as_generic())
+            case _:
+                return None
+
+    def _format_structured_cot(self, sample: StructuredCoTSample | None) -> dict | None:
+        """Format a structured CoT sample using Pydantic model."""
+        if sample is None:
+            return None
+
+        # Create a copy of messages
+        messages = [msg.model_copy() for msg in sample.messages]
+
+        # If no assistant message, create one from reasoning trace and final answer
+        if not sample.has_assistant_message():
+            assistant_content = sample.create_assistant_content(
+                self.reasoning_start_tag,
+                self.reasoning_end_tag,
+                self.solution_start_tag,
+                self.solution_end_tag,
+            )
+            messages.append(Message(role="assistant", content=assistant_content))
+        else:
+            # Process existing assistant message to ensure GRPO format
+            for msg in messages:
+                if msg.role == "assistant" and not self._is_grpo_formatted(msg.content):
+                    reasoning, answer = self._extract_reasoning_and_answer(msg.content)
+                    if reasoning and answer:
+                        msg.content = (
+                            f"{self.reasoning_start_tag}{reasoning}{self.reasoning_end_tag}"
+                            f"{self.solution_start_tag}{answer}{self.solution_end_tag}"
+                        )
+
+        # Ensure system prompt
+        if not any(msg.role == "system" for msg in messages):
+            messages.insert(0, Message(role="system", content=self.system_prompt))
+
+        return {"messages": [msg.model_dump() for msg in messages]}
+
+    def _format_conversation(self, sample: ConversationSample | None) -> dict | None:
+        """Format a conversation sample using Pydantic model."""
+        if sample is None:
+            return None
+
+        messages = [msg.model_copy() for msg in sample.messages]
+
+        # Process assistant messages to ensure GRPO format
+        for msg in messages:
+            if msg.role == "assistant" and not self._is_grpo_formatted(msg.content):
+                reasoning, answer = self._extract_reasoning_and_answer(msg.content)
+                if reasoning and answer:
+                    msg.content = (
+                        f"{self.reasoning_start_tag}{reasoning}{self.reasoning_end_tag}"
+                        f"{self.solution_start_tag}{answer}{self.solution_end_tag}"
+                    )
+
+        # Ensure system prompt
+        if not any(msg.role == "system" for msg in messages):
+            messages.insert(0, Message(role="system", content=self.system_prompt))
+
+        return {"messages": [msg.model_dump() for msg in messages]}
 
     def _format_messages_sample(self, sample: dict) -> dict:
         """Format a sample that already has a messages structure."""
         messages = sample["messages"].copy()
 
-        # Find the assistant message and wrap it in GRPO format
-        for message in messages:
-            if message["role"] == "assistant":
-                content = message["content"]
+        # Check if there's an assistant message
+        has_assistant = any(msg["role"] == "assistant" for msg in messages)
 
-                # If not already in GRPO format, wrap it
-                if not self._is_grpo_formatted(content):
-                    # Try to extract reasoning and answer
-                    reasoning, answer = self._extract_reasoning_and_answer(content)
-                    if reasoning and answer:
-                        formatted_content = (
-                            f"{self.reasoning_start_tag}{reasoning}{self.reasoning_end_tag}"
-                            f"{self.solution_start_tag}{answer}{self.solution_end_tag}"
-                        )
-                        message["content"] = formatted_content
+        # If no assistant message but has reasoning_trace and final_answer (structured CoT format)
+        if not has_assistant and "reasoning_trace" in sample and "final_answer" in sample:
+            # Build reasoning from trace
+            reasoning_parts = []
+            if isinstance(sample["reasoning_trace"], list):
+                for step in sample["reasoning_trace"]:
+                    if isinstance(step, dict):
+                        thought = step.get("thought", "")
+                        action = step.get("action", "")
+                        if thought:
+                            reasoning_parts.append(thought)
+                        if action and action != thought:
+                            reasoning_parts.append(action)
+            elif isinstance(sample["reasoning_trace"], str):
+                reasoning_parts.append(sample["reasoning_trace"])
+
+            reasoning = (
+                " ".join(reasoning_parts) if reasoning_parts else "Let me solve this step by step."
+            )
+            answer = sample["final_answer"]
+
+            # Create assistant message with GRPO format
+            formatted_content = (
+                f"{self.reasoning_start_tag}{reasoning}{self.reasoning_end_tag}"
+                f"{self.solution_start_tag}{answer}{self.solution_end_tag}"
+            )
+            messages.append({"role": "assistant", "content": formatted_content})
+
+        # Process existing assistant messages
+        else:
+            for message in messages:
+                if message["role"] == "assistant":
+                    content = message["content"]
+
+                    # If not already in GRPO format, wrap it
+                    if not self._is_grpo_formatted(content):
+                        # Try to extract reasoning and answer
+                        reasoning, answer = self._extract_reasoning_and_answer(content)
+                        if reasoning and answer:
+                            formatted_content = (
+                                f"{self.reasoning_start_tag}{reasoning}{self.reasoning_end_tag}"
+                                f"{self.solution_start_tag}{answer}{self.solution_end_tag}"
+                            )
+                            message["content"] = formatted_content
 
         # Ensure system prompt is appropriate for GRPO
         has_system = any(msg["role"] == "system" for msg in messages)
@@ -127,17 +228,19 @@ Then, provide your solution between {self.solution_start_tag} and {self.solution
 
         return {"messages": messages}
 
-    def _format_qa_sample(self, sample: dict) -> dict:
+    def _format_qa_sample(self, sample) -> dict:
         """Format a Q&A sample to GRPO messages format."""
-        question = sample["question"]
-        answer = sample["final_answer"]
-
-        # Get reasoning if available
-        reasoning = ""
-        if "chain_of_thought" in sample:
-            reasoning = sample["chain_of_thought"]
-        elif "reasoning_trace" in sample:
-            reasoning = sample["reasoning_trace"]
+        # Handle both dict and QASample object
+        if hasattr(sample, "question"):
+            question = sample.question
+            answer = sample.final_answer
+            reasoning = getattr(sample, "chain_of_thought", None) or ""
+        else:
+            question = sample["question"]
+            answer = sample["final_answer"]
+            reasoning = sample.get("chain_of_thought", "")
+            if "reasoning_trace" in sample:
+                reasoning = sample["reasoning_trace"]
 
         # Format the assistant response
         if reasoning:
@@ -250,28 +353,38 @@ Then, provide your solution between {self.solution_start_tag} and {self.solution
         if not super().validate(entry):
             return False
 
-        # Check for supported formats
-        if "messages" in entry:
-            messages = entry["messages"]
-            if not isinstance(messages, list):
-                return False
+        # Use UnifiedSample for validation
+        unified = UnifiedSample(data=entry)
+        format_type = unified.detect_format()
 
-            # Should have at least user and assistant messages
-            roles = [msg.get("role") for msg in messages if isinstance(msg, dict)]
-            return "user" in roles and "assistant" in roles
+        # Check if we can handle this format
+        if format_type not in ("structured_cot", "messages", "qa", "generic"):
+            return False
 
-        # Check for Q&A format
-        if "question" in entry and ("final_answer" in entry or "answer" in entry):
-            return True
+        # Additional validation for specific formats
+        return self._validate_format_specific_requirements(entry, format_type)
 
-        # Check for any question/answer pattern
-        question_fields = ["question", "prompt", "problem", "input", "instruction"]
-        answer_fields = ["answer", "output", "response", "solution", "final_answer"]
+    def _validate_format_specific_requirements(self, entry: dict, format_type: str) -> bool:
+        """Validate format-specific requirements."""
+        if format_type == "qa":
+            # Q&A format must have both question and answer
+            return "question" in entry and ("answer" in entry or "final_answer" in entry)
+        if format_type == "generic":
+            # Generic format must have extractable question and answer
+            question_fields = ["question", "prompt", "problem", "input", "instruction"]
+            answer_fields = ["answer", "output", "response", "solution", "final_answer"]
+            has_question = any(field in entry and entry[field] for field in question_fields)
+            has_answer = any(field in entry and entry[field] for field in answer_fields)
+            return has_question and has_answer
+        if format_type == "messages":
+            # Messages format must have valid messages list
+            messages = entry.get("messages", [])
+            return isinstance(messages, list) and len(messages) > 0
+        if format_type == "structured_cot":
+            # Structured CoT must have all required fields
+            return "messages" in entry and "reasoning_trace" in entry and "final_answer" in entry
 
-        has_question = any(field in entry for field in question_fields)
-        has_answer = any(field in entry for field in answer_fields)
-
-        return has_question and has_answer
+        return True
 
     def validate_output(self, entry: dict) -> bool:  # noqa: PLR0911
         """

@@ -33,8 +33,8 @@ from .prompts import (
     STRUCTURED_COT_PROMPT,
     AgentPromptBuilder,
 )
-from .schemas import get_conversation_schema
-from .tools.loader import get_available_tools, load_tools_from_dict
+from .schemas import ToolRegistry, get_conversation_schema
+from .tools.loader import get_available_tools, load_tools_from_dict, load_tools_from_file
 from .topic_model import TopicModel
 
 # Handle circular import for type hints
@@ -119,6 +119,9 @@ class DataSetGeneratorConfig(BaseModel):
     max_tools_per_query: int = Field(
         default=3, ge=1, le=10, description="Maximum number of tools an agent can use per query"
     )
+    tool_registry_path: str | None = Field(
+        default=None, description="Path to custom tool definitions file (JSON/YAML)"
+    )
 
 
 class DataSetGenerator:
@@ -162,10 +165,22 @@ class DataSetGenerator:
     def _initialize_tool_registry(self):
         """Initialize tool registry from configuration."""
         try:
-            # Load custom tools if specified
             custom_registry = None
+
+            # Load tools from file if specified
+            if self.config.tool_registry_path:
+                custom_registry = load_tools_from_file(self.config.tool_registry_path)
+
+            # Load custom tools from dict and merge with file-based tools if both exist
             if self.config.custom_tools:
-                custom_registry = load_tools_from_dict(self.config.custom_tools)
+                dict_registry = load_tools_from_dict(self.config.custom_tools)
+                if custom_registry:
+                    # Merge both registries - tools from dict take precedence
+                    # Create a new registry with combined tools
+                    combined_tools = custom_registry.tools + dict_registry.tools
+                    custom_registry = ToolRegistry(tools=combined_tools)
+                else:
+                    custom_registry = dict_registry
 
             # Get available tools based on configuration
             self.tool_registry = get_available_tools(
@@ -184,13 +199,15 @@ class DataSetGenerator:
     ) -> None:
         """Validate parameters for data creation."""
         if num_steps is None or num_steps <= 0:
-            raise DataSetGeneratorError("positive")
+            raise DataSetGeneratorError("num_steps must be a positive integer")
 
         if batch_size <= 0:
-            raise DataSetGeneratorError("positive")
+            raise DataSetGeneratorError("batch_size must be a positive integer")
 
         if topic_model and len(topic_model.get_all_paths()) == 0:
-            raise DataSetGeneratorError("")
+            raise DataSetGeneratorError(
+                "Topic model has no paths. Ensure the topic tree was built successfully."
+            )
 
     def _prepare_topic_paths(
         self,
@@ -341,11 +358,11 @@ class DataSetGenerator:
         }
 
         # Add example failures for each category
-        for _category, failures in self.failure_analysis.items():
+        for category, failures in self.failure_analysis.items():
             if failures:
                 # Get up to 3 examples for each category
                 examples = failures[:3]
-                summary["failure_examples"] = [
+                summary["failure_examples"][category] = [
                     (
                         str(ex)[:200] + "..."
                         if len(str(ex)) > 200  # noqa: PLR2004
@@ -505,15 +522,28 @@ class DataSetGenerator:
                     num_example_demonstrations,
                 )
 
+                # Track failed samples from before processing batch
+                failed_before = len(self.failed_samples)
+
                 success, samples_generated = self._process_batch_with_retries(
                     prompts, include_sys_msg
                 )
+
+                # Calculate failures from this batch
+                failed_in_batch = len(self.failed_samples) - failed_before
+                failure_reasons = []
+                if failed_in_batch > 0 and self.failed_samples:
+                    # Get failure reasons from this batch
+                    recent_failures = self.failed_samples[-failed_in_batch:]
+                    failure_reasons = recent_failures[:3]  # First 3 for brevity
 
                 yield {
                     "event": "step_complete",
                     "step": step + 1,
                     "samples_generated": samples_generated,
                     "success": success,
+                    "failed_in_step": failed_in_batch,
+                    "failure_reasons": failure_reasons,
                 }
 
                 if not success:

@@ -56,7 +56,7 @@ class TestAgentCoTSchemas:
         }
 
         instance = schema(**sample_data)
-        assert instance.question == "Test question" # type: ignore
+        assert instance.question == "Test question"  # type: ignore
 
     def test_agent_cot_hybrid_schema(self):
         """Test that agent_cot_hybrid schema works with hybrid data."""
@@ -80,10 +80,10 @@ class TestAgentCoTSchemas:
         }
 
         instance = schema(**hybrid_data)
-        assert instance.question == "Test question" # type: ignore
-        assert instance.chain_of_thought == "Natural language reasoning" # type: ignore
-        assert len(instance.reasoning_trace) == 1 # type: ignore
-        assert instance.final_answer == "Test answer" # type: ignore
+        assert instance.question == "Test question"  # type: ignore
+        assert instance.chain_of_thought == "Natural language reasoning"  # type: ignore
+        assert len(instance.reasoning_trace) == 1  # type: ignore
+        assert instance.final_answer == "Test answer"  # type: ignore
 
 
 class TestBasicSchemaFunctionality:
@@ -103,7 +103,7 @@ class TestBasicSchemaFunctionality:
         }
 
         instance = schema(**tool_data)
-        assert len(instance.messages) == 2 # type: ignore  # noqa: PLR2004
+        assert len(instance.messages) == 2  # type: ignore  # noqa: PLR2004
 
     def test_basic_conversation_schema(self):
         """Test the basic conversation schema."""
@@ -119,7 +119,7 @@ class TestBasicSchemaFunctionality:
         }
 
         instance = schema(**basic_data)
-        assert len(instance.messages) == 2 # type: ignore  # noqa: PLR2004
+        assert len(instance.messages) == 2  # type: ignore  # noqa: PLR2004
 
 
 class TestSchemaIntegration:

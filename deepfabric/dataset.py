@@ -291,11 +291,26 @@ class Dataset:
                         )  # Show first 3 errors
                 else:
                     # Fallback to basic format method
-                    formatted_samples = formatter.format(self.samples)
+                    formatted_result = formatter.format(self.samples)
+                    # Extract samples from DatasetOutput if needed
+                    if hasattr(formatted_result, "samples"):
+                        formatted_samples = formatted_result.samples
+                    else:
+                        formatted_samples = formatted_result
 
                 # Create a new dataset with the formatted samples
                 formatted_dataset = Dataset()
-                formatted_dataset.samples = formatted_samples
+                # Convert FormattedOutput objects to dicts if needed
+                if formatted_samples and len(formatted_samples) > 0:
+                    first_sample = formatted_samples[0]
+                    if hasattr(first_sample, "model_dump"):
+                        formatted_dataset.samples = [s.model_dump() for s in formatted_samples]
+                    elif hasattr(first_sample, "dict"):
+                        formatted_dataset.samples = [s.dict() for s in formatted_samples]
+                    else:
+                        formatted_dataset.samples = formatted_samples
+                else:
+                    formatted_dataset.samples = formatted_samples if formatted_samples else []
 
                 # Save to file if output path is specified
                 if output_path:

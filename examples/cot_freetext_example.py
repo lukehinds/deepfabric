@@ -10,7 +10,7 @@ import sys
 
 # Set up detailed logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
@@ -19,9 +19,9 @@ logging.basicConfig(
 )
 
 # Enable debug logging for deepfabric modules
-logging.getLogger('deepfabric').setLevel(logging.DEBUG)
-logging.getLogger('deepfabric.generator').setLevel(logging.DEBUG)
-logging.getLogger('deepfabric.llm').setLevel(logging.DEBUG)
+logging.getLogger('deepfabric').setLevel(logging.INFO)
+logging.getLogger('deepfabric.generator').setLevel(logging.INFO)
+logging.getLogger('deepfabric.llm').setLevel(logging.INFO)
 
 logger = logging.getLogger(__name__)
 
@@ -90,11 +90,11 @@ def main():  # noqa: PLR0912
         if isinstance(event, dict):
             logger.debug(f"Generation event: {event}")
             if event.get('event') == 'generation_start':
-                logger.info(f"🚀 Generation started: {event.get('total_samples')} total samples")
+                logger.info(f"Generation started: {event.get('total_samples')} total samples")
             elif event.get('event') == 'step_start':
-                logger.info(f"📝 Starting step {event.get('step')}/{event.get('total_steps')}")
+                logger.info(f"Starting step {event.get('step')}/{event.get('total_steps')}")
             elif event.get('event') == 'step_complete':
-                logger.info(f"✅ Step {event.get('step')} complete: {event.get('samples_generated')} samples generated")
+                logger.info(f"Step {event.get('step')} complete: {event.get('samples_generated')} samples generated")
             elif event.get('event') == 'step_failed':
                 logger.error(f"❌ Step {event.get('step')} failed: {event.get('message')}")
             elif event.get('event') == 'generation_complete':

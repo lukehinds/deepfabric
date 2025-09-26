@@ -1,3 +1,5 @@
+import traceback
+
 from typing import TYPE_CHECKING
 
 from .config import DeepFabricConfig
@@ -10,13 +12,18 @@ from .tui import get_dataset_tui, get_tui
 if TYPE_CHECKING:
     from .topic_model import TopicModel
 
+# Constants for debug output
+DEBUG_MAX_FAILURES_TO_SHOW = 10
 
-def handle_dataset_events(generator) -> Dataset | None:
+
+def handle_dataset_events(generator, engine=None, debug: bool = False) -> Dataset | None:
     """
     Handle dataset generation with TUI progress.
 
     Args:
         generator: Generator yielding dataset events
+        engine: DataSetGenerator instance (for accessing failed_samples in debug mode)
+        debug: Enable debug output
 
     Returns:
         Dataset object or None if generation failed
@@ -43,12 +50,36 @@ def handle_dataset_events(generator) -> Dataset | None:
                         samples_generated = event.get("samples_generated", 0)
                         if samples_generated > 0:
                             progress.update(task, advance=samples_generated)
+
+                        # Show debug info for failed samples in this step
+                        if debug and "failed_in_step" in event and event["failed_in_step"] > 0:
+                            get_tui().error(
+                                f"🔍 Debug: {event['failed_in_step']} samples failed in this step"
+                            )
+                            if "failure_reasons" in event:
+                                for reason in event.get("failure_reasons", [])[
+                                    :3
+                                ]:  # Show first 3 failures
+                                    get_tui().error(f"    - {reason}")
+
                 elif event["event"] == "generation_complete":
                     if progress:
                         progress.stop()
                     tui.success(f"Successfully generated {event['total_samples']} samples")
                     if event["failed_samples"] > 0:
                         tui.warning(f"Failed to generate {event['failed_samples']} samples")
+
+                        # Show detailed failure information in debug mode
+                        if debug and engine and hasattr(engine, "failed_samples"):
+                            get_tui().error("\n🔍 Debug: Dataset generation failures:")
+                            for idx, failure in enumerate(
+                                engine.failed_samples[:DEBUG_MAX_FAILURES_TO_SHOW], 1
+                            ):
+                                get_tui().error(f"  [{idx}] {failure}")
+                            if len(engine.failed_samples) > DEBUG_MAX_FAILURES_TO_SHOW:
+                                remaining = len(engine.failed_samples) - DEBUG_MAX_FAILURES_TO_SHOW
+                                get_tui().error(f"  ... and {remaining} more failures")
+
             elif isinstance(event, Dataset):
                 final_result = event
             else:
@@ -57,6 +88,8 @@ def handle_dataset_events(generator) -> Dataset | None:
     except Exception as e:
         if progress:
             progress.stop()
+        if debug:
+            get_tui().error(f"🔍 Debug: Full traceback:\n{traceback.format_exc()}")
         get_tui().error(f"Dataset generation failed: {str(e)}")
         raise
 
@@ -73,6 +106,7 @@ def create_dataset(
     provider: str | None = None,  # noqa: ARG001
     model: str | None = None,
     engine_overrides: dict | None = None,
+    debug: bool = False,
 ) -> Dataset:
     """
     Create dataset using the data engine and topic model.
@@ -115,7 +149,7 @@ def create_dataset(
             sys_msg=sys_msg,
             num_example_demonstrations=dataset_params.get("num_example_demonstrations") or 3,
         )
-        dataset = handle_dataset_events(generator)
+        dataset = handle_dataset_events(generator, engine=engine, debug=debug)
     except Exception as e:
         raise ConfigurationError(f"Error creating dataset: {str(e)}") from e
 

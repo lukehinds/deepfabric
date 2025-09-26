@@ -238,6 +238,11 @@ class MathematicalAnswerMixin:
         """Format mathematical answers with strict consistency rules."""
         v_stripped = v.strip()
 
+        # Handle cases where model returns multiple answers (e.g., "2, 3")
+        # Take the first one if comma-separated list detected
+        if ", " in v_stripped:
+            v_stripped = v_stripped.split(", ")[0].strip()
+
         # Basic validation pattern
         pattern = r"^-?\d{1,3}(,\d{3})*(\.\d+)?([eE][+-]?\d+)?$|^-?\d+(\.\d+)?([eE][+-]?\d+)?$"
         if not re.match(pattern, v_stripped):

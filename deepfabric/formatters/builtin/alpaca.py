@@ -99,6 +99,23 @@ class AlpacaFormatter(BaseFormatter):
         assistant_messages = [msg for msg in messages if msg["role"] == "assistant"]
         if assistant_messages:
             output_text = " ".join(msg["content"] for msg in assistant_messages)
+        # If no assistant message but has reasoning_trace and final_answer (structured CoT format)
+        elif "reasoning_trace" in sample and "final_answer" in sample:
+            # Build output from reasoning trace and final answer
+            output_parts = []
+            if isinstance(sample["reasoning_trace"], list):
+                for step in sample["reasoning_trace"]:
+                    if isinstance(step, dict):
+                        thought = step.get("thought", "")
+                        if thought:
+                            output_parts.append(thought)
+            elif isinstance(sample["reasoning_trace"], str):
+                output_parts.append(sample["reasoning_trace"])
+
+            if output_parts:
+                output_text = " ".join(output_parts) + f" The answer is {sample['final_answer']}."
+            else:
+                output_text = f"The answer is {sample['final_answer']}."
 
         # Apply custom instruction template if provided
         if self.instruction_template:

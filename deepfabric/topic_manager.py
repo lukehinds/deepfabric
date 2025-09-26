@@ -1,3 +1,5 @@
+import traceback
+
 from typing import TYPE_CHECKING
 
 from .config import DeepFabricConfig
@@ -79,12 +81,13 @@ def handle_graph_events(graph: Graph) -> dict | None:
     return final_event
 
 
-def handle_tree_events(tree: Tree) -> dict | None:
+def handle_tree_events(tree: Tree, debug: bool = False) -> dict | None:
     """
     Build tree with TUI progress.
 
     Args:
         tree: Tree object to build
+        debug: Enable debug output
 
     Returns:
         Final build event dictionary or None
@@ -104,6 +107,8 @@ def handle_tree_events(tree: Tree) -> dict | None:
             elif event["event"] == "subtopics_generated":
                 if not event["success"]:
                     tui.add_failure()
+                    if debug and "error" in event:
+                        get_tui().error(f"Debug: Tree generation failure - {event['error']}")
             elif event["event"] == "build_complete":
                 total_paths = (
                     int(event["total_paths"]) if isinstance(event["total_paths"], str | int) else 0
@@ -115,8 +120,19 @@ def handle_tree_events(tree: Tree) -> dict | None:
                 )
                 tui.finish_building(total_paths, failed_generations)
                 final_event = event
+
+                # Show debug information about failures
+                if debug and failed_generations > 0 and hasattr(tree, "failed_generations"):
+                    get_tui().error("\n🔍 Debug: Tree generation failures:")
+                    for idx, failure in enumerate(tree.failed_generations, 1):
+                        get_tui().error(
+                            f"  [{idx}] Path: {' -> '.join(failure.get('node_path', []))}"
+                        )
+                        get_tui().error(f"      Error: {failure.get('error', 'Unknown error')}")
     except Exception as e:
         # The LLM module now handles proper error formatting
+        if debug:
+            get_tui().error(f"🔍 Debug: Full traceback:\n{traceback.format_exc()}")
         get_tui().error(f"Tree build failed: {str(e)}")
         raise
 
@@ -132,6 +148,7 @@ def load_or_build_topic_model(
     provider: str | None = None,
     model: str | None = None,
     base_url: str | None = None,
+    debug: bool = False,
 ) -> TopicModel:
     """
     Load topic model from file or build new one.
@@ -188,7 +205,7 @@ def load_or_build_topic_model(
     if isinstance(topic_model, Graph):
         handle_graph_events(topic_model)
     elif isinstance(topic_model, Tree):
-        handle_tree_events(topic_model)
+        handle_tree_events(topic_model, debug=debug)
 
     return topic_model
 

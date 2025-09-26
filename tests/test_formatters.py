@@ -608,7 +608,9 @@ class TestToolCallingFormatter:
         assert "messages" in formatted
 
         messages = formatted["messages"]
-        assert len(messages) == 4  # user, assistant (thinking+tool), tool, assistant (answer)  # noqa: PLR2004
+        assert (
+            len(messages) == 4  # noqa: PLR2004
+        )  # user, assistant (thinking+tool), tool, assistant (answer)  # noqa: PLR2004
 
         # Check message roles
         roles = [msg["role"] for msg in messages]
