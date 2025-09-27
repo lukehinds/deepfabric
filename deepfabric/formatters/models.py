@@ -329,6 +329,79 @@ class StructuredCoTSample(BaseModel):
         return f"{reasoning_start}{reasoning}{reasoning_end}{solution_start}{self.final_answer}{solution_end}"
 
 
+class HarmonyConfig(BaseModel):
+    """Configuration for Harmony format formatter."""
+
+    start_token: str = Field(
+        default="<|start|>", description="Token marking the start of a message"
+    )
+    end_token: str = Field(default="<|end|>", description="Token marking the end of a message")
+    message_token: str = Field(
+        default="<|message|>", description="Token separating role from content"
+    )
+    output_format: Literal["text", "structured"] = Field(
+        default="text", description="Output format: text with tokens or structured messages"
+    )
+    default_channel: Literal["final", "analysis", "commentary"] = Field(
+        default="final", description="Default channel for messages without explicit channel"
+    )
+    include_developer_role: bool = Field(
+        default=False, description="Whether to include developer role in output"
+    )
+    developer_instructions: str | None = Field(
+        None, description="Optional developer instructions to include"
+    )
+    system_message: str = Field(
+        default="You are ChatGPT, a large language model trained by OpenAI.",
+        description="Default system message",
+    )
+    reasoning_level: Literal["none", "low", "medium", "high"] = Field(
+        default="high", description="Reasoning effort level"
+    )
+    knowledge_cutoff: str | None = Field(
+        default="2024-01", description="Knowledge cutoff date (YYYY-MM format)"
+    )
+    include_metadata: bool = Field(
+        default=True, description="Whether to include metadata in system message"
+    )
+    tool_namespace: str = Field(
+        default="functions", description="Namespace for tool/function definitions"
+    )
+
+
+class HarmonyMessage(BaseModel):
+    """A single message in Harmony format."""
+
+    role: Literal["system", "developer", "user", "assistant", "tool"] = Field(
+        ..., description="The role of the message sender"
+    )
+    content: str = Field(..., min_length=1, description="The content of the message")
+    channel: Literal["final", "analysis", "commentary"] | None = Field(
+        None, description="The channel for assistant messages"
+    )
+    recipient: str | None = Field(None, description="Tool recipient for tool calls")
+
+    @field_validator("content")
+    @classmethod
+    def content_must_not_be_empty(cls, v):
+        if not v.strip():
+            raise ValueError("content cannot be empty or whitespace only")
+        return v
+
+
+class HarmonyStructuredOutput(BaseModel):
+    """Structured output for Harmony format."""
+
+    messages: list[HarmonyMessage] = Field(..., description="List of Harmony messages")
+    metadata: dict[str, Any] | None = Field(None, description="Optional metadata")
+
+
+class HarmonyTextOutput(BaseModel):
+    """Text output for Harmony format with special tokens."""
+
+    text: str = Field(..., description="Formatted text with Harmony tokens")
+
+
 class UnifiedSample(BaseModel):
     """Unified model that can handle multiple input formats with type-safe detection."""
 

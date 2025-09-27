@@ -21,6 +21,7 @@ from deepfabric.formatters.base import BaseFormatter, FormatterError
 from deepfabric.formatters.builtin.alpaca import AlpacaFormatter
 from deepfabric.formatters.builtin.chatml import ChatmlFormatter
 from deepfabric.formatters.builtin.grpo import GrpoFormatter
+from deepfabric.formatters.builtin.harmony import HarmonyFormatter
 from deepfabric.formatters.builtin.tool_calling import ToolCallingFormatter
 from deepfabric.formatters.registry import FormatterRegistry
 
@@ -805,3 +806,244 @@ class TestToolCallingFormatter:
 
         # Should contain properly formatted JSON
         assert '"key": "value"' in assistant_msg
+
+
+class TestHarmonyFormatter:
+    """Test the Harmony formatter."""
+
+    def test_harmony_formatter_basic(self):
+        """Test basic Harmony formatting with messages."""
+        formatter = HarmonyFormatter()
+
+        sample = {
+            "messages": [
+                {"role": "user", "content": "What is 2 + 2?"},
+                {"role": "assistant", "content": "2 + 2 = 4"},
+            ]
+        }
+
+        result = formatter.format_with_metadata([sample])
+        assert len(result.samples) == 1
+
+        formatted = result.samples[0]
+        assert "text" in formatted
+
+        text = formatted["text"]
+        # Check for Harmony tokens
+        assert "<|start|>" in text
+        assert "<|end|>" in text
+        assert "<|message|>" in text
+
+        # Check roles
+        assert "<|start|>system" in text
+        assert "<|start|>user" in text
+        assert "<|start|>assistant" in text
+
+    def test_harmony_formatter_with_channels(self):
+        """Test Harmony formatter with analysis and final channels."""
+        config = {"default_channel": "final"}
+        formatter = HarmonyFormatter(config)
+
+        sample = {
+            "question": "What is the capital of France?",
+            "chain_of_thought": "I need to recall the capital city of France. France is a country in Europe, and its capital is Paris.",
+            "answer": "The capital of France is Paris.",
+        }
+
+        result = formatter.format_with_metadata([sample])
+        formatted = result.samples[0]
+        text = formatted["text"]
+
+        # Should have analysis channel for reasoning
+        assert "<|channel|>analysis" in text
+        # Should have final channel for answer
+        assert "<|channel|>final" in text
+
+    def test_harmony_formatter_with_developer_role(self):
+        """Test Harmony formatter with developer role."""
+        config = {
+            "include_developer_role": True,
+            "developer_instructions": "Always respond with detailed explanations",
+        }
+        formatter = HarmonyFormatter(config)
+
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi there!"},
+            ]
+        }
+
+        result = formatter.format_with_metadata([sample])
+        formatted = result.samples[0]
+        text = formatted["text"]
+
+        # Should include developer role
+        assert "<|start|>developer" in text
+        assert "Always respond with detailed explanations" in text
+
+    def test_harmony_formatter_with_tools(self):
+        """Test Harmony formatter with tool definitions."""
+        config = {"include_developer_role": True, "tool_namespace": "functions"}
+        formatter = HarmonyFormatter(config)
+
+        sample = {
+            "messages": [
+                {"role": "user", "content": "What's the weather?"},
+                {"role": "assistant", "content": "I'll check the weather for you."},
+            ],
+            "tools": [
+                {
+                    "name": "get_weather",
+                    "parameters": {
+                        "properties": {
+                            "location": {"type": "string"},
+                            "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                        },
+                        "required": ["location"],
+                    },
+                }
+            ],
+        }
+
+        result = formatter.format_with_metadata([sample])
+        formatted = result.samples[0]
+        text = formatted["text"]
+
+        # Should include tools in TypeScript format
+        assert "namespace functions" in text
+        assert "type get_weather" in text
+        assert "location: string" in text
+        assert 'unit?: "celsius" | "fahrenheit"' in text
+
+    def test_harmony_formatter_with_metadata(self):
+        """Test Harmony formatter with metadata in system message."""
+        config = {
+            "include_metadata": True,
+            "knowledge_cutoff": "2024-01",
+            "reasoning_level": "high",
+        }
+        formatter = HarmonyFormatter(config)
+
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Test"},
+                {"role": "assistant", "content": "Response"},
+            ]
+        }
+
+        result = formatter.format_with_metadata([sample])
+        formatted = result.samples[0]
+        text = formatted["text"]
+
+        # Should include metadata in system message
+        assert "Knowledge cutoff: 2024-01" in text
+        assert "Reasoning: high" in text
+        assert "# Valid channels: analysis, commentary, final" in text
+
+    def test_harmony_formatter_structured_output(self):
+        """Test Harmony formatter with structured output format."""
+        config = {"output_format": "structured"}
+        formatter = HarmonyFormatter(config)
+
+        sample = {"question": "What is AI?", "answer": "AI stands for Artificial Intelligence."}
+
+        result = formatter.format_with_metadata([sample])
+        formatted = result.samples[0]
+
+        # Should have messages list instead of text
+        assert "messages" in formatted
+        messages = formatted["messages"]
+
+        # Check message structure
+        assert all("role" in msg for msg in messages)
+        assert all("content" in msg for msg in messages)
+
+        # Check for channel in assistant messages
+        assistant_msgs = [msg for msg in messages if msg["role"] == "assistant"]
+        assert all("channel" in msg for msg in assistant_msgs)
+
+    def test_harmony_formatter_tool_calls(self):
+        """Test Harmony formatter with tool calls."""
+        formatter = HarmonyFormatter()
+
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Calculate 5 * 7"},
+                {
+                    "role": "assistant",
+                    "content": '{"operation": "multiply", "a": 5, "b": 7}',
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "calculator",
+                                "arguments": '{"operation": "multiply", "a": 5, "b": 7}',
+                            }
+                        }
+                    ],
+                },
+                {"role": "tool", "content": "35"},
+                {"role": "assistant", "content": "5 * 7 = 35"},
+            ]
+        }
+
+        result = formatter.format_with_metadata([sample])
+        formatted = result.samples[0]
+        text = formatted["text"]
+
+        # Check for commentary channel for tool call
+        assert "<|channel|>commentary" in text
+        # Check for tool recipient
+        assert "<|recipient|>functions.calculator" in text
+        # Check for tool role
+        assert "<|start|>tool" in text
+
+    def test_harmony_formatter_validation(self):
+        """Test Harmony formatter validation."""
+        formatter = HarmonyFormatter()
+
+        # Valid samples
+        assert formatter.validate(
+            {
+                "messages": [
+                    {"role": "user", "content": "Hi"},
+                    {"role": "assistant", "content": "Hello"},
+                ]
+            }
+        )
+
+        assert formatter.validate({"question": "Test?", "answer": "Response"})
+
+        assert formatter.validate({"instruction": "Do something", "output": "Done"})
+
+        # Invalid samples
+        assert not formatter.validate({})
+        assert not formatter.validate({"messages": []})
+        assert not formatter.validate({"question": "Test?"})  # Missing answer
+        assert not formatter.validate({"instruction": "Do"})  # Missing output
+
+    def test_harmony_formatter_generic_format(self):
+        """Test Harmony formatter with generic input format."""
+        formatter = HarmonyFormatter()
+
+        sample = {
+            "prompt": "Explain quantum computing",
+            "response": "Quantum computing uses quantum mechanics principles...",
+            "context": "Educational context for advanced physics students",
+        }
+
+        result = formatter.format_with_metadata([sample])
+        formatted = result.samples[0]
+        text = formatted["text"]
+
+        # Should format correctly
+        assert "<|start|>user" in text
+        assert "Explain quantum computing" in text
+        assert "<|start|>assistant" in text
+        assert "Quantum computing uses quantum mechanics" in text
+
+    def test_harmony_formatter_load_from_registry(self):
+        """Test loading Harmony formatter from registry."""
+        registry = FormatterRegistry()
+        formatter = registry.load_formatter("builtin://harmony.py")
+        assert isinstance(formatter, HarmonyFormatter)
