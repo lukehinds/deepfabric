@@ -74,6 +74,13 @@ def format_command(
                 "solution_start_tag": "<SOLUTION>",
                 "solution_end_tag": "</SOLUTION>",
             },
+            "harmony": {
+                "output_format": "text",
+                "default_channel": "final",
+                "include_developer_role": False,
+                "reasoning_level": "high",
+                "include_metadata": True,
+            },
         }
 
         formatter_configs = [
@@ -113,7 +120,7 @@ def format_command(
 @click.option(
     "--formatter",
     "-f",
-    type=click.Choice(["im_format", "unsloth", "alpaca", "chatml", "grpo"]),
+    type=click.Choice(["im_format", "unsloth", "alpaca", "chatml", "grpo", "harmony"]),
     help="Formatter to apply",
 )
 @click.option(
