@@ -7,7 +7,7 @@ for formatter configurations and data structures.
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 
 class Message(BaseModel):
@@ -370,21 +370,24 @@ class UnifiedSample(BaseModel):
         """Try to parse as structured CoT sample."""
         try:
             return StructuredCoTSample(**self.data)
-        except Exception:
+        except (ValidationError, TypeError) as e:
+            print(f"Error parsing structured CoT sample: {e}")
             return None
 
     def as_conversation(self) -> ConversationSample | None:
         """Try to parse as conversation sample."""
         try:
             return ConversationSample(**self.data)
-        except Exception:
+        except (ValidationError, TypeError) as e:
+            print(f"Error parsing conversation sample: {e}")
             return None
 
     def as_qa(self) -> QASample | None:
         """Try to parse as Q&A sample."""
         try:
             return QASample(**self.data)
-        except Exception:
+        except (ValidationError, TypeError) as e:
+            print(f"Error parsing Q&A sample: {e}")
             return None
 
     def as_generic(self) -> GenericSample:
