@@ -1,0 +1,215 @@
+# Comprehensive OpenAI Harmony Format Examples
+# This configuration demonstrates various Harmony formatter configurations
+# for different use cases with the gpt-oss models
+
+dataset_system_prompt: |
+  You are an expert AI assistant helping to create training data for gpt-oss models.
+  Generate responses that demonstrate proper use of reasoning, tool calling, and channels.
+
+topic_tree:
+  topic_prompt: "Generate topics that demonstrate tool use, reasoning, and multi-step problem solving"
+  topic_system_prompt: |
+    Create diverse topics that showcase:
+    - Mathematical calculations requiring tools
+    - Research questions needing web searches
+    - Programming tasks with code execution
+    - Multi-step reasoning problems
+    - Tool selection and usage scenarios
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.7
+  degree: 3
+  depth: 2
+  save_as: "harmony_topics.jsonl"
+
+data_engine:
+  instructions: |
+    Create training examples that demonstrate the full capabilities of the Harmony format.
+    Include examples with tool calling, chain-of-thought reasoning, and multi-channel responses.
+  generation_system_prompt: |
+    You are creating training data for gpt-oss models using the Harmony format.
+
+    For each example, demonstrate:
+    1. Clear reasoning in analysis channels when needed
+    2. Proper tool usage with commentary channels
+    3. Final user-facing responses in final channels
+    4. Multiple tool calls when appropriate
+    5. TypeScript-style function definitions
+
+    Make examples realistic and educational.
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.8
+  max_retries: 3
+  conversation_type: "cot_structured"
+  reasoning_style: "analytical"
+  save_as: "raw_harmony_content.jsonl"
+
+dataset:
+  creation:
+    num_steps: 150
+    batch_size: 6
+    sys_msg: true
+  save_as: "harmony_training_dataset.jsonl"
+
+  formatters:
+    # Basic Harmony chat format
+    - name: "harmony_basic_chat"
+      template: "builtin://harmony.py"
+      config:
+        output_format: "text"
+        default_channel: "final"
+        include_metadata: true
+        reasoning_level: "medium"
+        current_date: "2024-03-15"  # Deterministic for reproducible outputs
+      output: "harmony_basic_chat.jsonl"
+
+    # Advanced Harmony with developer instructions and tools
+    - name: "harmony_with_tools"
+      template: "builtin://harmony.py"
+      config:
+        output_format: "text"
+        include_developer_role: true
+        developer_instructions: |
+          You are an expert assistant with access to various tools.
+          Always explain your reasoning before using tools.
+          Use the analysis channel for internal thinking.
+          Use the commentary channel for tool calls.
+          Use the final channel for user-facing responses.
+        default_channel: "final"
+        reasoning_level: "high"
+        knowledge_cutoff: "2024-01"
+        current_date: "2024-03-15"
+        include_metadata: true
+        tool_namespace: "functions"
+      output: "harmony_tools_dataset.jsonl"
+
+    # Structured format for direct model training
+    - name: "harmony_structured"
+      template: "builtin://harmony.py"
+      config:
+        output_format: "structured"
+        include_developer_role: true
+        developer_instructions: |
+          # Instructions
+          You are a helpful AI assistant with reasoning capabilities.
+          Always think through problems step by step.
+
+          # Guidelines
+          - Use analysis channel for internal reasoning
+          - Use commentary channel for tool calls and function usage
+          - Use final channel for user-facing responses
+          - Be clear and educational in your explanations
+        default_channel: "analysis"  # Default to reasoning mode
+        reasoning_level: "high"
+        include_metadata: true
+        tool_namespace: "tools"
+      output: "harmony_structured_dataset.jsonl"
+
+    # Chain-of-thought focused configuration
+    - name: "harmony_reasoning"
+      template: "builtin://harmony.py"
+      config:
+        output_format: "text"
+        include_developer_role: false  # Focus on reasoning without developer role
+        default_channel: "analysis"    # Emphasize internal reasoning
+        reasoning_level: "high"
+        system_message: |
+          You are an AI assistant that excels at analytical thinking.
+          Always show your reasoning process clearly before providing final answers.
+        knowledge_cutoff: "2024-01"
+        current_date: "2024-03-15"
+        include_metadata: true
+      output: "harmony_reasoning_dataset.jsonl"
+
+    # Tool-calling specialized format
+    - name: "harmony_function_calling"
+      template: "builtin://harmony.py"
+      config:
+        output_format: "text"
+        include_developer_role: true
+        developer_instructions: |
+          # Tool Usage Guidelines
+          Always analyze the user's request first.
+          Select appropriate tools for the task.
+          Explain tool selections in commentary channel.
+          Provide clear final responses.
+
+          # Available Tool Categories
+          - Mathematical calculations
+          - Web searches and research
+          - Code execution and analysis
+          - Data processing and visualization
+        default_channel: "commentary"  # Focus on tool usage
+        reasoning_level: "high"
+        tool_namespace: "functions"
+        include_metadata: true
+        current_date: "2024-03-15"
+      output: "harmony_function_calling_dataset.jsonl"
+
+    # Minimal configuration for simple tasks
+    - name: "harmony_minimal"
+      template: "builtin://harmony.py"
+      config:
+        output_format: "text"
+        include_developer_role: false
+        include_metadata: false  # No metadata for cleaner output
+        default_channel: "final"
+        reasoning_level: "low"
+      output: "harmony_minimal_dataset.jsonl"
+
+    # Research and analysis focused
+    - name: "harmony_research"
+      template: "builtin://harmony.py"
+      config:
+        output_format: "structured"
+        include_developer_role: true
+        developer_instructions: |
+          # Research Protocol
+          1. Analyze the research question thoroughly
+          2. Identify information needs and sources
+          3. Use appropriate research tools
+          4. Synthesize findings into coherent responses
+
+          # Research Tools
+          Available for comprehensive information gathering and analysis.
+        default_channel: "analysis"
+        reasoning_level: "high"
+        system_message: |
+          You are a research-focused AI assistant specializing in thorough analysis.
+          You excel at breaking down complex questions and providing well-researched answers.
+        knowledge_cutoff: "2024-01"
+        current_date: "2024-03-15"
+        include_metadata: true
+        tool_namespace: "research_tools"
+      output: "harmony_research_dataset.jsonl"
+
+# Optional: Upload to Hugging Face Hub with comprehensive metadata
+huggingface:
+  repository: "your-username/harmony-format-training-dataset"
+  description: |
+    Comprehensive training dataset formatted in OpenAI Harmony format for gpt-oss models.
+
+    This dataset demonstrates:
+    - Multi-channel conversation structure (final, analysis, commentary)
+    - Tool calling with TypeScript-style function definitions
+    - Role hierarchy (system, developer, user, assistant, tool)
+    - Chain-of-thought reasoning patterns
+    - Deterministic output formatting
+
+    Perfect for training models that need to:
+    - Show internal reasoning processes
+    - Use tools and functions effectively
+    - Maintain clear separation between thinking and responses
+    - Follow structured conversation protocols
+  tags:
+    - "harmony-format"
+    - "gpt-oss"
+    - "tool-calling"
+    - "reasoning"
+    - "multi-channel"
+    - "conversation"
+    - "synthetic"
+    - "training-data"
+  license: "mit"
+  private: false

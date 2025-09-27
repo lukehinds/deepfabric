@@ -1,0 +1,41 @@
+# Quick Start Example: Harmony Formatter
+# This is a minimal example to get started with the OpenAI Harmony format
+
+dataset_system_prompt: |
+  Create helpful examples that demonstrate reasoning and tool usage for AI training.
+
+topic_tree:
+  topic_prompt: "Generate simple questions that require reasoning or basic calculations"
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.7
+  degree: 2
+  depth: 1
+  save_as: "simple_topics.jsonl"
+
+data_engine:
+  instructions: "Create clear, educational examples with step-by-step reasoning."
+  provider: "openai"
+  model: "gpt-4"
+  temperature: 0.8
+  conversation_type: "cot_structured"
+  save_as: "simple_examples.jsonl"
+
+dataset:
+  creation:
+    num_steps: 50
+    batch_size: 5
+    sys_msg: true
+  save_as: "harmony_quickstart_dataset.jsonl"
+
+  formatters:
+    # Simple Harmony format with reasoning
+    - name: "harmony_simple"
+      template: "builtin://harmony.py"
+      config:
+        output_format: "text"
+        default_channel: "final"
+        reasoning_level: "medium"
+        include_metadata: true
+        current_date: "2024-03-15"  # Fixed date for reproducible outputs
+      output: "harmony_simple.jsonl"
