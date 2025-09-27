@@ -16,7 +16,7 @@ class Message(BaseModel):
     role: Literal["system", "user", "assistant", "function", "tool"] = Field(
         ..., description="The role of the message sender"
     )
-    content: str = Field(..., min_length=1, description="The content of the message")
+    content: str = Field(..., description="The content of the message")
 
     @field_validator("content")
     @classmethod
@@ -361,6 +361,10 @@ class HarmonyConfig(BaseModel):
     knowledge_cutoff: str | None = Field(
         default="2024-01", description="Knowledge cutoff date (YYYY-MM format)"
     )
+    current_date: str | None = Field(
+        default=None,
+        description="Current date for system message (YYYY-MM-DD format). If not provided, no date is included.",
+    )
     include_metadata: bool = Field(
         default=True, description="Whether to include metadata in system message"
     )
@@ -375,7 +379,7 @@ class HarmonyMessage(BaseModel):
     role: Literal["system", "developer", "user", "assistant", "tool"] = Field(
         ..., description="The role of the message sender"
     )
-    content: str = Field(..., min_length=1, description="The content of the message")
+    content: str = Field(..., description="The content of the message")
     channel: Literal["final", "analysis", "commentary"] | None = Field(
         None, description="The channel for assistant messages"
     )

@@ -13,12 +13,11 @@ Harmony format uses special tokens and channels:
 Reference: https://github.com/openai/harmony
 """
 
-from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel
 
-from ..base import BaseFormatter
+from ..base import BaseFormatter, FormatterError
 from ..models import HarmonyConfig, HarmonyMessage, HarmonyStructuredOutput, HarmonyTextOutput
 
 
@@ -33,40 +32,31 @@ class HarmonyFormatter(BaseFormatter):
     def __init__(self, config: "dict[str, Any] | None" = None):
         super().__init__(config)
 
-        # Access configuration through typed model if available
-        if self._config_model:
-            if isinstance(self._config_model, HarmonyConfig):
-                harmony_config: HarmonyConfig = self._config_model
-            else:
-                harmony_config = HarmonyConfig.model_validate(self._config_model)
-            self.start_token = harmony_config.start_token
-            self.end_token = harmony_config.end_token
-            self.message_token = harmony_config.message_token
-            self.output_format = harmony_config.output_format
-            self.default_channel = harmony_config.default_channel
-            self.include_developer_role = harmony_config.include_developer_role
-            self.developer_instructions = harmony_config.developer_instructions
-            self.system_message = harmony_config.system_message
-            self.reasoning_level = harmony_config.reasoning_level
-            self.knowledge_cutoff = harmony_config.knowledge_cutoff
-            self.include_metadata = harmony_config.include_metadata
-            self.tool_namespace = harmony_config.tool_namespace
-        else:
-            # Fallback to dict-based config for backward compatibility
-            self.start_token = self.config.get("start_token", "<|start|>")
-            self.end_token = self.config.get("end_token", "<|end|>")
-            self.message_token = self.config.get("message_token", "<|message|>")
-            self.output_format = self.config.get("output_format", "text")
-            self.default_channel = self.config.get("default_channel", "final")
-            self.include_developer_role = self.config.get("include_developer_role", False)
-            self.developer_instructions = self.config.get("developer_instructions")
-            self.system_message = self.config.get(
-                "system_message", "You are ChatGPT, a large language model trained by OpenAI."
-            )
-            self.reasoning_level = self.config.get("reasoning_level", "high")
-            self.knowledge_cutoff = self.config.get("knowledge_cutoff", "2024-01")
-            self.include_metadata = self.config.get("include_metadata", True)
-            self.tool_namespace = self.config.get("tool_namespace", "functions")
+        # BaseFormatter's __init__ calls get_config_model() and populates self._config_model
+        # with a validated HarmonyConfig instance from the config dict
+        if not self._config_model:
+            # If no config was provided, create with defaults
+            self._config_model = HarmonyConfig()
+        elif not isinstance(self._config_model, HarmonyConfig):
+            # This shouldn't happen if get_config_model() is properly implemented
+            raise FormatterError("Configuration model is not a valid HarmonyConfig instance.")
+
+        harmony_config: HarmonyConfig = self._config_model
+
+        # Set instance attributes from the config model
+        self.start_token = harmony_config.start_token
+        self.end_token = harmony_config.end_token
+        self.message_token = harmony_config.message_token
+        self.output_format = harmony_config.output_format
+        self.default_channel = harmony_config.default_channel
+        self.include_developer_role = harmony_config.include_developer_role
+        self.developer_instructions = harmony_config.developer_instructions
+        self.system_message = harmony_config.system_message
+        self.reasoning_level = harmony_config.reasoning_level
+        self.knowledge_cutoff = harmony_config.knowledge_cutoff
+        self.current_date = harmony_config.current_date
+        self.include_metadata = harmony_config.include_metadata
+        self.tool_namespace = harmony_config.tool_namespace
 
     def _format_single_sample(self, sample: dict) -> dict | None:
         """
@@ -129,13 +119,28 @@ class HarmonyFormatter(BaseFormatter):
             recipient = None
             if role == "assistant":
                 # Check if this is a tool call or reasoning
-                if "tool_calls" in msg or "function_call" in msg:
-                    channel = "commentary"
-                    # Extract tool recipient if available
-                    if "tool_calls" in msg and msg["tool_calls"]:
-                        tool_call = msg["tool_calls"][0]
+                if "tool_calls" in msg and msg["tool_calls"]:
+                    # Handle multiple tool calls by creating separate messages for each
+                    for tool_call in msg["tool_calls"]:
+                        tool_recipient = None
                         if "function" in tool_call:
-                            recipient = f"{self.tool_namespace}.{tool_call['function']['name']}"
+                            tool_recipient = (
+                                f"{self.tool_namespace}.{tool_call['function']['name']}"
+                            )
+                        messages.append(
+                            HarmonyMessage(
+                                role=role,
+                                content=content,
+                                channel="commentary",
+                                recipient=tool_recipient,
+                            )
+                        )
+                    continue  # Skip the regular append since we handled it above
+                if "function_call" in msg:
+                    channel = "commentary"
+                    # Handle legacy single function_call format
+                    if "name" in msg["function_call"]:
+                        recipient = f"{self.tool_namespace}.{msg['function_call']['name']}"
                 elif "reasoning" in msg or "thinking" in msg:
                     channel = "analysis"
                 else:
@@ -306,9 +311,9 @@ class HarmonyFormatter(BaseFormatter):
             if self.knowledge_cutoff:
                 parts.append(f"Knowledge cutoff: {self.knowledge_cutoff}")
 
-            # Add current date (could be parameterized)
-            current_date = datetime.now(tz=UTC).strftime("%Y-%m-%d")
-            parts.append(f"Current date: {current_date}")
+            # Add current date if provided in config
+            if self.current_date:
+                parts.append(f"Current date: {self.current_date}")
 
             # Add reasoning level
             parts.append(f"Reasoning: {self.reasoning_level}")
@@ -339,9 +344,9 @@ class HarmonyFormatter(BaseFormatter):
             parts.append(f"namespace {self.tool_namespace} {{")
 
             for tool in sample["tools"]:
-                if isinstance(tool, dict):
-                    # Format as TypeScript-style function type
-                    name = tool.get("name", "unknown")
+                if isinstance(tool, dict) and "name" in tool:
+                    # Format as TypeScript-style function type - skip tools without names
+                    name = tool["name"]
                     params = tool.get("parameters", {})
                     parts.append(f"  type {name} = ({self._format_tool_params(params)}) => any;")
 

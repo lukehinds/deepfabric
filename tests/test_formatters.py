@@ -922,6 +922,7 @@ class TestHarmonyFormatter:
             "include_metadata": True,
             "knowledge_cutoff": "2024-01",
             "reasoning_level": "high",
+            "current_date": "2024-03-15",  # Deterministic date for testing
         }
         formatter = HarmonyFormatter(config)
 
@@ -938,8 +939,35 @@ class TestHarmonyFormatter:
 
         # Should include metadata in system message
         assert "Knowledge cutoff: 2024-01" in text
+        assert "Current date: 2024-03-15" in text
         assert "Reasoning: high" in text
         assert "# Valid channels: analysis, commentary, final" in text
+
+    def test_harmony_formatter_metadata_without_date(self):
+        """Test Harmony formatter excludes current date when not configured."""
+        config = {
+            "include_metadata": True,
+            "knowledge_cutoff": "2024-01",
+            "reasoning_level": "high",
+            # current_date is intentionally not provided
+        }
+        formatter = HarmonyFormatter(config)
+
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Test"},
+                {"role": "assistant", "content": "Response"},
+            ]
+        }
+
+        result = formatter.format_with_metadata([sample])
+        formatted = result.samples[0]
+        text = formatted["text"]
+
+        # Should include metadata but NOT current date
+        assert "Knowledge cutoff: 2024-01" in text
+        assert "Reasoning: high" in text
+        assert "Current date:" not in text  # Date should not be present
 
     def test_harmony_formatter_structured_output(self):
         """Test Harmony formatter with structured output format."""
@@ -1047,3 +1075,76 @@ class TestHarmonyFormatter:
         registry = FormatterRegistry()
         formatter = registry.load_formatter("builtin://harmony.py")
         assert isinstance(formatter, HarmonyFormatter)
+
+    def test_harmony_formatter_tools_without_names(self):
+        """Test Harmony formatter skips tools without names."""
+        config = {"include_developer_role": True, "tool_namespace": "functions"}
+        formatter = HarmonyFormatter(config)
+
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Test"},
+                {"role": "assistant", "content": "Response"},
+            ],
+            "tools": [
+                {"name": "valid_tool", "parameters": {"properties": {"arg": {"type": "string"}}}},
+                {
+                    # Missing name - should be skipped
+                    "parameters": {"properties": {"arg": {"type": "string"}}}
+                },
+                {"name": "another_valid_tool", "parameters": {}},
+            ],
+        }
+
+        result = formatter.format_with_metadata([sample])
+        formatted = result.samples[0]
+        text = formatted["text"]
+
+        # Should include only valid tools
+        assert "type valid_tool" in text
+        assert "type another_valid_tool" in text
+        # Should not have "unknown" or undefined tools
+        assert "type unknown" not in text
+
+    def test_harmony_formatter_multiple_tool_calls(self):
+        """Test Harmony formatter with multiple tool calls in a single message."""
+        formatter = HarmonyFormatter()
+
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Calculate 5 * 7 and then 10 + 20"},
+                {
+                    "role": "assistant",
+                    "content": "I'll calculate both for you.",
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "multiply",
+                                "arguments": '{"a": 5, "b": 7}',
+                            }
+                        },
+                        {
+                            "function": {
+                                "name": "add",
+                                "arguments": '{"a": 10, "b": 20}',
+                            }
+                        },
+                    ],
+                },
+                {"role": "tool", "content": "35"},
+                {"role": "tool", "content": "30"},
+                {"role": "assistant", "content": "5 * 7 = 35 and 10 + 20 = 30"},
+            ]
+        }
+
+        result = formatter.format_with_metadata([sample])
+        formatted = result.samples[0]
+        text = formatted["text"]
+
+        # Check that both tool calls are present with their recipients
+        assert "<|recipient|>functions.multiply" in text
+        assert "<|recipient|>functions.add" in text
+
+        # Both should have commentary channel
+        assert text.count("<|channel|>commentary") >= 2  # noqa: PLR2004
+
