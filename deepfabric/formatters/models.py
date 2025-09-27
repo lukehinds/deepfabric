@@ -370,21 +370,24 @@ class UnifiedSample(BaseModel):
         """Try to parse as structured CoT sample."""
         try:
             return StructuredCoTSample(**self.data)
-        except (ValidationError, TypeError):
+        except (ValidationError, TypeError) as e:
+            print(f"Error parsing structured CoT sample: {e}")
             return None
 
     def as_conversation(self) -> ConversationSample | None:
         """Try to parse as conversation sample."""
         try:
             return ConversationSample(**self.data)
-        except (ValidationError, TypeError):
+        except (ValidationError, TypeError) as e:
+            print(f"Error parsing conversation sample: {e}")
             return None
 
     def as_qa(self) -> QASample | None:
         """Try to parse as Q&A sample."""
         try:
             return QASample(**self.data)
-        except (ValidationError, TypeError):
+        except (ValidationError, TypeError) as e:
+            print(f"Error parsing Q&A sample: {e}")
             return None
 
     def as_generic(self) -> GenericSample:
