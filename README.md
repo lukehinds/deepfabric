@@ -39,8 +39,7 @@
 
 **DeepFabric** is a powerful synthetic dataset generation framework that leverages LLMs to create high-quality, diverse training data at scale. Built for ML engineers, researchers, and AI developers, it streamlines the entire dataset creation pipeline from topic generation to model-ready formats.
 
-No more unruly models failing to Tool call or adhere to structured formats. DeepFabric ensures your models are consistent, well-structured, and tailored to your specific use cases.
-
+No more unruly models failing to Tool call or comply with reams of natural language to try and yield structured formats. DeepFabric ensures your models are consistent, well-structured, and ready for fine-tuning or evaluation.
 ## Key Features
 
 ### Core Capabilities
