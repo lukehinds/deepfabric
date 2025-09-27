@@ -3,7 +3,7 @@
     <source media="(prefers-color-scheme: dark)" srcset="./assets/logo-light.png">
     <img alt="DeepFabric logo" src="./assets/logo-light.png" width="400px" height="270px" style="max-width: 100%;">
   </picture>
-  <h3>Generate High-Quality Synthetic Datasets at Scale</h3>
+  <h3>Generate Fine-Tuning High-Quality Synthetic Datasets at Scale</h3>
 
   <!-- CTA Buttons -->
   <p>
@@ -37,17 +37,45 @@
   <br/>
 </div>
 
-**DeepFabric** (formerly promptwright) is a CLI tool and SDK, that leverages large language models to generate high-quality synthetic datasets. It's designed for researchers and developers building teacher-student distillation pipelines, creating evaluation benchmarks for models and agents, or conducting research requiring diverse training data.
+**DeepFabric** is a powerful synthetic dataset generation framework that leverages LLMs to create high-quality, diverse training data at scale. Built for ML engineers, researchers, and AI developers, it streamlines the entire dataset creation pipeline from topic generation to model-ready formats.
 
-The key innovation lies in DeepFabric's graph and tree-based architecture, which uses structured topic nodes as generation seeds. This approach ensures the creation of datasets that are both highly diverse and domain-specific, while minimizing redundancy and duplication across generated samples.
+No more unruly models failing to Tool call or adhere to structured formats. DeepFabric ensures your models are consistent, well-structured, and tailored to your specific use cases.
 
-Deepfabric also applies structured output using Pydantic and Outlines, this results in much less failures then other synthetic dataset generators, which rely on natural language prompts to conform with output requirements.
+## Key Features
 
-Multiple formats and conversation structures are supported (reasoning / chain-of-thought, single / multi-turn), allowing you to generate date and move directly to fine-tuning, without the need to write refacting scripts. 
+### Core Capabilities
+- **🌳 Hierarchical Topic Generation**: Tree and graph-based architectures for comprehensive domain coverage
+- **🔄 Multi-Format Export**: Direct export to popular training formats (no conversion scripts needed)
+- **🎭 Conversation Templates**: Support for various dialogue patterns and reasoning styles
+- **🛠️ Tool Calling Support**: Generate function-calling and agent interaction datasets
+- **📊 Structured Output**: Pydantic & Outlines enforced schemas for consistent, high-quality data
+- **☁️ Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Ollama, and more
+- **🤗 HuggingFace Integration**: Direct dataset upload with auto-generated cards 
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/lukehinds/deepfabric/main/assets/demo.gif" alt="DeepFabric Demo";">
-</div>
+## 📊 Supported Output Formats
+
+| Format | Template | Use Case | Framework Compatibility |
+|--------|----------|----------|-----------------------|
+| **Alpaca** | `builtin://alpaca.py` | Instruction-following | Stanford Alpaca, LLaMA |
+| **ChatML** | `builtin://chatml.py` | Multi-turn conversations | Most chat models |
+| **Unsloth** | `builtin://unsloth.py` | Optimized fine-tuning | Unsloth notebooks |
+| **GRPO** | `builtin://grpo.py` | Mathematical reasoning | GRPO training |
+| **Im Format** | `builtin://im_format.py` | Chat with delimiters | ChatML-compatible models |
+| **Tool Calling** | `builtin://tool_calling.py` | Function calling | Agent training |
+| **Harmony** | `builtin://harmony.py` | Reasoning with tags | CoT models |
+| **Custom** | `file://your_format.py` | Your requirements | Any framework |
+
+## 🧠 Conversation Templates
+
+| Template Type | Description | Example Use Case |
+|--------------|-------------|------------------|
+| **Single-Turn** | Question → Answer | FAQ, classification |
+| **Multi-Turn** | Extended dialogues | Chatbots, tutoring |
+| **Chain of Thought (CoT)** | Step-by-step reasoning | Math, logic problems |
+| **Structured CoT** | Explicit reasoning traces | Educational content |
+| **Hybrid CoT** | Mixed reasoning styles | Complex problem-solving |
+| **Tool Calling** | Function invocations | Agent interactions |
+| **System-Prompted** | With system instructions | Role-playing, personas |
 
 ## Quickstart
 
@@ -121,51 +149,40 @@ deepfabric generate \
 
 There are lots more [examples](./examples/README.md) to get you going.
 
-## Key Features
+## 🚀 Architecture Overview
 
-### Topic Trees and Graphs
-
-DeepFabric can generate topics using two approaches:
-
-**Topic Graphs** (Experimental): DAG-based structure allowing cross-connections between topics, ideal for complex domains with interconnected concepts.
-
-**Topic Trees**: Traditional hierarchical structure where each topic branches into subtopics, perfect for well-organized domains.
-
-### Chain of Thought (CoT) Support
-
-DeepFabric now supports generating Chain of Thought datasets for training models on step-by-step reasoning tasks. Three formats are available:
-
-- **Free-text CoT**: Natural language reasoning in the style of GSM8K, ideal for mathematical and logical problem-solving
-- **Structured CoT**: Combines conversational interactions with explicit reasoning traces, perfect for educational and tutoring applications
-- **Hybrid CoT**: Merges free-text reasoning with structured steps, suitable for complex multi-modal reasoning tasks. This is particulary useful for reducing over-fit risk that might occur using exclusively Structured CoT.
-
-Each format can be configured with different reasoning styles (mathematical, logical, general) to optimize for your specific domain. The CoT generation leverages structured output with Pydantic schemas to ensure consistent, high-quality reasoning chains.
-
-### Multi-Provider Support
-
-Leverage different LLMs for different tasks. Use GPT-4 for complex topic generation, then switch to a local model like Mixtral for bulk data creation:
-
-```yaml
-topic_tree:
-  provider: "openai"
-  model: "gpt-4"  # High quality for topic structure
-
-data_engine:
-  provider: "ollama"
-  model: "mistral:latest"  # Fast and efficient for bulk generation
+### Generation Pipeline
+```mermaid
+graph LR
+    A[Topic Prompt] --> B[Topic Tree/Graph]
+    B --> C[Data Generator]
+    C --> D[Format Engine]
+    D --> E[Export/Upload]
 ```
 
-### Automatic Dataset Upload
+### Topic Generation Modes
 
-Push your datasets directly to Hugging Face Hub with automatic dataset cards:
+| Mode | Structure | Use Case | Max Topics |
+|------|-----------|----------|------------|
+| **Tree** | Hierarchical branching | Well-organized domains | depth^degree |
+| **Graph** | DAG with cross-connections | Interconnected concepts | Flexible |
+| **Linear** | Sequential topics | Simple lists | User-defined |
+| **Custom** | User-provided structure | Specific requirements | Unlimited |
 
-```bash
-deepfabric generate config.yaml --hf-repo username/my-dataset --hf-token $HF_TOKEN
-```
+### Provider Support Matrix
 
-### Configuration-Based Approach (Recommended)
+| Provider | Models | Best For | Local/Cloud |
+|----------|--------|----------|-------------|
+| **OpenAI** | GPT-4, GPT-4o, GPT-3.5 | High quality, complex tasks | Cloud |
+| **Anthropic** | Claude 3.5 Sonnet, Haiku | Nuanced reasoning | Cloud |
+| **Google** | Gemini 2.0, 1.5 | Cost-effective at scale | Cloud |
+| **Ollama** | Llama, Mistral, Qwen, etc. | Privacy, unlimited generation | Local |
+| **Together** | Open models | Fast inference | Cloud |
+| **Groq** | Llama, Mixtral | Ultra-fast generation | Cloud |
 
-DeepFabric uses YAML configuration files for maximum flexibility. Here's a complete example:
+## ⚙️ Configuration System
+
+DeepFabric uses a flexible YAML-based configuration with extensive CLI overrides:
 
 ```yaml
 # Main system prompt - used as fallback throughout the pipeline
@@ -253,11 +270,49 @@ deepfabric generate config.yaml \
   --hf-tags tag1 --hf-tags tag2
 ```
 
-## Docs / Examples
+## 📚 Advanced Features
 
-For more details, including how to use the SDK, see the [docs!](https://lukehinds.github.io/DeepFabric/)
+### Chain of Thought (CoT) Generation
 
-There are also lots of [examples](./examples/README.md) to get you going.
+| CoT Style | Template Pattern | Best For |
+|-----------|-----------------|----------|
+| **Free-text** | Natural language steps | Mathematical problems (GSM8K-style) |
+| **Structured** | Explicit reasoning traces | Educational content, tutoring |
+| **Hybrid** | Mixed reasoning | Complex multi-step problems |
+
+```yaml
+# Example: Structured CoT configuration
+data_engine:
+  conversation_template: "cot_structured"
+  cot_style: "mathematical"
+  include_reasoning_tags: true
+```
+
+### Batch Processing & Performance
+
+| Parameter | Description | Performance Impact |
+|-----------|-------------|-------------------|
+| `batch_size` | Parallel generation | ↑ Speed, ↑ Memory |
+| `max_retries` | Retry failed generations | ↑ Quality, ↓ Speed |
+| `temperature` | LLM creativity | ↑ Diversity, ↓ Consistency |
+| `num_workers` | Parallel processing | ↑ Speed (with local models) |
+
+### Quality Control Features
+
+- **Deduplication**: Automatic removal of similar samples
+- **Validation**: Schema enforcement for all outputs
+- **Retry Logic**: Automatic retry with backoff for failures
+- **Error Tracking**: Detailed logs of generation issues
+- **Progress Monitoring**: Real-time generation statistics
+
+## 📖 Documentation & Resources
+
+| Resource | Description | Link |
+|----------|-------------|------|
+| **Documentation** | Complete API reference & guides | [docs.deepfabric.io](https://lukehinds.github.io/DeepFabric/) |
+| **Examples** | Ready-to-use configurations | [examples/](./examples/README.md) |
+| **Discord** | Community support | [Join Discord](https://discord.gg/pPcjYzGvbS) |
+| **Issues** | Bug reports & features | [GitHub Issues](https://github.com/lukehinds/deepfabric/issues) |
 
 ## Stay Updated
 
@@ -265,34 +320,71 @@ Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way t
 
 <img src="/assets/star.gif" width="40%" height="40%"/>
 
-### Are you using DeepFabric
+## 🤝 Contributing
 
-We would love to hear you experience and do share with us how we might better serve your needs.
+We welcome contributions! Check out our [good first issues](https://github.com/lukehinds/deepfabric/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) to get started.
 
-## Roadmap
-
-Deepfabric currently outputs to Open AI chat format, we will provide a system where you can easily plug in a post-processing conversion to whatever format is needed. This should allow easy adaption to what ever you need within a training pipeline:
-
-```yaml
-formatters:
-- name: "alpaca"
-  template: "builtin://alpaca.py"
-- name: "custom"
-  template: "file://./my_format.py"
-  config:
-    instruction_field: "query"
+### Development Setup
+```bash
+git clone https://github.com/lukehinds/deepfabric
+cd deepfabric
+uv sync --all-extras  # Install with dev dependencies
+make test            # Run tests
+make format          # Format code
 ```
 
-### More Conversations Types
+## 📊 Community & Support
 
-We will be introducing additional conversation patterns including multi-turn dialogues, tool-calling interactions, and more.
+- **Discord**: [Join our community](https://discord.gg/pPcjYzGvbS) for real-time help
+- **Issues**: [Report bugs](https://github.com/lukehinds/deepfabric/issues) or request features
+- **Discussions**: Share your use cases and datasets
 
-### Kaggel Support
+### Who's Using DeepFabric?
 
-Push to Kaggel
+If you're using DeepFabric in production or research, we'd love to hear from you! Share your experience in our [Discord](https://discord.gg/pPcjYzGvbS) or open a discussion.
 
-## Analytics
+## 🗺️ Roadmap
 
-We use fully anonymised analytics, to help us improve application performance and stablity. **We never** send Personal identifiable information and **we do not** capture prompts, generated content, API keys etc. We capture model names, numeric parameters (temperature, depth, degree, batch_size), timing and success/failure rates - this then helps us find optimizations or bottlenecks.
+### Q1 2025
+- [ ] **Kaggle Integration**: Direct dataset upload to Kaggle
+- [ ] **Multi-modal Support**: Image + text dataset generation
+- [ ] **Streaming Generation**: Memory-efficient large dataset creation
+- [ ] **Web UI**: Browser-based configuration and monitoring
 
-Should you wish to opt-out, just set `ANONYMIZED_TELEMETRY=False`.
+### Q2 2025
+- [ ] **AutoML Integration**: Direct training pipeline connections
+- [ ] **Quality Metrics**: Automatic dataset quality scoring
+- [ ] **Version Control**: Dataset versioning and diff tracking
+- [ ] **Distributed Generation**: Multi-node generation for massive datasets
+
+## 🏆 Use Cases
+
+### Industry Applications
+| Use Case | Description | Example Config |
+|----------|-------------|----------------|
+| **Model Distillation** | Teacher-student training | [distillation.yaml](examples/specialized.yaml) |
+| **Evaluation Benchmarks** | Model testing datasets | [benchmark.yaml](examples/advanced.yaml) |
+| **Domain Adaptation** | Specialized knowledge | [domain.yaml](examples/specialized.yaml) |
+| **Agent Training** | Tool-use & reasoning | [agent.yaml](examples/agent_tool_calling.yaml) |
+| **Instruction Tuning** | Task-specific models | [instruct.yaml](examples/unsloth_instruct_config.yaml) |
+| **Math Reasoning** | Step-by-step solutions | [math.yaml](examples/grpo_math_config.yaml) |
+
+## 🛡️ Privacy & Security
+
+### Data Protection
+- **Local Processing**: All data generation can run entirely offline with Ollama
+- **No Training Data Storage**: Generated content is never stored on our servers
+- **API Key Security**: Keys are never logged or transmitted to third parties
+
+### Analytics
+- Fully anonymized telemetry for performance optimization
+- No PII, prompts, or generated content captured
+- Opt-out: `export ANONYMIZED_TELEMETRY=False`
+
+## 💡 Tips for Best Results
+
+1. **Start Small**: Test with `depth=2, degree=3` before scaling up
+2. **Mix Models**: Use stronger models for topics, faster ones for generation
+3. **Iterate**: Generate small batches and refine prompts based on results
+4. **Validate**: Always review a sample before training
+5. **Version Control**: Save configurations for reproducibility
