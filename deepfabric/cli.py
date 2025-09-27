@@ -1,10 +1,13 @@
 import os
 import sys
 
-from typing import NoReturn
+from typing import Literal, NoReturn, cast
 
 import click
 import yaml
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import ValidationError as PydanticValidationError
 
 from .config import DeepFabricConfig
 from .config_manager import apply_cli_overrides, get_final_parameters, load_config
@@ -15,8 +18,12 @@ from .generator import DataSetGenerator
 from .graph import Graph
 from .metrics import trace
 from .topic_manager import load_or_build_topic_model, save_topic_model
+from .topic_model import TopicModel
 from .tui import get_tui
 from .validation import show_validation_success, validate_path_requirements
+
+OverrideValue = str | int | float | bool | None
+OverrideMap = dict[str, OverrideValue]
 
 
 def handle_error(ctx: click.Context, error: Exception) -> NoReturn:
@@ -39,6 +46,220 @@ def handle_error(ctx: click.Context, error: Exception) -> NoReturn:
 def cli():
     """DeepFabric CLI - Generate synthetic training data for language models."""
     pass
+
+
+class GenerateOptions(BaseModel):
+    """
+    Validated command options for dataset generation.
+
+    These options can be provided via CLI arguments or a configuration file.
+    so they are marked as optional here.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    config_file: str | None = None
+    dataset_system_prompt: str | None = None
+    topic_prompt: str | None = None
+    topic_system_prompt: str | None = None
+    generation_system_prompt: str | None = None
+    save_tree: str | None = None
+    load_tree: str | None = None
+    save_graph: str | None = None
+    load_graph: str | None = None
+    dataset_save_as: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    temperature: float | None = None
+    degree: int | None = None
+    depth: int | None = None
+    num_steps: int | None = None
+    batch_size: int | None = None
+    base_url: str | None = None
+    sys_msg: bool | None = None
+    mode: Literal["tree", "graph"] = Field(default="tree")
+    debug: bool = False
+
+    @model_validator(mode="after")
+    def validate_mode_constraints(self) -> "GenerateOptions":
+        if self.mode == "graph" and self.save_tree:
+            raise ValueError(
+                "Cannot use --save-tree when mode is graph. Use --save-graph to persist graph data.",
+            )
+        if self.mode == "tree" and self.save_graph:
+            raise ValueError(
+                "Cannot use --save-graph when mode is tree. Use --save-tree to persist tree data.",
+            )
+        return self
+
+
+class GenerationPreparation(BaseModel):
+    """Validated state required to run dataset generation."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    config: DeepFabricConfig
+    tree_overrides: OverrideMap = Field(default_factory=dict)
+    graph_overrides: OverrideMap = Field(default_factory=dict)
+    engine_overrides: OverrideMap = Field(default_factory=dict)
+    num_steps: int
+    batch_size: int
+    depth: int
+    degree: int
+    loading_existing: bool
+
+    @model_validator(mode="after")
+    def validate_positive_dimensions(self) -> "GenerationPreparation":
+        if self.num_steps <= 0:
+            raise ValueError("num_steps must be greater than zero")
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be greater than zero")
+        if self.depth <= 0:
+            raise ValueError("depth must be greater than zero")
+        if self.degree <= 0:
+            raise ValueError("degree must be greater than zero")
+        return self
+
+
+def _load_and_prepare_generation_context(options: GenerateOptions) -> GenerationPreparation:
+    """Load configuration, compute overrides, and validate derived parameters."""
+
+    config = load_config(
+        config_file=options.config_file,
+        topic_prompt=options.topic_prompt,
+        dataset_system_prompt=options.dataset_system_prompt,
+        generation_system_prompt=options.generation_system_prompt,
+        provider=options.provider,
+        model=options.model,
+        temperature=options.temperature,
+        degree=options.degree,
+        depth=options.depth,
+        num_steps=options.num_steps,
+        batch_size=options.batch_size,
+        save_tree=options.save_tree,
+        save_graph=options.save_graph,
+        dataset_save_as=options.dataset_save_as,
+        sys_msg=options.sys_msg,
+        mode=options.mode,
+    )
+
+    tree_overrides_raw, graph_overrides_raw, engine_overrides_raw = apply_cli_overrides(
+        config=config,
+        dataset_system_prompt=options.dataset_system_prompt,
+        topic_prompt=options.topic_prompt,
+        topic_system_prompt=options.topic_system_prompt,
+        generation_system_prompt=options.generation_system_prompt,
+        provider=options.provider,
+        model=options.model,
+        temperature=options.temperature,
+        degree=options.degree,
+        depth=options.depth,
+        base_url=options.base_url,
+    )
+
+    final_num_steps, final_batch_size, final_depth, final_degree = get_final_parameters(
+        config=config,
+        num_steps=options.num_steps,
+        batch_size=options.batch_size,
+        depth=options.depth,
+        degree=options.degree,
+    )
+
+    loading_existing = bool(options.load_tree or options.load_graph)
+
+    validate_path_requirements(
+        mode=options.mode,
+        depth=final_depth,
+        degree=final_degree,
+        num_steps=final_num_steps,
+        batch_size=final_batch_size,
+        loading_existing=loading_existing,
+    )
+
+    show_validation_success(
+        mode=options.mode,
+        depth=final_depth,
+        degree=final_degree,
+        num_steps=final_num_steps,
+        batch_size=final_batch_size,
+        loading_existing=loading_existing,
+    )
+
+    return GenerationPreparation(
+        config=config,
+        tree_overrides=cast(OverrideMap, tree_overrides_raw),
+        graph_overrides=cast(OverrideMap, graph_overrides_raw),
+        engine_overrides=cast(OverrideMap, engine_overrides_raw),
+        num_steps=final_num_steps,
+        batch_size=final_batch_size,
+        depth=final_depth,
+        degree=final_degree,
+        loading_existing=loading_existing,
+    )
+
+
+def _initialize_topic_model(
+    *,
+    preparation: GenerationPreparation,
+    options: GenerateOptions,
+) -> TopicModel:
+    """Load existing topic structures or build new ones and persist when needed."""
+
+    topic_model = load_or_build_topic_model(
+        config=preparation.config,
+        load_tree=options.load_tree,
+        load_graph=options.load_graph,
+        tree_overrides=preparation.tree_overrides,
+        graph_overrides=preparation.graph_overrides,
+        provider=options.provider,
+        model=options.model,
+        base_url=options.base_url,
+        debug=options.debug,
+    )
+
+    if not options.load_tree and not options.load_graph:
+        save_topic_model(
+            topic_model=topic_model,
+            config=preparation.config,
+            save_tree=options.save_tree,
+            save_graph=options.save_graph,
+        )
+
+    return topic_model
+
+
+def _run_generation(
+    *,
+    preparation: GenerationPreparation,
+    topic_model: TopicModel,
+    options: GenerateOptions,
+) -> None:
+    """Create the dataset using the prepared configuration and topic model."""
+
+    engine_params = preparation.config.get_engine_params(**preparation.engine_overrides)
+    engine = DataSetGenerator(**engine_params)
+
+    dataset = create_dataset(
+        engine=engine,
+        topic_model=topic_model,
+        config=preparation.config,
+        num_steps=options.num_steps,
+        batch_size=options.batch_size,
+        sys_msg=options.sys_msg,
+        provider=options.provider,
+        model=options.model,
+        engine_overrides=preparation.engine_overrides,
+        debug=options.debug,
+    )
+
+    dataset_config = preparation.config.get_dataset_config()
+    dataset_save_path = options.dataset_save_as or dataset_config["save_as"]
+    save_dataset(dataset, dataset_save_path, preparation.config)
+
+    trace(
+        "dataset_generated",
+        {"samples": len(dataset.samples) if hasattr(dataset, "samples") else 0},
+    )
 
 
 @cli.command()
@@ -106,7 +327,7 @@ def generate(  # noqa: PLR0913
     batch_size: int | None = None,
     base_url: str | None = None,
     sys_msg: bool | None = None,
-    mode: str = "tree",
+    mode: Literal["tree", "graph"] = "tree",
     debug: bool = False,
 ) -> None:
     """Generate training data from a YAML configuration file or CLI parameters."""
@@ -116,128 +337,45 @@ def generate(  # noqa: PLR0913
     )
 
     try:
-        if mode == "graph" and save_tree:
-            raise ConfigurationError(  # noqa: TRY301
-                "Cannot use --save-tree when mode is graph. Use --save-graph to persist graph data.",
-            )
-
-        if mode == "tree" and save_graph:
-            raise ConfigurationError(  # noqa: TRY301
-                "Cannot use --save-graph when mode is tree. Use --save-tree to persist tree data.",
-            )
-
-        # Load configuration
-        config = load_config(
+        options = GenerateOptions(
             config_file=config_file,
-            topic_prompt=topic_prompt,
-            dataset_system_prompt=dataset_system_prompt,
-            generation_system_prompt=generation_system_prompt,
-            provider=provider,
-            model=model,
-            temperature=temperature,
-            degree=degree,
-            depth=depth,
-            num_steps=num_steps,
-            batch_size=batch_size,
-            save_tree=save_tree,
-            save_graph=save_graph,
-            dataset_save_as=dataset_save_as,
-            sys_msg=sys_msg,
-            mode=mode,
-        )
-
-        # Apply CLI overrides and get override dictionaries
-        tree_overrides, graph_overrides, engine_overrides = apply_cli_overrides(
-            config=config,
             dataset_system_prompt=dataset_system_prompt,
             topic_prompt=topic_prompt,
             topic_system_prompt=topic_system_prompt,
             generation_system_prompt=generation_system_prompt,
+            save_tree=save_tree,
+            load_tree=load_tree,
+            save_graph=save_graph,
+            load_graph=load_graph,
+            dataset_save_as=dataset_save_as,
             provider=provider,
             model=model,
             temperature=temperature,
             degree=degree,
             depth=depth,
-            base_url=base_url,
-        )
-
-        # Get final parameters
-        final_num_steps, final_batch_size, final_depth, final_degree = get_final_parameters(
-            config=config,
             num_steps=num_steps,
             batch_size=batch_size,
-            depth=depth,
-            degree=degree,
-        )
-
-        # Validate path requirements
-        validate_path_requirements(
-            mode=mode,
-            depth=final_depth,
-            degree=final_degree,
-            num_steps=final_num_steps,
-            batch_size=final_batch_size,
-            loading_existing=bool(load_tree or load_graph),
-        )
-
-        # Show validation success
-        show_validation_success(
-            mode=mode,
-            depth=final_depth,
-            degree=final_degree,
-            num_steps=final_num_steps,
-            batch_size=final_batch_size,
-            loading_existing=bool(load_tree or load_graph),
-        )
-
-        # Load or build topic model
-        topic_model = load_or_build_topic_model(
-            config=config,
-            load_tree=load_tree,
-            load_graph=load_graph,
-            tree_overrides=tree_overrides,
-            graph_overrides=graph_overrides,
-            provider=provider,
-            model=model,
             base_url=base_url,
-            debug=debug,
-        )
-
-        # Save topic model if newly created
-        if not load_tree and not load_graph:
-            save_topic_model(
-                topic_model=topic_model,
-                config=config,
-                save_tree=save_tree,
-                save_graph=save_graph,
-            )
-
-        # Create data engine
-        engine = DataSetGenerator(**config.get_engine_params(**engine_overrides))
-
-        # Create dataset
-        dataset = create_dataset(
-            engine=engine,
-            topic_model=topic_model,
-            config=config,
-            num_steps=num_steps,
-            batch_size=batch_size,
             sys_msg=sys_msg,
-            provider=provider,
-            model=model,
-            engine_overrides=engine_overrides,
+            mode=mode,
             debug=debug,
         )
+    except PydanticValidationError as error:
+        handle_error(click.get_current_context(), ConfigurationError(str(error)))
+        return
 
-        # Save dataset
-        dataset_config = config.get_dataset_config()
-        dataset_save_path = dataset_save_as or dataset_config["save_as"]
-        save_dataset(dataset, dataset_save_path, config)
+    try:
+        preparation = _load_and_prepare_generation_context(options)
 
-        # Trace metrics
-        trace(
-            "dataset_generated",
-            {"samples": len(dataset.samples) if hasattr(dataset, "samples") else 0},
+        topic_model = _initialize_topic_model(
+            preparation=preparation,
+            options=options,
+        )
+
+        _run_generation(
+            preparation=preparation,
+            topic_model=topic_model,
+            options=options,
         )
 
     except ConfigurationError as e:
