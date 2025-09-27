@@ -77,6 +77,10 @@ No more unruly models failing to Tool call or adhere to structured formats. Deep
 | **Tool Calling** | Function invocations | Agent interactions |
 | **System-Prompted** | With system instructions | Role-playing, personas |
 
+## Something Missing?
+
+If there's a format or feature you'd like to see, please [open an issue](https://github.com/lukehinds/deepfabric/issues/new).
+
 ## Quickstart
 
 ### 1. Install DeepFabric
@@ -342,20 +346,6 @@ make format          # Format code
 ### Who's Using DeepFabric?
 
 If you're using DeepFabric in production or research, we'd love to hear from you! Share your experience in our [Discord](https://discord.gg/pPcjYzGvbS) or open a discussion.
-
-## 🗺️ Roadmap
-
-### Q1 2025
-- [ ] **Kaggle Integration**: Direct dataset upload to Kaggle
-- [ ] **Multi-modal Support**: Image + text dataset generation
-- [ ] **Streaming Generation**: Memory-efficient large dataset creation
-- [ ] **Web UI**: Browser-based configuration and monitoring
-
-### Q2 2025
-- [ ] **AutoML Integration**: Direct training pipeline connections
-- [ ] **Quality Metrics**: Automatic dataset quality scoring
-- [ ] **Version Control**: Dataset versioning and diff tracking
-- [ ] **Distributed Generation**: Multi-node generation for massive datasets
 
 ## 🏆 Use Cases
 
