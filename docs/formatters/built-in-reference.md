@@ -248,6 +248,217 @@ formatters:
 
 ---
 
+## Harmony Formatter
+
+**Template**: `builtin://harmony.py`
+**Use Case**: OpenAI Harmony format for gpt-oss models with channels and TypeScript-style tool definitions
+
+### Description
+
+The Harmony formatter transforms datasets into the OpenAI Harmony Response Format, which is designed for the gpt-oss open-source models. It features a sophisticated role hierarchy, channel-based message organization (final, analysis, commentary), and TypeScript-style function definitions for tool calling.
+
+### Configuration Options
+
+```yaml
+config:
+  start_token: "<|start|>"                      # Default: "<|start|>"
+  end_token: "<|end|>"                          # Default: "<|end|>"
+  message_token: "<|message|>"                  # Default: "<|message|>"
+  output_format: "text"                         # Default: "text" (or "structured")
+  default_channel: "final"                      # Default: "final" (analysis/commentary/final)
+  include_developer_role: false                 # Default: false
+  developer_instructions: "Custom instructions" # Default: None
+  system_message: "You are ChatGPT..."         # Default: "You are ChatGPT, a large language model trained by OpenAI."
+  reasoning_level: "high"                       # Default: "high" (none/low/medium/high)
+  knowledge_cutoff: "2024-01"                  # Default: "2024-01"
+  current_date: "2024-03-15"                   # Default: None (optional, for deterministic output)
+  include_metadata: true                        # Default: true
+  tool_namespace: "functions"                   # Default: "functions"
+```
+
+### Role Hierarchy
+
+The Harmony format enforces a strict role hierarchy (highest to lowest priority):
+1. **system** - System instructions and metadata
+2. **developer** - Developer instructions and tool definitions
+3. **user** - User messages
+4. **assistant** - Model responses with channel support
+5. **tool** - Tool responses
+
+### Channels
+
+Assistant messages can be assigned to different channels:
+- **final**: User-facing responses (default)
+- **analysis**: Internal chain-of-thought reasoning (not safe for user display)
+- **commentary**: Function tool calls and preambles
+
+### Input Formats Supported
+
+- **Messages**: Chat format with role/content pairs and optional tool calls
+- **Q&A**: Question/answer pairs with optional chain_of_thought
+- **Instruction**: Instruction/output patterns
+- **Generic**: Any format with extractable conversation patterns
+
+### Output Formats
+
+**Text Format** (`output_format: "text"`):
+```text
+<|start|>system<|message|>
+You are ChatGPT, a large language model trained by OpenAI.
+Knowledge cutoff: 2024-01
+Current date: 2024-03-15
+Reasoning: high
+# Valid channels: analysis, commentary, final
+<|end|>
+<|start|>developer<|message|>
+# Instructions
+Always provide detailed explanations
+
+# Tools
+namespace functions {
+  type get_weather = (_: { location: string, unit?: "celsius" | "fahrenheit" }) => any;
+}
+<|end|>
+<|start|>user<|message|>
+What's the weather in London?
+<|end|>
+<|start|>assistant<|channel|>analysis<|message|>
+I need to check the weather in London using the weather tool.
+<|end|>
+<|start|>assistant<|channel|>commentary<|recipient|>functions.get_weather<|message|>
+{"location": "London", "unit": "celsius"}
+<|end|>
+<|start|>tool<|message|>
+{"temperature": 18, "condition": "cloudy"}
+<|end|>
+<|start|>assistant<|channel|>final<|message|>
+The weather in London is currently 18°C with cloudy conditions.
+<|end|>
+```
+
+**Structured Format** (`output_format: "structured"`):
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are ChatGPT, a large language model...\nKnowledge cutoff: 2024-01\nReasoning: high\n# Valid channels: analysis, commentary, final",
+      "channel": null,
+      "recipient": null
+    },
+    {
+      "role": "developer",
+      "content": "# Instructions\nAlways provide detailed explanations\n\n# Tools\nnamespace functions {\n  type get_weather = (_: { location: string, unit?: \"celsius\" | \"fahrenheit\" }) => any;\n}",
+      "channel": null,
+      "recipient": null
+    },
+    {
+      "role": "user",
+      "content": "What's the weather in London?",
+      "channel": null,
+      "recipient": null
+    },
+    {
+      "role": "assistant",
+      "content": "I need to check the weather in London using the weather tool.",
+      "channel": "analysis",
+      "recipient": null
+    },
+    {
+      "role": "assistant",
+      "content": "{\"location\": \"London\", \"unit\": \"celsius\"}",
+      "channel": "commentary",
+      "recipient": "functions.get_weather"
+    },
+    {
+      "role": "tool",
+      "content": "{\"temperature\": 18, \"condition\": \"cloudy\"}",
+      "channel": null,
+      "recipient": null
+    },
+    {
+      "role": "assistant",
+      "content": "The weather in London is currently 18°C with cloudy conditions.",
+      "channel": "final",
+      "recipient": null
+    }
+  ]
+}
+```
+
+### Tool Definitions
+
+Tools are defined using TypeScript-style type syntax in the developer message:
+
+```typescript
+namespace functions {
+  type calculator = (_: {
+    operation: "add" | "subtract" | "multiply" | "divide",
+    a: number,
+    b: number
+  }) => any;
+
+  type web_search = (_: {
+    query: string,
+    limit?: number
+  }) => any;
+}
+```
+
+### Example Configurations
+
+**Basic Chat Configuration**:
+```yaml
+formatters:
+- name: "harmony_chat"
+  template: "builtin://harmony.py"
+  config:
+    output_format: "text"
+    default_channel: "final"
+    include_metadata: true
+  output: "harmony_chat.jsonl"
+```
+
+**Advanced Configuration with Tools**:
+```yaml
+formatters:
+- name: "harmony_tools"
+  template: "builtin://harmony.py"
+  config:
+    output_format: "text"
+    include_developer_role: true
+    developer_instructions: |
+      You are an expert assistant with access to various tools.
+      Always think through your approach before using tools.
+    reasoning_level: "high"
+    default_channel: "final"
+    tool_namespace: "functions"
+    current_date: "2024-03-15"  # For deterministic output
+  output: "harmony_tools.jsonl"
+```
+
+**Chain-of-Thought Configuration**:
+```yaml
+formatters:
+- name: "harmony_cot"
+  template: "builtin://harmony.py"
+  config:
+    output_format: "structured"
+    default_channel: "analysis"  # Default to analysis channel for reasoning
+    reasoning_level: "high"
+    include_metadata: true
+  output: "harmony_cot.jsonl"
+```
+
+### Special Features
+
+1. **Multiple Tool Calls**: Handles multiple tool calls in a single message by creating separate messages for each tool call
+2. **Deterministic Output**: Use `current_date` config to ensure reproducible outputs (no dynamic timestamps)
+3. **Tool Name Validation**: Skips tools without names to prevent namespace conflicts
+4. **Flexible Channels**: Automatically assigns channels based on message content (reasoning → analysis, tool calls → commentary)
+
+---
+
 ## ChatML Formatter
 
 **Template**: `builtin://chatml.py`
@@ -314,19 +525,26 @@ formatters:
 
 ### For Mathematical Reasoning Training
 - **GRPO**: When training models to show step-by-step reasoning with extractable answers
+- **Harmony**: For models that need to show internal reasoning (analysis channel) separate from final answers
 - **Alpaca**: For instruction-following with math problems
 - **ChatML**: For conversational math tutoring scenarios
 
 ### For General Instruction Following
 - **Alpaca**: Standard instruction-following format
 - **ChatML**: When you need conversation context and role clarity
+- **Harmony**: For gpt-oss models with developer instructions and role hierarchy
 - **Unsloth**: When using Unsloth training notebooks with conversations format
 
 ### For Chat and Dialogue
+- **Harmony**: Advanced format with channels, tool support, and role hierarchy for gpt-oss models
 - **ChatML**: Structured conversations with multiple turns
 - **Im Format**: ChatML-compatible format with `<|im_start|>/<|im_end|>` delimiters
 - **Unsloth**: Conversations format for Unsloth framework integration
 - **Alpaca**: Single-turn instruction-response pairs
+
+### For Tool/Function Calling
+- **Harmony**: TypeScript-style function definitions with channels for tool calls and responses
+- **Custom formatters**: For specific tool calling conventions
 
 ### For Custom Requirements
 Create a [custom formatter](custom-formatter-guide.md) that inherits from BaseFormatter.
