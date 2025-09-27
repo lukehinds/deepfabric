@@ -185,17 +185,20 @@ def _load_and_prepare_generation_context(options: GenerateOptions) -> Generation
         loading_existing=loading_existing,
     )
 
-    return GenerationPreparation(
-        config=config,
-        tree_overrides=cast(OverrideMap, tree_overrides_raw),
-        graph_overrides=cast(OverrideMap, graph_overrides_raw),
-        engine_overrides=cast(OverrideMap, engine_overrides_raw),
-        num_steps=final_num_steps,
-        batch_size=final_batch_size,
-        depth=final_depth,
-        degree=final_degree,
-        loading_existing=loading_existing,
-    )
+    try:
+        return GenerationPreparation(
+            config=config,
+            tree_overrides=cast(OverrideMap, tree_overrides_raw),
+            graph_overrides=cast(OverrideMap, graph_overrides_raw),
+            engine_overrides=cast(OverrideMap, engine_overrides_raw),
+            num_steps=final_num_steps,
+            batch_size=final_batch_size,
+            depth=final_depth,
+            degree=final_degree,
+            loading_existing=loading_existing,
+        )
+    except (ValueError, PydanticValidationError) as error:
+        raise ConfigurationError(str(error)) from error
 
 
 def _initialize_topic_model(
