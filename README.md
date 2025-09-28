@@ -92,6 +92,14 @@ DeepFabric is designed to work within a modular MLOps pipeline, allowing you to 
 - **Data Generation**: Generate training examples for each topic using LLMs.
 - **Format Engine**: Convert raw outputs into your desired dataset format.
 
+```mermaid
+graph LR
+    A[Topic Prompt] --> B[Topic Tree/Graph]
+    B --> C[Data Generator]
+    C --> D[Format Engine]
+    D --> E[Export/Upload]
+```
+
 By decoupling these components, you can easily swap out models, prompts, and formats to suit your specific needs, along with version controlling your configurations for reproducibility.
 
 ## Quickstart
@@ -165,14 +173,6 @@ deepfabric generate \
 ```
 
 There are lots more [examples](./examples/README.md) to get you going.
-
-```mermaid
-graph LR
-    A[Topic Prompt] --> B[Topic Tree/Graph]
-    B --> C[Data Generator]
-    C --> D[Format Engine]
-    D --> E[Export/Upload]
-```
 
 ### Topic Generation Modes
 
