@@ -49,7 +49,7 @@ No more unruly models failing to Tool call or comply with reams of natural langu
 - **Tool Calling Support**: Generate function-calling and agent interaction datasets
 - **Structured Output**: Pydantic & Outlines enforced schemas for consistent, high-quality data
 - **Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Ollama, and more
-- ** HuggingFace Integration**: Direct dataset upload with auto-generated cards 
+- **HuggingFace Integration**: Direct dataset upload with auto-generated cards 
 
 ## Supported Output Formats
 
