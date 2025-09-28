@@ -106,17 +106,15 @@ class KaggleUploader:
         username, dataset_name = parts
 
         # Add default deepfabric tags
-        all_tags = list(DEFAULT_KAGGLE_TAGS)
+        all_tags = set(DEFAULT_KAGGLE_TAGS)
         if tags:
-            for tag in tags:
-                if tag not in all_tags:
-                    all_tags.append(tag)
+            all_tags.update(tags)
 
         metadata = {
             "title": dataset_name.replace("-", " ").title(),
             "id": f"{username}/{dataset_name}",
             "licenses": [{"name": "CC0-1.0"}],
-            "tags": all_tags,
+            "tags": list(all_tags),
         }
 
         if description:
@@ -156,7 +154,7 @@ class KaggleUploader:
         tags: list[str] | None = None,
         version_notes: str | None = None,
         description: str | None = None,
-    ):
+    ) -> dict[str, str]:
         """
         Push a JSONL dataset to Kaggle.
 
@@ -173,13 +171,6 @@ class KaggleUploader:
         result = {"status": "error", "message": ""}
 
         try:
-            # Verify the file exists
-            if not Path(jsonl_file_path).exists():
-                result["message"] = (
-                    f"File '{jsonl_file_path}' not found. Please check your file path."
-                )
-                return result
-
             # Create a temporary directory for the dataset
             with tempfile.TemporaryDirectory() as tmpdir:
                 tmpdir_path = Path(tmpdir)
