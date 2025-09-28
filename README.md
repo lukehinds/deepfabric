@@ -43,12 +43,12 @@ No more unruly models failing to Tool call or comply with reams of natural langu
 ## Key Features
 
 ### Core Capabilities
-- ** Hierarchical Topic Generation**: Tree and graph-based architectures for comprehensive domain coverage
-- ** Multi-Format Export**: Direct export to popular training formats (no conversion scripts needed)
-- ** Conversation Templates**: Support for various dialogue patterns and reasoning styles
-- ** Tool Calling Support**: Generate function-calling and agent interaction datasets
-- ** Structured Output**: Pydantic & Outlines enforced schemas for consistent, high-quality data
-- ** Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Ollama, and more
+- **Hierarchical Topic Generation**: Tree and graph-based architectures for comprehensive domain coverage
+- **Multi-Format Export**: Direct export to popular training formats (no conversion scripts needed)
+- **Conversation Templates**: Support for various dialogue patterns and reasoning styles
+- **Tool Calling Support**: Generate function-calling and agent interaction datasets
+- **Structured Output**: Pydantic & Outlines enforced schemas for consistent, high-quality data
+- **Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Ollama, and more
 - ** HuggingFace Integration**: Direct dataset upload with auto-generated cards 
 
 ## Supported Output Formats
