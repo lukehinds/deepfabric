@@ -302,15 +302,6 @@ data_engine:
   include_reasoning_tags: true
 ```
 
-### Batch Processing & Performance
-
-| Parameter | Description | Performance Impact |
-|-----------|-------------|-------------------|
-| `batch_size` | Parallel generation | ↑ Speed, ↑ Memory |
-| `max_retries` | Retry failed generations | ↑ Quality, ↓ Speed |
-| `temperature` | LLM creativity | ↑ Diversity, ↓ Consistency |
-| `num_workers` | Parallel processing | ↑ Speed (with local models) |
-
 ### Quality Control Features
 
 - **Deduplication**: Automatic removal of similar samples
