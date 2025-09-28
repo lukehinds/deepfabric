@@ -17,8 +17,8 @@ topic_tree:
   provider: "gemini"  # or "anthropic", "gemini", "ollama"
   model: "gemini-2.5-flash-lite"  # Cost-effective model
   temperature: 0.8
-  degree: 4  # Number of subtopics per branch
-  depth: 4  # Tree depth (2-3 is usually enough)
+  degree: 3  # Number of subtopics per branch
+  depth: 3  # Tree depth (2-3 is usually enough)
   save_as: "topics.jsonl"
 
 # Data generation settings
@@ -33,20 +33,28 @@ data_engine:
 # Dataset configuration
 dataset:
   creation:
-    num_steps: 9  # Number of generation steps
+    num_steps: 4  # Number of generation steps
     batch_size: 1
     sys_msg: false
   save_as: "dataset_raw.jsonl"
 
   # Format for Unsloth/general training
-  formatters:
-    - name: "training_format"
-      template: "builtin://unsloth.py"
-      output: "dataset_formatted.jsonl"
-      config:
-        include_system: false
+  # formatters:
+  #   - name: "training_format"
+  #     template: "builtin://unsloth.py"
+  #     output: "dataset_formatted.jsonl"
+  #     config:
+  #       include_system: false
 
 # Optional: Upload to HuggingFace
 # huggingface:
 #   repository: "your-username/your-dataset"
 #   tags: ["synthetic", "deepfabric"]
+
+# Optional: Upload to Kaggle
+# kaggle:
+#   handle: "your-username/your-dataset"
+#   tags: ["synthetic", "deepfabric", "vehicle-mechanics"]
+#   description: "Synthetic Q&A dataset about vehicle mechanics"
+#   version_notes: "Initial dataset version"
+  

@@ -210,6 +210,17 @@ class HuggingFaceConfig(BaseModel):
     tags: list[str] = Field(default_factory=list, description="Tags for the dataset")
 
 
+class KaggleConfig(BaseModel):
+    """Configuration for Kaggle integration."""
+
+    handle: str = Field(
+        ..., min_length=1, description="Kaggle dataset handle (username/dataset-name)"
+    )
+    tags: list[str] = Field(default_factory=list, description="Tags for the dataset")
+    description: str | None = Field(None, description="Description for the dataset")
+    version_notes: str | None = Field(None, description="Version notes for dataset update")
+
+
 class DeepFabricConfig(BaseModel):
     """Configuration for DeepFabric tasks."""
 
@@ -222,6 +233,7 @@ class DeepFabricConfig(BaseModel):
     data_engine: DataEngineConfig = Field(..., description="Data engine configuration")
     dataset: DatasetConfig = Field(..., description="Dataset configuration")
     huggingface: HuggingFaceConfig | None = Field(None, description="Hugging Face configuration")
+    kaggle: KaggleConfig | None = Field(None, description="Kaggle configuration")
 
     @classmethod
     def _migrate_legacy_format(cls, config_dict: dict) -> dict:
@@ -303,6 +315,7 @@ class DeepFabricConfig(BaseModel):
                     "has_topic_tree": config.topic_tree is not None,
                     "has_topic_graph": config.topic_graph is not None,
                     "has_huggingface": config.huggingface is not None,
+                    "has_kaggle": config.kaggle is not None,
                 },
             )
         except Exception as e:
@@ -436,6 +449,10 @@ class DeepFabricConfig(BaseModel):
     def get_huggingface_config(self) -> dict:
         """Get Hugging Face configuration."""
         return self.huggingface.model_dump() if self.huggingface else {}
+
+    def get_kaggle_config(self) -> dict:
+        """Get Kaggle configuration."""
+        return self.kaggle.model_dump() if self.kaggle else {}
 
     def get_formatter_configs(self) -> list[dict]:
         """Get list of formatter configurations."""

@@ -1,3 +1,4 @@
+import os
 import traceback
 
 from typing import TYPE_CHECKING
@@ -160,6 +161,128 @@ def create_dataset(
     return dataset
 
 
+def _upload_to_service(
+    service_name: str,
+    dataset_path: str,
+    config: dict,
+    credential_check_func,
+    uploader_import_func,
+    uploader_args_func,
+    push_args_func,
+    tui,
+) -> None:
+    """Generic function to upload dataset to any configured service."""
+    try:
+        tui.info(f"Uploading dataset to {service_name}...")
+
+        # Check credentials
+        credentials = credential_check_func()
+        if not credentials:
+            return
+
+        # Import uploader class
+        uploader_class = uploader_import_func()
+
+        # Create uploader instance
+        uploader_args = uploader_args_func(credentials)
+        uploader = (
+            uploader_class(*uploader_args)
+            if isinstance(uploader_args, tuple)
+            else uploader_class(**uploader_args)
+        )
+
+        # Prepare push arguments
+        push_args = push_args_func(config, dataset_path)
+
+        # Upload dataset
+        result = uploader.push_to_hub(**push_args)
+
+        if result["status"] == "success":
+            tui.success(result["message"])
+        else:
+            tui.warning(f"{service_name} upload failed: {result['message']}")
+
+    except Exception as e:
+        tui.warning(f"Error uploading to {service_name}: {str(e)}")
+
+
+def _upload_to_huggingface(dataset_path: str, hf_config: dict, tui) -> None:
+    """Upload dataset to HuggingFace Hub if configured."""
+
+    def check_credentials():
+        token = os.getenv("HF_TOKEN")
+        if not token:
+            tui.warning("HF_TOKEN not set. Skipping HuggingFace upload.")
+            return None
+        return token
+
+    def import_uploader():
+        from .hf_hub import HFUploader  # noqa: PLC0415
+
+        return HFUploader
+
+    def get_uploader_args(credentials):
+        return (credentials,)  # HFUploader takes token as single argument
+
+    def get_push_args(config, dataset_path):
+        return {
+            "hf_dataset_repo": config["repository"],
+            "jsonl_file_path": dataset_path,
+            "tags": config.get("tags", []),
+        }
+
+    _upload_to_service(
+        "HuggingFace Hub",
+        dataset_path,
+        hf_config,
+        check_credentials,
+        import_uploader,
+        get_uploader_args,
+        get_push_args,
+        tui,
+    )
+
+
+def _upload_to_kaggle(dataset_path: str, kaggle_config: dict, tui) -> None:
+    """Upload dataset to Kaggle if configured."""
+
+    def check_credentials():
+        username = os.getenv("KAGGLE_USERNAME")
+        key = os.getenv("KAGGLE_KEY")
+        if not username or not key:
+            tui.warning("KAGGLE_USERNAME or KAGGLE_KEY not set. Skipping Kaggle upload.")
+            return None
+        return (username, key)
+
+    def import_uploader():
+        from .kaggle_hub import KaggleUploader  # noqa: PLC0415
+
+        return KaggleUploader
+
+    def get_uploader_args(credentials):
+        return credentials  # KaggleUploader takes username, key as tuple
+
+    def get_push_args(config, dataset_path):
+        return {
+            "dataset_handle": config["handle"],
+            "jsonl_file_path": dataset_path,
+            "tags": config.get("tags", []),
+            "version_notes": config.get("version_notes"),
+            "description": config.get("description"),
+        }
+
+    _upload_to_service(
+        "Kaggle",
+        dataset_path,
+        kaggle_config,
+        check_credentials,
+        import_uploader,
+        get_uploader_args,
+        get_push_args,
+        tui,
+    )
+
+
 def save_dataset(dataset: Dataset, save_path: str, config: DeepFabricConfig | None = None) -> None:
     """
     Save dataset to file and apply formatters if configured.
@@ -198,6 +321,16 @@ def save_dataset(dataset: Dataset, save_path: str, config: DeepFabricConfig | No
                 except Exception as e:
                     tui.error(f"Error applying formatters: {str(e)}")
                     # Don't raise here - we want to continue even if formatters fail
+
+        # Handle automatic uploads if configured
+        if config:
+            # HuggingFace upload
+            if config.huggingface:
+                _upload_to_huggingface(save_path, config.get_huggingface_config(), tui)
+
+            # Kaggle upload
+            if config.kaggle:
+                _upload_to_kaggle(save_path, config.get_kaggle_config(), tui)
 
     except Exception as e:
         raise ConfigurationError(f"Error saving dataset: {str(e)}") from e

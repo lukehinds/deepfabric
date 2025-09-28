@@ -442,6 +442,85 @@ def upload(
         sys.exit(1)
 
 
+@cli.command("upload-kaggle")
+@click.argument("dataset_file", type=click.Path(exists=True))
+@click.option(
+    "--handle",
+    required=True,
+    help="Kaggle dataset handle (e.g., username/dataset-name)",
+)
+@click.option(
+    "--username",
+    help="Kaggle username (can also be set via KAGGLE_USERNAME env var)",
+)
+@click.option(
+    "--key",
+    help="Kaggle API key (can also be set via KAGGLE_KEY env var)",
+)
+@click.option(
+    "--tags",
+    multiple=True,
+    help="Tags for the dataset (can be specified multiple times)",
+)
+@click.option(
+    "--version-notes",
+    help="Version notes for the dataset update",
+)
+@click.option(
+    "--description",
+    help="Description for the dataset",
+)
+def upload_kaggle(
+    dataset_file: str,
+    handle: str,
+    username: str | None = None,
+    key: str | None = None,
+    tags: list[str] | None = None,
+    version_notes: str | None = None,
+    description: str | None = None,
+) -> None:
+    """Upload a dataset to Kaggle."""
+    trace("cli_upload_kaggle", {"has_tags": len(tags) > 0 if tags else False})
+
+    try:
+        # Get credentials from CLI args or env vars
+        username = username or os.getenv("KAGGLE_USERNAME")
+        key = key or os.getenv("KAGGLE_KEY")
+
+        if not username or not key:
+            handle_error(
+                click.get_current_context(),
+                ValueError(
+                    "Kaggle credentials not provided. "
+                    "Set via --username/--key or KAGGLE_USERNAME/KAGGLE_KEY env vars."
+                ),
+            )
+
+        # Lazy import to avoid slow startup when not using Kaggle features
+        from .kaggle_hub import KaggleUploader  # noqa: PLC0415
+
+        uploader = KaggleUploader(username, key)
+        result = uploader.push_to_hub(
+            str(handle),
+            dataset_file,
+            tags=list(tags) if tags else [],
+            version_notes=version_notes,
+            description=description,
+        )
+
+        tui = get_tui()
+        if result["status"] == "success":
+            tui.success(result["message"])
+        else:
+            tui.error(result["message"])
+            sys.exit(1)
+
+    except Exception as e:
+        tui = get_tui()
+        tui.error(f"Error uploading to Kaggle: {str(e)}")
+        sys.exit(1)
+
+
 @cli.command()
 @click.argument("graph_file", type=click.Path(exists=True))
 @click.option(
@@ -574,6 +653,10 @@ def validate(config_file: str) -> None:  # noqa: PLR0912
             hf_config = config.get_huggingface_config()
             tui.info(f"Hugging Face: repo={hf_config.get('repository', 'not set')}")
 
+        if config.kaggle:
+            kaggle_config = config.get_kaggle_config()
+            tui.info(f"Kaggle: handle={kaggle_config.get('handle', 'not set')}")
+
     except FileNotFoundError:
         handle_error(
             click.get_current_context(),
@@ -615,6 +698,7 @@ def info() -> None:
             ("validate", "Validate a configuration file"),
             ("visualize", "Create SVG visualization of a topic graph"),
             ("upload", "Upload dataset to Hugging Face Hub"),
+            ("upload-kaggle", "Upload dataset to Kaggle"),
             ("info", "Show this information"),
         ]
         for cmd, desc in commands:

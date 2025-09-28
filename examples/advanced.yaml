@@ -71,6 +71,17 @@ huggingface:
     - "synthetic"
     - "deepfabric"
 
+# Kaggle Configuration (Alternative or additional upload)
+# kaggle:
+#   handle: "username/software-architecture-dataset"
+#   tags:
+#     - "software-architecture"
+#     - "design-patterns"
+#     - "engineering"
+#     - "synthetic"
+#   description: "Advanced software architecture Q&A dataset generated with DeepFabric"
+#   version_notes: "Version 1.0 - Initial comprehensive dataset"
+
 # Advanced Features (these are handled automatically but shown for reference)
 # - Graph cycle detection
 # - Cross-connection optimization
