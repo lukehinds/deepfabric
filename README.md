@@ -84,6 +84,16 @@ You can create your own custom output format by implementing a simple Python cla
 
 If there's a format or feature you'd like to see, please [open an issue](https://github.com/lukehinds/deepfabric/issues/new).
 
+## DeepFabric Pipeline
+
+DeepFabric is designed to work within a modular MLOps pipeline, allowing you to customize each stage of the dataset generation process. The main components are:
+
+- **Topic Generation**: Create a structured topic tree or graph based on a high-level prompt.
+- **Data Generation**: Generate training examples for each topic using LLMs.
+- **Format Engine**: Convert raw outputs into your desired dataset format.
+
+By decoupling these components, you can easily swap out models, prompts, and formats to suit your specific needs, along with version controlling your configurations for reproducibility.
+
 ## Quickstart
 
 ### 1. Install DeepFabric
@@ -155,17 +165,6 @@ deepfabric generate \
 ```
 
 There are lots more [examples](./examples/README.md) to get you going.
-
-## Pipeline Overview
-
-DeepFabric is designed to work within a modular MLOps pipeline, allowing you to customize each stage of the dataset generation process. The main components are:
-
-- **Topic Generation**: Create a structured topic tree or graph based on a high-level prompt.
-- **Data Generation**: Generate training examples for each topic using LLMs.
-- **Format Engine**: Convert raw outputs into your desired dataset format.
-
-By decoupling these components, you can easily swap out models, prompts, and formats to suit your specific needs, along with version controlling your configurations for reproducibility.
-
 
 ```mermaid
 graph LR
