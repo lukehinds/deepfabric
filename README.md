@@ -64,6 +64,10 @@ No more unruly models failing to Tool call or comply with reams of natural langu
 | **Harmony** | `builtin://harmony.py` | Reasoning with tags | (gpt-oss) |
 | **Custom** | `file://your_format.py` | Your requirements | Any framework |
 
+### Custom Format
+
+You can create your own custom output format by implementing a simple Python class with a `format` method using the `deepfabric` library and `BaseFormatter` class. See the [Custom Format Guide](./docs/formatters/custom-formatter-guide.md) for details.
+
 ## Conversation Templates
 
 | Template Type | Description | Example Use Case |
@@ -76,7 +80,7 @@ No more unruly models failing to Tool call or comply with reams of natural langu
 | **Tool Calling** | Function invocations | Agent interactions |
 | **System-Prompted** | With system instructions | Role-playing, personas |
 
-## Something Missing?
+### Template Missing?
 
 If there's a format or feature you'd like to see, please [open an issue](https://github.com/lukehinds/deepfabric/issues/new).
 
