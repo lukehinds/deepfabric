@@ -43,15 +43,15 @@ No more unruly models failing to Tool call or comply with reams of natural langu
 ## Key Features
 
 ### Core Capabilities
-- **🌳 Hierarchical Topic Generation**: Tree and graph-based architectures for comprehensive domain coverage
-- **🔄 Multi-Format Export**: Direct export to popular training formats (no conversion scripts needed)
-- **🎭 Conversation Templates**: Support for various dialogue patterns and reasoning styles
-- **🛠️ Tool Calling Support**: Generate function-calling and agent interaction datasets
-- **📊 Structured Output**: Pydantic & Outlines enforced schemas for consistent, high-quality data
-- **☁️ Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Ollama, and more
-- **🤗 HuggingFace Integration**: Direct dataset upload with auto-generated cards 
+- ** Hierarchical Topic Generation**: Tree and graph-based architectures for comprehensive domain coverage
+- ** Multi-Format Export**: Direct export to popular training formats (no conversion scripts needed)
+- ** Conversation Templates**: Support for various dialogue patterns and reasoning styles
+- ** Tool Calling Support**: Generate function-calling and agent interaction datasets
+- ** Structured Output**: Pydantic & Outlines enforced schemas for consistent, high-quality data
+- ** Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Ollama, and more
+- ** HuggingFace Integration**: Direct dataset upload with auto-generated cards 
 
-## 📊 Supported Output Formats
+## Supported Output Formats
 
 | Format | Template | Use Case | Framework Compatibility |
 |--------|----------|----------|-----------------------|
@@ -64,7 +64,7 @@ No more unruly models failing to Tool call or comply with reams of natural langu
 | **Harmony** | `builtin://harmony.py` | Reasoning with tags | (gpt-oss) |
 | **Custom** | `file://your_format.py` | Your requirements | Any framework |
 
-## 🧠 Conversation Templates
+## Conversation Templates
 
 | Template Type | Description | Example Use Case |
 |--------------|-------------|------------------|
@@ -152,7 +152,7 @@ deepfabric generate \
 
 There are lots more [examples](./examples/README.md) to get you going.
 
-## 🚀 Architecture Overview
+## Pipeline Overview
 
 ### Generation Pipeline
 ```mermaid
@@ -183,7 +183,7 @@ graph LR
 | **Together** | Open models | Fast inference | Cloud |
 | **Groq** | Llama, Mixtral | Ultra-fast generation | Cloud |
 
-## ⚙️ Configuration System
+## Configuration System
 
 DeepFabric uses a flexible YAML-based configuration with extensive CLI overrides:
 
@@ -273,7 +273,7 @@ deepfabric generate config.yaml \
   --hf-tags tag1 --hf-tags tag2
 ```
 
-## 📚 Advanced Features
+## Advanced Features
 
 ### Chain of Thought (CoT) Generation
 
@@ -323,7 +323,7 @@ Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way t
 
 <img src="/assets/star.gif" width="40%" height="40%"/>
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! Check out our [good first issues](https://github.com/lukehinds/deepfabric/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) to get started.
 
@@ -336,7 +336,7 @@ make test            # Run tests
 make format          # Format code
 ```
 
-## 📊 Community & Support
+## Community & Support
 
 - **Discord**: [Join our community](https://discord.gg/pPcjYzGvbS) for real-time help
 - **Issues**: [Report bugs](https://github.com/lukehinds/deepfabric/issues) or request features
@@ -346,7 +346,7 @@ make format          # Format code
 
 If you're using DeepFabric in production or research, we'd love to hear from you! Share your experience in our [Discord](https://discord.gg/pPcjYzGvbS) or open a discussion.
 
-## 🏆 Use Cases
+## Use Cases
 
 ### Industry Applications
 | Use Case | Description | Example Config |
@@ -358,22 +358,19 @@ If you're using DeepFabric in production or research, we'd love to hear from you
 | **Instruction Tuning** | Task-specific models | [instruct.yaml](examples/unsloth_instruct_config.yaml) |
 | **Math Reasoning** | Step-by-step solutions | [math.yaml](examples/grpo_math_config.yaml) |
 
-## 🛡️ Privacy & Security
 
-### Data Protection
-- **Local Processing**: All data generation can run entirely offline with Ollama
-- **No Training Data Storage**: Generated content is never stored on our servers
-- **API Key Security**: Keys are never logged or transmitted to third parties
-
-### Analytics
-- Fully anonymized telemetry for performance optimization
-- No PII, prompts, or generated content captured
-- Opt-out: `export ANONYMIZED_TELEMETRY=False`
-
-## 💡 Tips for Best Results
+## Tips for Best Results
 
 1. **Start Small**: Test with `depth=2, degree=3` before scaling up
 2. **Mix Models**: Use stronger models for topics, faster ones for generation
 3. **Iterate**: Generate small batches and refine prompts based on results
 4. **Validate**: Always review a sample before training
 5. **Version Control**: Save configurations for reproducibility
+
+### Analytics
+
+We use fully anonymised analytics, to help us improve application performance and stability. We never send Personal identifiable information and we do not capture prompts, generated content, API keys, file names etc.
+
+We capture model names, numeric parameters (temperature, depth, degree, batch_size), timing and success/failure rates - this then helps us find optimizations or bottlenecks.
+
+You can fully disable all analytics by setting the environment variable `ANONYMIZED_TELEMETRY=False`.
