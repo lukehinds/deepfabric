@@ -158,7 +158,15 @@ There are lots more [examples](./examples/README.md) to get you going.
 
 ## Pipeline Overview
 
-### Generation Pipeline
+DeepFabric is designed to work within a modular MLOps pipeline, allowing you to customize each stage of the dataset generation process. The main components are:
+
+- **Topic Generation**: Create a structured topic tree or graph based on a high-level prompt.
+- **Data Generation**: Generate training examples for each topic using LLMs.
+- **Format Engine**: Convert raw outputs into your desired dataset format.
+
+By decoupling these components, you can easily swap out models, prompts, and formats to suit your specific needs, along with version controlling your configurations for reproducibility.
+
+
 ```mermaid
 graph LR
     A[Topic Prompt] --> B[Topic Tree/Graph]
