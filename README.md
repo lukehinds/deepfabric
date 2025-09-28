@@ -3,7 +3,7 @@
     <source media="(prefers-color-scheme: dark)" srcset="./assets/logo-light.png">
     <img alt="DeepFabric logo" src="./assets/logo-light.png" width="400px" height="270px" style="max-width: 100%;">
   </picture>
-  <h3>Generate Fine-Tuning High-Quality Synthetic Datasets at Scale</h3>
+  <h3>Generate High-Quality Synthetic Datasets at Scale</h3>
 
   <!-- CTA Buttons -->
   <p>

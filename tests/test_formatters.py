@@ -1147,4 +1147,3 @@ class TestHarmonyFormatter:
 
         # Both should have commentary channel
         assert text.count("<|channel|>commentary") >= 2  # noqa: PLR2004
-

@@ -60,6 +60,7 @@ JSON_CODE_BLOCK_PATTERN = r"```json\s*|\s*```"
 
 # Default tags
 DEFAULT_HF_TAGS = ["deepfabric", "synthetic"]
+DEFAULT_KAGGLE_TAGS = ["deepfabric", "synthetic"]
 
 # Error categories
 ERROR_CATEGORIES = {

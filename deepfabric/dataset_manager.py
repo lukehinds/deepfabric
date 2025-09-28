@@ -1,3 +1,4 @@
+import os
 import traceback
 
 from typing import TYPE_CHECKING
@@ -160,6 +161,68 @@ def create_dataset(
     return dataset
 
 
+def _upload_to_huggingface(dataset_path: str, hf_config: dict, tui) -> None:
+    """Upload dataset to HuggingFace Hub if configured."""
+    try:
+        tui.info("Uploading dataset to HuggingFace Hub...")
+
+        # Get token from environment
+        token = os.getenv("HF_TOKEN")
+        if not token:
+            tui.warning("HF_TOKEN not set. Skipping HuggingFace upload.")
+            return
+
+        # Lazy import to avoid slow startup
+        from .hf_hub import HFUploader  # noqa: PLC0415
+
+        uploader = HFUploader(token)
+        result = uploader.push_to_hub(
+            hf_config["repository"], dataset_path, tags=hf_config.get("tags", [])
+        )
+
+        if result["status"] == "success":
+            tui.success(result["message"])
+        else:
+            tui.warning(f"HuggingFace upload failed: {result['message']}")
+
+    except Exception as e:
+        tui.warning(f"Error uploading to HuggingFace: {str(e)}")
+
+
+def _upload_to_kaggle(dataset_path: str, kaggle_config: dict, tui) -> None:
+    """Upload dataset to Kaggle if configured."""
+    try:
+        tui.info("Uploading dataset to Kaggle...")
+
+        # Get credentials from environment
+        username = os.getenv("KAGGLE_USERNAME")
+        key = os.getenv("KAGGLE_KEY")
+
+        if not username or not key:
+            tui.warning("KAGGLE_USERNAME or KAGGLE_KEY not set. Skipping Kaggle upload.")
+            return
+
+        # Lazy import to avoid slow startup
+        from .kaggle_hub import KaggleUploader  # noqa: PLC0415
+
+        uploader = KaggleUploader(username, key)
+        result = uploader.push_to_hub(
+            kaggle_config["handle"],
+            dataset_path,
+            tags=kaggle_config.get("tags", []),
+            version_notes=kaggle_config.get("version_notes"),
+            description=kaggle_config.get("description"),
+        )
+
+        if result["status"] == "success":
+            tui.success(result["message"])
+        else:
+            tui.warning(f"Kaggle upload failed: {result['message']}")
+
+    except Exception as e:
+        tui.warning(f"Error uploading to Kaggle: {str(e)}")
+
+
 def save_dataset(dataset: Dataset, save_path: str, config: DeepFabricConfig | None = None) -> None:
     """
     Save dataset to file and apply formatters if configured.
@@ -198,6 +261,16 @@ def save_dataset(dataset: Dataset, save_path: str, config: DeepFabricConfig | No
                 except Exception as e:
                     tui.error(f"Error applying formatters: {str(e)}")
                     # Don't raise here - we want to continue even if formatters fail
+
+        # Handle automatic uploads if configured
+        if config:
+            # HuggingFace upload
+            if config.huggingface:
+                _upload_to_huggingface(save_path, config.get_huggingface_config(), tui)
+
+            # Kaggle upload
+            if config.kaggle:
+                _upload_to_kaggle(save_path, config.get_kaggle_config(), tui)
 
     except Exception as e:
         raise ConfigurationError(f"Error saving dataset: {str(e)}") from e
