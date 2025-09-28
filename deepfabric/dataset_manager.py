@@ -161,66 +161,126 @@ def create_dataset(
     return dataset
 
 
-def _upload_to_huggingface(dataset_path: str, hf_config: dict, tui) -> None:
-    """Upload dataset to HuggingFace Hub if configured."""
+def _upload_to_service(
+    service_name: str,
+    dataset_path: str,
+    config: dict,
+    credential_check_func,
+    uploader_import_func,
+    uploader_args_func,
+    push_args_func,
+    tui,
+) -> None:
+    """Generic function to upload dataset to any configured service."""
     try:
-        tui.info("Uploading dataset to HuggingFace Hub...")
+        tui.info(f"Uploading dataset to {service_name}...")
 
-        # Get token from environment
-        token = os.getenv("HF_TOKEN")
-        if not token:
-            tui.warning("HF_TOKEN not set. Skipping HuggingFace upload.")
+        # Check credentials
+        credentials = credential_check_func()
+        if not credentials:
             return
 
-        # Lazy import to avoid slow startup
-        from .hf_hub import HFUploader  # noqa: PLC0415
+        # Import uploader class
+        uploader_class = uploader_import_func()
 
-        uploader = HFUploader(token)
-        result = uploader.push_to_hub(
-            hf_config["repository"], dataset_path, tags=hf_config.get("tags", [])
+        # Create uploader instance
+        uploader_args = uploader_args_func(credentials)
+        uploader = (
+            uploader_class(*uploader_args)
+            if isinstance(uploader_args, tuple)
+            else uploader_class(**uploader_args)
         )
+
+        # Prepare push arguments
+        push_args = push_args_func(config, dataset_path)
+
+        # Upload dataset
+        result = uploader.push_to_hub(**push_args)
 
         if result["status"] == "success":
             tui.success(result["message"])
         else:
-            tui.warning(f"HuggingFace upload failed: {result['message']}")
+            tui.warning(f"{service_name} upload failed: {result['message']}")
 
     except Exception as e:
-        tui.warning(f"Error uploading to HuggingFace: {str(e)}")
+        tui.warning(f"Error uploading to {service_name}: {str(e)}")
+
+
+def _upload_to_huggingface(dataset_path: str, hf_config: dict, tui) -> None:
+    """Upload dataset to HuggingFace Hub if configured."""
+
+    def check_credentials():
+        token = os.getenv("HF_TOKEN")
+        if not token:
+            tui.warning("HF_TOKEN not set. Skipping HuggingFace upload.")
+            return None
+        return token
+
+    def import_uploader():
+        from .hf_hub import HFUploader  # noqa: PLC0415
+
+        return HFUploader
+
+    def get_uploader_args(credentials):
+        return (credentials,)  # HFUploader takes token as single argument
+
+    def get_push_args(config, dataset_path):
+        return {
+            "hf_dataset_repo": config["repository"],
+            "jsonl_file_path": dataset_path,
+            "tags": config.get("tags", []),
+        }
+
+    _upload_to_service(
+        "HuggingFace Hub",
+        dataset_path,
+        hf_config,
+        check_credentials,
+        import_uploader,
+        get_uploader_args,
+        get_push_args,
+        tui,
+    )
 
 
 def _upload_to_kaggle(dataset_path: str, kaggle_config: dict, tui) -> None:
     """Upload dataset to Kaggle if configured."""
-    try:
-        tui.info("Uploading dataset to Kaggle...")
 
-        # Get credentials from environment
+    def check_credentials():
         username = os.getenv("KAGGLE_USERNAME")
         key = os.getenv("KAGGLE_KEY")
-
         if not username or not key:
             tui.warning("KAGGLE_USERNAME or KAGGLE_KEY not set. Skipping Kaggle upload.")
-            return
+            return None
+        return (username, key)
 
-        # Lazy import to avoid slow startup
+    def import_uploader():
         from .kaggle_hub import KaggleUploader  # noqa: PLC0415
 
-        uploader = KaggleUploader(username, key)
-        result = uploader.push_to_hub(
-            kaggle_config["handle"],
-            dataset_path,
-            tags=kaggle_config.get("tags", []),
-            version_notes=kaggle_config.get("version_notes"),
-            description=kaggle_config.get("description"),
-        )
+        return KaggleUploader
 
-        if result["status"] == "success":
-            tui.success(result["message"])
-        else:
-            tui.warning(f"Kaggle upload failed: {result['message']}")
+    def get_uploader_args(credentials):
+        return credentials  # KaggleUploader takes username, key as tuple
 
-    except Exception as e:
-        tui.warning(f"Error uploading to Kaggle: {str(e)}")
+    def get_push_args(config, dataset_path):
+        return {
+            "dataset_handle": config["handle"],
+            "jsonl_file_path": dataset_path,
+            "tags": config.get("tags", []),
+            "version_notes": config.get("version_notes"),
+            "description": config.get("description"),
+        }
+
+    _upload_to_service(
+        "Kaggle",
+        dataset_path,
+        kaggle_config,
+        check_credentials,
+        import_uploader,
+        get_uploader_args,
+        get_push_args,
+        tui,
+    )
 
 
 def save_dataset(dataset: Dataset, save_path: str, config: DeepFabricConfig | None = None) -> None:

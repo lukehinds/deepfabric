@@ -3,6 +3,7 @@ import os
 import shutil
 import tempfile
 
+from contextlib import contextmanager
 from pathlib import Path
 
 import kagglehub
@@ -57,9 +58,29 @@ class KaggleUploader:
                 "Set via constructor params or KAGGLE_USERNAME/KAGGLE_KEY env vars."
             )
 
-        # Set credentials for kagglehub
-        os.environ["KAGGLE_USERNAME"] = self.kaggle_username
-        os.environ["KAGGLE_KEY"] = self.kaggle_key
+    @contextmanager
+    def _kaggle_credentials(self):
+        """Context manager to temporarily set Kaggle credentials in environment."""
+        # Store original values to restore later
+        original_username = os.environ.get("KAGGLE_USERNAME")
+        original_key = os.environ.get("KAGGLE_KEY")
+
+        try:
+            # Set credentials for kagglehub
+            os.environ["KAGGLE_USERNAME"] = self.kaggle_username  # type: ignore
+            os.environ["KAGGLE_KEY"] = self.kaggle_key  # type: ignore
+            yield
+        finally:
+            # Restore original environment state
+            if original_username is None:
+                os.environ.pop("KAGGLE_USERNAME", None)
+            else:
+                os.environ["KAGGLE_USERNAME"] = original_username
+
+            if original_key is None:
+                os.environ.pop("KAGGLE_KEY", None)
+            else:
+                os.environ["KAGGLE_KEY"] = original_key
 
     def create_dataset_metadata(
         self, dataset_handle: str, tags: list[str] | None = None, description: str | None = None
@@ -177,12 +198,13 @@ class KaggleUploader:
                 version_notes = version_notes or "Dataset uploaded via DeepFabric"
 
                 try:
-                    # Upload the dataset
-                    kagglehub.dataset_upload(
-                        handle=dataset_handle,
-                        local_dataset_dir=str(tmpdir_path),
-                        version_notes=version_notes,
-                    )
+                    # Upload the dataset with temporary credentials
+                    with self._kaggle_credentials():
+                        kagglehub.dataset_upload(
+                            handle=dataset_handle,
+                            local_dataset_dir=str(tmpdir_path),
+                            version_notes=version_notes,
+                        )
 
                 except Exception as upload_error:
                     # Handle specific Kaggle errors

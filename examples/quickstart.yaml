@@ -33,7 +33,7 @@ data_engine:
 # Dataset configuration
 dataset:
   creation:
-    num_steps: 27  # Number of generation steps
+    num_steps: 4  # Number of generation steps
     batch_size: 1
     sys_msg: false
   save_as: "dataset_raw.jsonl"
