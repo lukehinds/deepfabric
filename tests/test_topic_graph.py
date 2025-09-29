@@ -1,8 +1,9 @@
+import asyncio
 import json
 import tempfile
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest  # type: ignore
 
@@ -34,6 +35,11 @@ def topic_graph(topic_graph_params):
     """Fixture for Graph instance."""
     with patch("deepfabric.graph.LLMClient"):
         return Graph(**topic_graph_params)
+
+
+async def _consume_async_iter(async_iterable):
+    async for _ in async_iterable:
+        pass
 
 
 class TestValidateGraphResponse:
@@ -307,7 +313,7 @@ class TestGraph:
         # Mock the generate method on the topic_graph's llm_client instance
         from deepfabric.schemas import GraphSubtopic, GraphSubtopics  # noqa: PLC0415
 
-        topic_graph.llm_client.generate = MagicMock(
+        topic_graph.llm_client.generate_async = AsyncMock(
             return_value=GraphSubtopics(
                 subtopics=[
                     GraphSubtopic(topic="Subtopic 1", connections=[]),
@@ -317,7 +323,7 @@ class TestGraph:
         )
 
         # Generate subtopics
-        topic_graph.get_subtopics_and_connections(topic_graph.root, 2)
+        asyncio.run(topic_graph.get_subtopics_and_connections(topic_graph.root, 2))
 
         # Verify nodes were added
         assert len(topic_graph.nodes) == 3  # noqa: PLR2004
@@ -333,11 +339,11 @@ class TestGraph:
         # Mock success - LLMClient handles retries internally, so Graph only sees the final result
         from deepfabric.schemas import GraphSubtopic, GraphSubtopics  # noqa: PLC0415
 
-        topic_graph.llm_client.generate = MagicMock(
+        topic_graph.llm_client.generate_async = AsyncMock(
             return_value=GraphSubtopics(subtopics=[GraphSubtopic(topic="Subtopic", connections=[])])
         )
 
-        topic_graph.get_subtopics_and_connections(topic_graph.root, 1)
+        asyncio.run(topic_graph.get_subtopics_and_connections(topic_graph.root, 1))
 
         # Verify node was added
         assert len(topic_graph.nodes) == 2  # noqa: PLR2004
@@ -349,9 +355,9 @@ class TestGraph:
     ):  # noqa: ARG002
         """Test subtopic generation hitting max retries."""
         # All calls fail
-        topic_graph.llm_client.generate = MagicMock(side_effect=Exception("API Error"))
+        topic_graph.llm_client.generate_async = AsyncMock(side_effect=Exception("API Error"))
 
-        topic_graph.get_subtopics_and_connections(topic_graph.root, 1)
+        asyncio.run(topic_graph.get_subtopics_and_connections(topic_graph.root, 1))
 
         # Verify failure was recorded
         assert len(topic_graph.failed_generations) == 1
@@ -363,7 +369,7 @@ class TestGraph:
         # Mock responses for each call
         from deepfabric.schemas import GraphSubtopic, GraphSubtopics  # noqa: PLC0415
 
-        topic_graph.llm_client.generate = MagicMock(
+        topic_graph.llm_client.generate_async = AsyncMock(
             return_value=GraphSubtopics(
                 subtopics=[
                     GraphSubtopic(topic=f"Topic {i}", connections=[])
@@ -372,7 +378,7 @@ class TestGraph:
             )
         )
 
-        list(topic_graph.build())  # Convert generator to list to complete build
+        asyncio.run(_consume_async_iter(topic_graph.build_async()))
 
         # With depth=2 and degree=3, we should have:
         # 1 root + 3 children + (3 * 3) grandchildren = 13 nodes
@@ -450,7 +456,7 @@ class TestIntegration:
         # Set up mock to return different responses
         from deepfabric.schemas import GraphSubtopic, GraphSubtopics  # noqa: PLC0415
 
-        graph.llm_client.generate = MagicMock(
+        graph.llm_client.generate_async = AsyncMock(
             side_effect=[
                 GraphSubtopics(
                     subtopics=[
@@ -475,7 +481,7 @@ class TestIntegration:
             ]
         )
 
-        list(graph.build())  # Convert generator to list to complete build
+        asyncio.run(_consume_async_iter(graph.build_async()))
 
         # Verify structure
         assert len(graph.nodes) == 7  # 1 root + 2 level1 + 4 level2  # noqa: PLR2004

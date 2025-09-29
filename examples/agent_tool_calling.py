@@ -12,6 +12,7 @@ Two approaches shown:
 2. YAML configuration file (see agent_tool_calling.yaml)
 """
 
+import asyncio
 import os
 
 from deepfabric.config import DeepFabricConfig
@@ -88,7 +89,12 @@ execute them with proper parameters, and provide clear answers.""",
         tree_params = df_config.get_topic_tree_params()
 
         tree = Tree(**tree_params)
-        tree.build()
+
+        async def _build_tree() -> None:
+            async for _ in tree.build_async():
+                pass
+
+        asyncio.run(_build_tree())
         print(f"✓ Generated {len(tree.tree_paths)} topics")
 
         # Step 2: Generate dataset with agent tool usage
@@ -162,7 +168,12 @@ def generate_from_yaml_config():
     # Generate topics
     tree_params = config.get_topic_tree_params()
     tree = Tree(**tree_params)
-    tree.build()
+
+    async def _build_tree() -> None:
+        async for _ in tree.build_async():
+            pass
+
+    asyncio.run(_build_tree())
     print(f"✓ Generated {len(tree.tree_paths)} topics from YAML config")
 
     # Generate dataset

@@ -301,12 +301,19 @@ class Dataset:
                 # Create a new dataset with the formatted samples
                 formatted_dataset = Dataset()
                 # Convert FormattedOutput objects to dicts if needed
-                if formatted_samples and len(formatted_samples) > 0:
+                if formatted_samples:
                     first_sample = formatted_samples[0]
                     if hasattr(first_sample, "model_dump"):
-                        formatted_dataset.samples = [s.model_dump() for s in formatted_samples]
+                        dump = "model_dump"
                     elif hasattr(first_sample, "dict"):
-                        formatted_dataset.samples = [s.dict() for s in formatted_samples]
+                        dump = "dict"
+                    else:
+                        dump = None
+
+                    if dump is not None:
+                        formatted_dataset.samples = [
+                            getattr(sample, dump)() for sample in formatted_samples
+                        ]
                     else:
                         formatted_dataset.samples = formatted_samples
                 else:

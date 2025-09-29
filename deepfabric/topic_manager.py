@@ -1,3 +1,4 @@
+import asyncio
 import traceback
 
 from typing import TYPE_CHECKING
@@ -20,25 +21,28 @@ if TYPE_CHECKING:
     from .topic_model import TopicModel
 
 
-def handle_graph_events(graph: Graph) -> dict | None:
-    """
-    Build graph with TUI progress.
+def _ensure_not_running_loop(func_name: str) -> None:
+    """Raise a helpful error if invoked from an active asyncio loop."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
 
-    Args:
-        graph: Graph object to build
+    if loop.is_running():
+        msg = (
+            f"{func_name} cannot be called from within an active event loop. "
+            f"Use `{func_name}_async` instead."
+        )
+        raise RuntimeError(msg)
 
-    Returns:
-        Final build event dictionary or None
 
-    Raises:
-        Exception: If graph build fails
-    """
+async def _process_graph_events(graph: Graph) -> dict | None:
     tui = get_graph_tui()
     tui_started = False
 
     final_event = None
     try:
-        for event in graph.build():
+        async for event in graph.build_async():
             if event["event"] == "depth_start":
                 if not tui_started:
                     tui.start_building(graph.model_name, graph.depth, graph.degree)
@@ -57,8 +61,8 @@ def handle_graph_events(graph: Graph) -> dict | None:
                     else 0
                 )
                 connections_added = (
-                    int(event["connections_added"])
-                    if isinstance(event["connections_added"], str | int)
+                    int(event.get("connections_added", 0))
+                    if isinstance(event.get("connections_added", 0), str | int)
                     else 0
                 )
                 tui.complete_node_expansion(event["node_topic"], subtopics_added, connections_added)
@@ -74,32 +78,18 @@ def handle_graph_events(graph: Graph) -> dict | None:
                 tui.finish_building(failed_generations)
                 final_event = event
     except Exception as e:
-        # The LLM module now handles proper error formatting
         get_tui().error(f"Graph build failed: {str(e)}")
         raise
+    else:
+        return final_event
 
-    return final_event
 
-
-def handle_tree_events(tree: Tree, debug: bool = False) -> dict | None:
-    """
-    Build tree with TUI progress.
-
-    Args:
-        tree: Tree object to build
-        debug: Enable debug output
-
-    Returns:
-        Final build event dictionary or None
-
-    Raises:
-        Exception: If tree build fails
-    """
+async def _process_tree_events(tree: Tree, debug: bool = False) -> dict | None:
     tui = get_tree_tui()
 
     final_event = None
     try:
-        for event in tree.build():
+        async for event in tree.build_async():
             if event["event"] == "build_start":
                 depth = int(event["depth"]) if isinstance(event["depth"], str | int) else 0
                 degree = int(event["degree"]) if isinstance(event["degree"], str | int) else 0
@@ -121,7 +111,6 @@ def handle_tree_events(tree: Tree, debug: bool = False) -> dict | None:
                 tui.finish_building(total_paths, failed_generations)
                 final_event = event
 
-                # Show debug information about failures
                 if debug and failed_generations > 0 and hasattr(tree, "failed_generations"):
                     get_tui().error("\n🔍 Debug: Tree generation failures:")
                     for idx, failure in enumerate(tree.failed_generations, 1):
@@ -130,13 +119,55 @@ def handle_tree_events(tree: Tree, debug: bool = False) -> dict | None:
                         )
                         get_tui().error(f"      Error: {failure.get('error', 'Unknown error')}")
     except Exception as e:
-        # The LLM module now handles proper error formatting
         if debug:
             get_tui().error(f"🔍 Debug: Full traceback:\n{traceback.format_exc()}")
         get_tui().error(f"Tree build failed: {str(e)}")
         raise
+    else:
+        return final_event
 
-    return final_event
+
+def handle_graph_events(graph: Graph) -> dict | None:
+    """
+    Build graph with TUI progress.
+
+    Args:
+        graph: Graph object to build
+
+    Returns:
+        Final build event dictionary or None
+
+    Raises:
+        Exception: If graph build fails
+    """
+    _ensure_not_running_loop("handle_graph_events")
+    return asyncio.run(_process_graph_events(graph))
+
+
+async def handle_graph_events_async(graph: Graph) -> dict | None:
+    return await _process_graph_events(graph)
+
+
+def handle_tree_events(tree: Tree, debug: bool = False) -> dict | None:
+    """
+    Build tree with TUI progress.
+
+    Args:
+        tree: Tree object to build
+        debug: Enable debug output
+
+    Returns:
+        Final build event dictionary or None
+
+    Raises:
+        Exception: If tree build fails
+    """
+    _ensure_not_running_loop("handle_tree_events")
+    return asyncio.run(_process_tree_events(tree, debug=debug))
+
+
+async def handle_tree_events_async(tree: Tree, debug: bool = False) -> dict | None:
+    return await _process_tree_events(tree, debug=debug)
 
 
 def load_or_build_topic_model(

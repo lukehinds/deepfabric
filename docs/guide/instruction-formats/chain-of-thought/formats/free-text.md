@@ -1,7 +1,22 @@
 # Free-text Chain of Thought Format
 
-The free-text Chain of Thought format is the simplest and most widely-used CoT structure, perfect for problems that benefit from natural language reasoning. Inspired by datasets like GSM8K, this format presents a question, shows the step-by-step thinking process in natural language, and provides a final answer.
+```python
+import asyncio
 
+def consume_tree(tree):
+    async def _run():
+        async for _ in tree.build_async():
+            pass
+    asyncio.run(_run())
+
+def consume_graph(graph):
+    async def _run():
+        async for _ in graph.build_async():
+            pass
+    asyncio.run(_run())
+```
+
+The free-text Chain of Thought format is the simplest and most widely-used CoT structure, perfect for problems that benefit from natural language reasoning. Inspired by datasets like GSM8K, this format presents a question, shows the step-by-step thinking process in natural language, and provides a final answer.
 ## When to Use Free-text CoT
 
 ### Ideal Use Cases
@@ -146,7 +161,7 @@ tree = Tree(
 )
 
 # Build tree
-for event in tree.build():
+async for event in tree.build_async():
     if event['event'] == 'build_complete':
         print(f"Built {event['total_paths']} topic paths")
 

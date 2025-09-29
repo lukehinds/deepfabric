@@ -1,3 +1,4 @@
+import asyncio
 import json
 import textwrap
 
@@ -215,7 +216,7 @@ class Graph(TopicModel):
         mermaid = Mermaid(graph_definition)
         mermaid.to_svg(f"{save_path}.svg")
 
-    def build(self):
+    async def build_async(self):
         """Builds the graph by iteratively calling the LLM to get subtopics and connections.
 
         Yields:
@@ -234,16 +235,21 @@ class Graph(TopicModel):
                 leaf_nodes = [node for node in self.nodes.values() if not node.children]
                 yield {"event": "depth_start", "depth": depth + 1, "leaf_count": len(leaf_nodes)}
 
-                for node in leaf_nodes:
-                    subtopics_added, connections_added = self.get_subtopics_and_connections(
-                        node, self.degree
-                    )
-                    yield {
-                        "event": "node_expanded",
-                        "node_topic": node.topic,
-                        "subtopics_added": subtopics_added,
-                        "connections_added": connections_added,
-                    }
+                if leaf_nodes:
+                    tasks = [
+                        self.get_subtopics_and_connections(node, self.degree) for node in leaf_nodes
+                    ]
+                    results = await asyncio.gather(*tasks)
+
+                    for node, (subtopics_added, connections_added) in zip(
+                        leaf_nodes, results, strict=True
+                    ):
+                        yield {
+                            "event": "node_expanded",
+                            "node_topic": node.topic,
+                            "subtopics_added": subtopics_added,
+                            "connections_added": connections_added,
+                        }
 
                 yield {"event": "depth_complete", "depth": depth + 1}
 
@@ -269,7 +275,7 @@ class Graph(TopicModel):
             yield {"event": "error", "error": str(e)}
             raise
 
-    def get_subtopics_and_connections(  # noqa: PLR0912
+    async def get_subtopics_and_connections(  # noqa: PLR0912
         self, parent_node: Node, num_subtopics: int
     ) -> tuple[int, int]:
         """Generate subtopics and connections for a given node. Returns (subtopics_added, connections_added)."""
@@ -286,7 +292,7 @@ class Graph(TopicModel):
         graph_prompt = graph_prompt.replace("{{num_subtopics}}", str(num_subtopics))
 
         try:
-            response = self.llm_client.generate(
+            response = await self.llm_client.generate_async(
                 prompt=graph_prompt,
                 schema=GraphSubtopics,
                 max_retries=MAX_RETRY_ATTEMPTS,

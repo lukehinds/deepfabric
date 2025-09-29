@@ -4,6 +4,7 @@ DeepFabric Chain of Thought Example - Free-text Format
 Generates GSM8K-style reasoning datasets with question/chain_of_thought/final_answer format.
 """
 
+import asyncio
 import logging
 import os
 import sys
@@ -53,11 +54,14 @@ def main():  # noqa: PLR0912
     # Build the tree
     print("Building math reasoning topic tree...")
     logger.info("🌳 Building topic tree...")
-    for event in tree.build():
-        logger.debug(f"Tree build event: {event}")
-        if event['event'] == 'build_complete':
-            print(f"✅ Tree built with {event['total_paths']} topic paths")
-            logger.info(f"Tree building complete: {event['total_paths']} paths generated")
+    async def _build_tree() -> None:
+        async for event in tree.build_async():
+            logger.debug(f"Tree build event: {event}")
+            if event["event"] == "build_complete":
+                print(f"✅ Tree built with {event['total_paths']} topic paths")
+                logger.info(f"Tree building complete: {event['total_paths']} paths generated")
+
+    asyncio.run(_build_tree())
 
     # Step 2: Create CoT dataset generator
     logger.info("🛠️ Creating CoT dataset generator")

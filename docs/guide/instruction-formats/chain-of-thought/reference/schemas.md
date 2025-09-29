@@ -282,35 +282,6 @@ DeepFabric schemas follow semantic versioning principles:
 - **Minor versions** (1.1.0): Backward-compatible additions
 - **Major versions** (2.0.0): Breaking schema changes
 
-### Handling Schema Changes
-
-```python
-# Check schema version compatibility
-def check_schema_compatibility(sample: dict) -> str:
-    """Determine which schema version a sample uses."""
-
-    if "reasoning_trace" in sample:
-        # Check if action field is always present (v2.0+)
-        trace = sample["reasoning_trace"]
-        if all("action" in step for step in trace):
-            return "v2.0+"
-        else:
-            return "v1.x"
-
-    return "basic"
-
-# Migration helper
-def migrate_v1_to_v2(sample: dict) -> dict:
-    """Migrate v1.x samples to v2.0+ format."""
-
-    if "reasoning_trace" in sample:
-        for step in sample["reasoning_trace"]:
-            if "action" not in step:
-                step["action"] = "analyze"  # Default action
-
-    return sample
-```
-
 ### Custom Schema Extensions
 
 For domain-specific needs, you can extend the base schemas:

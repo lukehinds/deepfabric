@@ -2,6 +2,16 @@
 
 The Graph class provides programmatic access to graph-based topic modeling, enabling complex domain representation through networks of interconnected concepts. This experimental API supports both hierarchical relationships and cross-connections between topics in different branches.
 
+```python
+import asyncio
+
+def consume_graph(graph):
+    async def _run():
+        async for _ in graph.build_async():
+            pass
+    asyncio.run(_run())
+```
+
 ## Graph Configuration
 
 Graph configuration is passed directly to the Graph constructor with parameters similar to trees but extended for graph-specific features:
@@ -40,6 +50,7 @@ graph = Graph(
 The Graph class manages construction and manipulation of topic graph structures:
 
 ```python
+import asyncio
 from deepfabric import Graph
 
 # Create and build a graph
@@ -51,10 +62,12 @@ graph = Graph(
     temperature=0.8
 )
 
-# Build using generator pattern (NEW!)
-for event in graph.build():
-    if event['event'] == 'build_complete':
-        print(f"Graph built with {event['nodes_count']} nodes")
+async def build_graph() -> None:
+    async for event in graph.build_async():
+        if event["event"] == "build_complete":
+            print(f"Graph built with {event['nodes_count']} nodes")
+
+asyncio.run(build_graph())
 
 # Access graph structure
 print(f"Generated {len(graph.nodes)} nodes")
@@ -66,32 +79,49 @@ graph.visualize("research_structure")
 
 ### Core Methods
 
-#### build()
+#### build_async()
 
 Constructs the complete graph structure through multi-phase generation using a generator pattern:
 
 ```python
-# Silent build - consume all events
-list(graph.build())
+import asyncio
 
-# Monitor progress events
-for event in graph.build():
-    if event['event'] == 'depth_start':
-        print(f"Starting depth {event['depth']} with {event['leaf_count']} nodes")
-    elif event['event'] == 'node_expanded':
-        print(f"Expanded '{event['node_topic']}' -> {event['subtopics_added']} subtopics, {event['connections_added']} connections")
-    elif event['event'] == 'build_complete':
-        print(f"Graph complete! {event['nodes_count']} nodes, {event.get('failed_generations', 0)} failures")
+async def consume_events() -> None:
+    async for event in graph.build_async():
+        if event['event'] == 'depth_start':
+            print(f"Starting depth {event['depth']} with {event['leaf_count']} nodes")
+        elif event['event'] == 'node_expanded':
+            print(
+                f"Expanded '{event['node_topic']}' -> {event['subtopics_added']} subtopics,"
+                f" {event['connections_added']} connections"
+            )
+        elif event['event'] == 'build_complete':
+            print(
+                f"Graph complete! {event['nodes_count']} nodes,"
+                f" {event.get('failed_generations', 0)} failures"
+            )
+
+asyncio.run(consume_events())
 ```
 
-**Returns**: Generator yielding progress events with the following types:
+To run the build without handling progress events:
+
+```python
+async def build_silently() -> None:
+    async for _ in graph.build_async():
+        pass
+
+asyncio.run(build_silently())
+```
+
+**Yields**: Progress events with the following types:
 - `depth_start`: Beginning depth level processing
 - `node_expanded`: Node expansion completed
 - `depth_complete`: Depth level finished
 - `build_complete`: Graph construction finished
 - `error`: Build error occurred
 
-The build process includes hierarchical construction followed by cross-connection analysis. The generator pattern provides real-time progress monitoring or silent consumption.
+The build process includes hierarchical construction followed by cross-connection analysis. The async generator pattern provides real-time progress monitoring or silent consumption.
 
 #### save(filepath: str)
 
@@ -201,7 +231,7 @@ def connection_filter(node1, node2, relationship_strength):
     return relationship_strength > 0.7 and not creates_cycle(node1, node2)
 
 graph.set_connection_filter(connection_filter)
-graph.build()
+consume_graph(graph)
 ```
 
 #### Connection Strength Tuning
@@ -270,7 +300,7 @@ Graph-specific error handling addresses connectivity and structure issues:
 from deepfabric import GraphError, CyclicGraphError
 
 try:
-    graph.build()
+    consume_graph(graph)
 except CyclicGraphError as e:
     print(f"Cycle detected: {e.cycle_path}")
 except GraphError as e:
@@ -284,7 +314,7 @@ Graph construction is more computationally intensive than tree generation:
 ```python
 # Monitor construction progress
 graph.enable_progress_monitoring(verbose=True)
-graph.build()
+consume_graph(graph)
 
 # Optimize for large graphs
 graph.set_batch_size(smaller_batch)  # Reduce memory usage

@@ -5,6 +5,7 @@ The simplest possible example to get started with DeepFabric.
 Creates a small synthetic dataset about Python programming in ~20 lines.
 """
 
+import asyncio
 import os
 import sys
 
@@ -23,7 +24,7 @@ def main():
     tree = Tree(
         topic_prompt="Python programming fundamentals",
         provider="ollama",
-        model_name="qwen3:0.6b",  # Change to your preferred model
+        model_name="qwen3:8b",  # Change to your preferred model
         degree=2,  # 2 branches per level
         depth=2,   # 2 levels deep
         temperature=0.7,
@@ -31,16 +32,20 @@ def main():
 
     # Build the tree
     print("Building topic tree...")
-    for event in tree.build():
-        if event['event'] == 'build_complete':
-            print(f"✅ Tree built with {event['total_paths']} topic paths")
+
+    async def _build_tree() -> None:
+        async for event in tree.build_async():
+            if event["event"] == "build_complete":
+                print(f"✅ Tree built with {event['total_paths']} topic paths")
+
+    asyncio.run(_build_tree())
 
     # Step 2: Create dataset generator
     engine = DataSetGenerator(
         instructions="Create a Python code example with explanation",
         generation_system_prompt="You are a Python programming instructor.",
         provider="ollama",
-        model_name="qwen3:0.6b",
+        model_name="qwen3:8b",
         temperature=0.7,
     )
 

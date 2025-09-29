@@ -40,6 +40,17 @@ tree = Tree(
 The Tree class handles construction, manipulation, and persistence of hierarchical topic structures:
 
 ```python
+import asyncio
+
+def consume_tree(tree):
+    async def _run():
+        async for _ in tree.build_async():
+            pass
+    asyncio.run(_run())
+```
+
+```python
+import asyncio
 from deepfabric import Tree
 
 # Create and build a tree
@@ -51,10 +62,12 @@ tree = Tree(
     temperature=0.7
 )
 
-# Build using generator pattern (NEW!)
-for event in tree.build():
-    if event['event'] == 'build_complete':
-        print(f"Tree built with {event['total_paths']} paths")
+async def build_tree() -> None:
+    async for event in tree.build_async():
+        if event["event"] == "build_complete":
+            print(f"Tree built with {event['total_paths']} paths")
+
+asyncio.run(build_tree())
 
 # Access tree structure
 print(f"Generated {len(tree.tree_paths)} topics")
@@ -67,28 +80,37 @@ tree.save("topics.jsonl")
 
 ### Core Methods
 
-#### build()
+#### build_async()
 
-Constructs the complete tree structure from the root prompt using a generator pattern:
+Constructs the complete tree structure from the root prompt using an async generator pattern:
 
 ```python
-# Silent build - consume all events
-list(tree.build())
+import asyncio
 
-# Monitor progress events
-for event in tree.build():
-    if event['event'] == 'build_start':
-        print(f"Starting build: {event['model_name']}")
-    elif event['event'] == 'subtopics_generated':
-        if event['success']:
-            print(f"Generated {event['count']} subtopics")
-        else:
-            print("Generation failed for subtopics")
-    elif event['event'] == 'build_complete':
-        print(f"Build complete! {event['total_paths']} paths created")
+async def monitor_build() -> None:
+    async for event in tree.build_async():
+        if event['event'] == 'build_start':
+            print(f"Starting build: {event['model_name']}")
+        elif event['event'] == 'subtopics_generated':
+            status = 'Generated' if event['success'] else 'Failed'
+            print(f"{status} {event['count']} subtopics")
+        elif event['event'] == 'build_complete':
+            print(f"Build complete! {event['total_paths']} paths created")
+
+asyncio.run(monitor_build())
 ```
 
-**Returns**: Generator yielding progress events with the following types:
+To run without handling progress events:
+
+```python
+async def build_silently() -> None:
+    async for _ in tree.build_async():
+        pass
+
+asyncio.run(build_silently())
+```
+
+**Yields**: Progress events with the following types:
 - `build_start`: Build initialization
 - `subtree_start`: Beginning subtree generation
 - `subtopics_generated`: Subtopic generation result
@@ -96,7 +118,7 @@ for event in tree.build():
 - `build_complete`: Build finished
 - `error`: Build error occurred
 
-The build process operates level by level, generating all children for each node before proceeding to the next depth level. The generator pattern allows you to monitor progress in real-time or consume silently.
+The build process operates level by level, generating all children for each node before proceeding to the next depth level. The async generator pattern allows you to monitor progress in real-time or consume silently.
 
 #### save(filepath: str)
 
@@ -199,7 +221,10 @@ def quality_filter(topic_text, parent_context):
     return len(topic_text) > 10 and "inappropriate" not in topic_text.lower()
 
 tree.set_quality_filter(quality_filter)
-tree.build()
+
+import asyncio
+
+consume_tree(tree)
 ```
 
 ## Error Handling
@@ -210,7 +235,7 @@ The Tree API provides specific exceptions for different failure modes:
 from deepfabric import TreeError, ModelError, ConfigurationError
 
 try:
-    tree.build()
+    consume_tree(tree)
 except ModelError as e:
     print(f"Model API issue: {e}")
 except ConfigurationError as e:
@@ -231,7 +256,7 @@ tree = Tree(
     degree=4,
     depth=3
 )
-tree.build()
+consume_tree(tree)
 
 generator = DataSetGenerator(
     instructions="Create educational content",
@@ -249,7 +274,7 @@ for degree in [3, 4, 5]:
         degree=degree,
         depth=3
     )
-    variant_tree.build()
+    consume_tree(variant_tree)
     variants.append(variant_tree)
 
 # Tree analysis and comparison

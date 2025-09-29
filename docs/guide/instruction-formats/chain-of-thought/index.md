@@ -1,8 +1,23 @@
 # Chain of Thought Instruction Formats
 
+```python
+import asyncio
+
+def consume_tree(tree):
+    async def _run():
+        async for _ in tree.build_async():
+            pass
+    asyncio.run(_run())
+
+def consume_graph(graph):
+    async def _run():
+        async for _ in graph.build_async():
+            pass
+    asyncio.run(_run())
+```
+
 Chain of Thought (CoT) datasets represent a significant advancement in training language models to exhibit transparent, step-by-step reasoning. Unlike traditional
 conversation datasets that focus on final answers, CoT formats capture the *thinking process* that leads to solutions, enabling models to learn systematic problem-solving approaches.
-
 ## Why Chain of Thought Datasets?
 
 ### Enhanced Reasoning Capabilities
@@ -183,7 +198,7 @@ from deepfabric import DataSetGenerator
 from deepfabric.tree import Tree
 
 tree = Tree(topic_prompt='Math problems', provider='openai', model_name='gpt-4o-mini')
-for event in tree.build():
+async for event in tree.build_async():
     if event['event'] == 'build_complete':
         print(f'Built {event[\"total_paths\"]} topics')
 

@@ -1,5 +1,3 @@
-"""Pydantic schemas for structured conversation generation."""
-
 import re
 
 from decimal import ROUND_HALF_UP, Decimal

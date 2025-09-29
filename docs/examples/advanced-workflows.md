@@ -225,6 +225,7 @@ Production deployment script with monitoring and resource management:
 
 ```python
 # production_deployment.py
+import asyncio
 import time
 import logging
 from deepfabric import DeepFabricConfig, DataSetGenerator, Tree
@@ -240,7 +241,12 @@ def deploy_large_scale_generation(config_path, checkpoint_interval=500):
     
     # Load or create topic tree
     tree = Tree(**config.get_tree_args())
-    tree.build()
+
+    async def _build_tree() -> None:
+        async for _ in tree.build_async():
+            pass
+
+    asyncio.run(_build_tree())
     tree.save("production_topics.jsonl")
 
     # Create generator with production settings
