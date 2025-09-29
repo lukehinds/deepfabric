@@ -314,7 +314,7 @@ data_engine:
 
 | Resource | Description | Link |
 |----------|-------------|------|
-| **Documentation** | Complete API reference & guides | [docs](https://lukehinds.github.io/DeepFabric/) |
+| **Documentation** | Complete API reference & guides | [docs](https://lukehinds.github.io/deepfabric/) |
 | **Examples** | Ready-to-use configurations | [examples/](./examples/README.md) |
 | **Discord** | Community support | [Join Discord](https://discord.gg/pPcjYzGvbS) |
 | **Issues** | Bug reports & features | [GitHub Issues](https://github.com/lukehinds/deepfabric/issues) |
