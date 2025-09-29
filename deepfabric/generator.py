@@ -1,6 +1,8 @@
+import asyncio
 import math
 import random
 
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -162,6 +164,20 @@ class DataSetGenerator:
         }:
             self._initialize_tool_registry()
 
+    @staticmethod
+    def _ensure_not_running_loop(method_name: str) -> None:
+        """Raise when called inside an active asyncio event loop."""
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        if loop.is_running():
+            msg = (
+                f"{method_name} cannot be called while an event loop is running. "
+                "Use the async variant instead."
+            )
+            raise RuntimeError(msg)
+
     def _initialize_tool_registry(self):
         """Initialize tool registry from configuration."""
         try:
@@ -272,7 +288,7 @@ class DataSetGenerator:
             prompts.append(sample_prompt)
         return prompts
 
-    def _generate_structured_samples(
+    async def _generate_structured_samples_async(
         self,
         prompts: list[str],
         include_sys_msg: bool,
@@ -281,15 +297,13 @@ class DataSetGenerator:
         samples = []
         failed_responses = []
 
-        # Get the appropriate schema for the conversation type
         schema_class = get_conversation_schema(
             self.config.conversation_type, self.config.reasoning_style
         )
 
-        for prompt in prompts:
+        async def _generate(prompt: str) -> tuple[bool, dict | Exception]:
             try:
-                # Generate structured content using the appropriate schema
-                conversation = self.llm_client.generate(
+                conversation = await self.llm_client.generate_async(
                     prompt=prompt,
                     schema=schema_class,
                     max_retries=self.config.max_retries,
@@ -297,10 +311,8 @@ class DataSetGenerator:
                     temperature=self.config.temperature,
                 )
 
-                # Convert Pydantic model to dict
                 sample = conversation.model_dump()
 
-                # Add system message for conversation-based formats if sys_msg is True
                 if include_sys_msg and "messages" in sample:
                     sample["messages"].insert(
                         0,
@@ -310,23 +322,33 @@ class DataSetGenerator:
                         },
                     )
 
-                # Add tool registry information for agent conversation types
                 if (
                     self.config.conversation_type
                     in {"agent_cot_tools", "agent_cot_hybrid", "agent_cot_multi_turn"}
                     and self.tool_registry is not None
                 ):
-                    # Add available tools as metadata
                     sample["available_tools"] = [
                         tool.model_dump() for tool in self.tool_registry.tools
                     ]
 
-                samples.append(sample)
+            except Exception as e:  # noqa: BLE001
+                return False, e
+            else:
+                return True, sample
 
-            except Exception as e:
-                error_msg = f"Generation failed: {str(e)}"
+        tasks = [asyncio.create_task(_generate(prompt)) for prompt in prompts]
+        results = await asyncio.gather(*tasks)
+
+        for success, payload in results:
+            if success:
+                samples.append(payload)  # type: ignore[arg-type]
+            else:
+                error = payload
+                error_msg = f"Generation failed: {error}"
                 failed_responses.append(error_msg)
-                failure_type = self.analyze_failure(str(e), error=e)
+                failure_type = self.analyze_failure(
+                    str(error), error=error if isinstance(error, Exception) else None
+                )
                 self.failure_analysis[failure_type].append(error_msg)
 
         return samples, failed_responses
@@ -381,56 +403,17 @@ class DataSetGenerator:
         model_name: str | None = None,
         sys_msg: bool | None = None,
     ):
-        # Set default value for num_steps if None
-        if num_steps is None:
-            num_steps = 1
-
-        # Validate inputs
-        self._validate_create_data_params(num_steps, batch_size, topic_model)
-
-        # Use instance model_name as fallback if none provided
-        if model_name:
-            self.model_name = model_name.strip()
-
-        if not self.model_name:
-            raise DataSetGeneratorError("")
-
-        # Use provided sys_msg or fall back to config.sys_msg
-        include_sys_msg = sys_msg if sys_msg is not None else self.config.sys_msg
-
-        # Prepare topic paths and adjust num_steps if necessary
-        topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
-
-        total_samples = num_steps * batch_size
-        data_creation_prompt = self._get_cot_prompt_template()
-
-        # Use generator pattern for progress events (no TUI dependencies)
-        generator = self._run_generation_loop(
-            num_steps=num_steps,
-            batch_size=batch_size,
-            total_samples=total_samples,
-            topic_paths=topic_paths or [],
-            data_creation_prompt=data_creation_prompt,
-            num_example_demonstrations=num_example_demonstrations,
-            include_sys_msg=include_sys_msg,
-        )
-
-        # Consume the generator and return the final dataset
-        final_result = None
-        for event in generator:
-            final_result = event
-
-        if final_result and isinstance(final_result, Dataset):
-            trace(
-                "dataset_created",
-                {
-                    "samples_count": len(final_result.samples),
-                    "failed_samples": len(self.failed_samples),
-                    "success": len(final_result.samples) > 0,
-                },
+        self._ensure_not_running_loop("DataSetGenerator.create_data")
+        return asyncio.run(
+            self.create_data_async(
+                num_steps=num_steps,
+                num_example_demonstrations=num_example_demonstrations,
+                batch_size=batch_size,
+                topic_model=topic_model,
+                model_name=model_name,
+                sys_msg=sys_msg,
             )
-
-        return final_result
+        )
 
     def create_data_with_events(
         self,
@@ -441,45 +424,66 @@ class DataSetGenerator:
         model_name: str | None = None,
         sys_msg: bool | None = None,
     ):
-        """Create dataset yielding progress events (for TUI integration)."""
-        # Set default value for num_steps if None
+        self._ensure_not_running_loop("DataSetGenerator.create_data_with_events")
+
+        async def _async_generator() -> AsyncGenerator[dict | Dataset, None]:
+            async for event in self.create_data_with_events_async(
+                num_steps=num_steps,
+                num_example_demonstrations=num_example_demonstrations,
+                batch_size=batch_size,
+                topic_model=topic_model,
+                model_name=model_name,
+                sys_msg=sys_msg,
+            ):
+                yield event
+
+        agen = _async_generator()
+
+        def _sync_generator():
+            loop = asyncio.new_event_loop()
+            try:
+                while True:
+                    try:
+                        event = loop.run_until_complete(agen.__anext__())
+                    except StopAsyncIteration:
+                        break
+                    else:
+                        yield event
+            finally:
+                loop.run_until_complete(agen.aclose())
+                loop.close()
+
+        return _sync_generator()
+
+    async def create_data_async(
+        self,
+        num_steps: int | None = None,
+        num_example_demonstrations: int = 3,
+        batch_size: int = 10,
+        topic_model: TopicModel | None = None,
+        model_name: str | None = None,
+        sys_msg: bool | None = None,
+    ) -> Dataset:
         if num_steps is None:
             num_steps = 1
 
-        # Validate inputs
         self._validate_create_data_params(num_steps, batch_size, topic_model)
 
-        # Use instance model_name as fallback if none provided
         if model_name:
             self.model_name = model_name.strip()
 
         if not self.model_name:
             raise DataSetGeneratorError("")
 
-        # Use provided sys_msg or fall back to config.sys_msg
         include_sys_msg = sys_msg if sys_msg is not None else self.config.sys_msg
 
-        # Prepare topic paths and adjust num_steps if necessary
-        topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
-
-        # Use instance model_name as fallback if none provided
-        if model_name:
-            self.model_name = model_name.strip()
-
-        if not self.model_name:
-            raise DataSetGeneratorError("")
-
-        # Use provided sys_msg or fall back to config.sys_msg
-        include_sys_msg = sys_msg if sys_msg is not None else self.config.sys_msg
-
-        # Prepare topic paths and adjust num_steps if necessary
         topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
 
         total_samples = num_steps * batch_size
         data_creation_prompt = self._get_cot_prompt_template()
 
-        # Yield from the generation loop
-        yield from self._run_generation_loop(
+        final_result: Dataset | dict | None = None
+        async for event in self._run_generation_loop_async(
             num_steps=num_steps,
             batch_size=batch_size,
             total_samples=total_samples,
@@ -487,9 +491,62 @@ class DataSetGenerator:
             data_creation_prompt=data_creation_prompt,
             num_example_demonstrations=num_example_demonstrations,
             include_sys_msg=include_sys_msg,
-        )
+        ):
+            final_result = event
 
-    def _run_generation_loop(  # noqa: PLR0912
+        if isinstance(final_result, Dataset):
+            trace(
+                "dataset_created",
+                {
+                    "samples_count": len(final_result.samples),
+                    "failed_samples": len(self.failed_samples),
+                    "success": len(final_result.samples) > 0,
+                },
+            )
+            return final_result
+
+        msg = "Dataset generation failed"
+        raise DataSetGeneratorError(msg)
+
+    async def create_data_with_events_async(
+        self,
+        num_steps: int | None = None,
+        num_example_demonstrations: int = 3,
+        batch_size: int = 10,
+        topic_model: TopicModel | None = None,
+        model_name: str | None = None,
+        sys_msg: bool | None = None,
+    ) -> AsyncGenerator[dict | Dataset, None]:
+        if num_steps is None:
+            num_steps = 1
+
+        self._validate_create_data_params(num_steps, batch_size, topic_model)
+
+        if model_name:
+            self.model_name = model_name.strip()
+
+        if not self.model_name:
+            raise DataSetGeneratorError("")
+
+        include_sys_msg = sys_msg if sys_msg is not None else self.config.sys_msg
+
+        topic_paths, num_steps = self._prepare_topic_paths(num_steps, batch_size, topic_model)
+
+        total_samples = num_steps * batch_size
+        data_creation_prompt = self._get_cot_prompt_template()
+
+        async for event in self._run_generation_loop_async(
+            num_steps=num_steps,
+            batch_size=batch_size,
+            total_samples=total_samples,
+            topic_paths=topic_paths or [],
+            data_creation_prompt=data_creation_prompt,
+            num_example_demonstrations=num_example_demonstrations,
+            include_sys_msg=include_sys_msg,
+        ):
+            yield event
+
+    async def _run_generation_loop_async(  # noqa: PLR0912
         self,
         num_steps: int,
         batch_size: int,
@@ -498,10 +555,9 @@ class DataSetGenerator:
         data_creation_prompt: str,
         num_example_demonstrations: int,
         include_sys_msg: bool,
-    ):
+    ) -> AsyncGenerator[dict | Dataset, None]:
         """Run the main generation loop yielding progress events."""
         try:
-            # Yield start event
             yield {
                 "event": "generation_start",
                 "model_name": self.model_name,
@@ -522,20 +578,17 @@ class DataSetGenerator:
                     num_example_demonstrations,
                 )
 
-                # Track failed samples from before processing batch
                 failed_before = len(self.failed_samples)
 
-                success, samples_generated = self._process_batch_with_retries(
+                success, samples_generated = await self._process_batch_with_retries_async(
                     prompts, include_sys_msg
                 )
 
-                # Calculate failures from this batch
                 failed_in_batch = len(self.failed_samples) - failed_before
                 failure_reasons = []
                 if failed_in_batch > 0 and self.failed_samples:
-                    # Get failure reasons from this batch
                     recent_failures = self.failed_samples[-failed_in_batch:]
-                    failure_reasons = recent_failures[:3]  # First 3 for brevity
+                    failure_reasons = recent_failures[:3]
 
                 yield {
                     "event": "step_complete",
@@ -564,16 +617,15 @@ class DataSetGenerator:
             self.print_failure_summary()
             self.save_dataset(INTERRUPTED_DATASET_FILENAME)
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             yield {"event": "generation_error", "error": str(e)}
             self.print_failure_summary()
             self.save_dataset(ERROR_DATASET_FILENAME)
             raise DataSetGeneratorError("failed") from e
 
-        # Always return the dataset as the final result
         yield self.dataset
 
-    def _process_batch_with_retries(
+    async def _process_batch_with_retries_async(
         self,
         prompts: list[str],
         include_sys_msg: bool,
@@ -581,7 +633,7 @@ class DataSetGenerator:
         """Process a batch with retry logic."""
         for attempt in range(self.config.max_retries):
             try:
-                samples, failed_responses = self._generate_structured_samples(
+                samples, failed_responses = await self._generate_structured_samples_async(
                     prompts, include_sys_msg
                 )
 

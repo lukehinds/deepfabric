@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest  # type: ignore
 
@@ -50,7 +50,7 @@ def test_create_data_success(data_engine):
     # Mock the generate method on the data_engine's llm_client instance
     from deepfabric.schemas import ChatMessage, ChatTranscript  # noqa: PLC0415
 
-    data_engine.llm_client.generate = MagicMock(
+    data_engine.llm_client.generate_async = AsyncMock(
         return_value=ChatTranscript(
             messages=[
                 ChatMessage(role="user", content="example"),
@@ -88,7 +88,7 @@ def test_create_data_with_sys_msg_default(data_engine):
     # Mock the generate method on the data_engine's llm_client instance
     from deepfabric.schemas import ChatMessage, ChatTranscript  # noqa: PLC0415
 
-    data_engine.llm_client.generate = MagicMock(
+    data_engine.llm_client.generate_async = AsyncMock(
         return_value=ChatTranscript(
             messages=[
                 ChatMessage(role="user", content="example"),
@@ -115,7 +115,7 @@ def test_create_data_without_sys_msg(data_engine):
     # Mock the generate method on the data_engine's llm_client instance
     from deepfabric.schemas import ChatMessage, ChatTranscript  # noqa: PLC0415
 
-    data_engine.llm_client.generate = MagicMock(
+    data_engine.llm_client.generate_async = AsyncMock(
         return_value=ChatTranscript(
             messages=[
                 ChatMessage(role="user", content="example"),
@@ -161,7 +161,7 @@ def test_create_data_sys_msg_override():
     # Mock the generate method on the engine's llm_client instance
     from deepfabric.schemas import ChatMessage, ChatTranscript  # noqa: PLC0415
 
-    engine.llm_client.generate = MagicMock(
+    engine.llm_client.generate_async = AsyncMock(
         return_value=ChatTranscript(
             messages=[
                 ChatMessage(role="user", content="example"),

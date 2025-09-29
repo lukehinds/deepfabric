@@ -79,11 +79,11 @@ generator = DataSetGenerator(
 )
 
 # 3. Generate dataset
-dataset = generator.create_data(
+dataset = asyncio.run(generator.create_data_async(
     num_steps=100,
     batch_size=5,
     topic_model=tree
-)
+))
 
 # 4. Save results
 dataset.save("output.jsonl")
@@ -112,7 +112,7 @@ from deepfabric import (
 )
 
 try:
-    dataset = generator.create_data(topic_model=tree)
+    dataset = asyncio.run(generator.create_data_async(topic_model=tree))
 except ModelError as e:
     # Handle API or model-specific issues
     print(f"Model error: {e}")

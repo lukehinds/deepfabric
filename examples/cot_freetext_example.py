@@ -82,31 +82,37 @@ def main():  # noqa: PLR0912
     logger.info("🔄 Starting dataset generation with events...")
 
     # Use the event-based generation for detailed logging
-    generation_events = engine.create_data_with_events(
-        num_steps=4,      # Generate 4 examples
-        batch_size=1,     # One at a time
-        topic_model=tree, # Use our topic tree
-        sys_msg=False,    # Free-text CoT doesn't use system messages
-    )
+    async def _generate_dataset() -> Dataset:
+        dataset_local: Dataset | None = None
+        async for event in engine.create_data_with_events_async(
+            num_steps=4,
+            batch_size=1,
+            topic_model=tree,
+            sys_msg=False,
+        ):
+            if isinstance(event, dict):
+                logger.debug(f"Generation event: {event}")
+                if event.get('event') == 'generation_start':
+                    logger.info(f"Generation started: {event.get('total_samples')} total samples")
+                elif event.get('event') == 'step_start':
+                    logger.info(f"Starting step {event.get('step')}/{event.get('total_steps')}")
+                elif event.get('event') == 'step_complete':
+                    logger.info(
+                        f"Step {event.get('step')} complete: {event.get('samples_generated')} samples generated"
+                    )
+                elif event.get('event') == 'step_failed':
+                    logger.error(f"❌ Step {event.get('step')} failed: {event.get('message')}")
+                elif event.get('event') == 'generation_complete':
+                    logger.info(f"🎉 Generation complete: {event.get('total_samples')} total samples")
+            else:
+                dataset_local = event
+                count = len(dataset_local.samples) if dataset_local and hasattr(dataset_local, "samples") else 0
+                logger.info(f"📦 Received final dataset with {count} samples")
+        if dataset_local is None:
+            raise RuntimeError("Dataset generation did not return a dataset")
+        return dataset_local
 
-    dataset = None
-    for event in generation_events:
-        if isinstance(event, dict):
-            logger.debug(f"Generation event: {event}")
-            if event.get('event') == 'generation_start':
-                logger.info(f"Generation started: {event.get('total_samples')} total samples")
-            elif event.get('event') == 'step_start':
-                logger.info(f"Starting step {event.get('step')}/{event.get('total_steps')}")
-            elif event.get('event') == 'step_complete':
-                logger.info(f"Step {event.get('step')} complete: {event.get('samples_generated')} samples generated")
-            elif event.get('event') == 'step_failed':
-                logger.error(f"❌ Step {event.get('step')} failed: {event.get('message')}")
-            elif event.get('event') == 'generation_complete':
-                logger.info(f"🎉 Generation complete: {event.get('total_samples')} total samples")
-        else:
-            # Final dataset result
-            dataset = event
-            logger.info(f"📦 Received final dataset with {len(dataset.samples) if dataset and hasattr(dataset, 'samples') else 0} samples")
+    dataset = asyncio.run(_generate_dataset())
 
     # Validate dataset was created
     if dataset is None:

@@ -157,7 +157,7 @@ def test_generate_command_basic(
 
     mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
-    mock_engine_instance.create_data_with_events.return_value = iter(
+    mock_engine_instance.create_data_with_events_async.return_value = _async_iter(
         [
             {"event": "generation_complete", "total_samples": 5, "failed_samples": 0},
             mock_dataset,  # Yield the dataset as final result
@@ -175,7 +175,7 @@ def test_generate_command_basic(
     mock_tree_instance.build_async.assert_called_once()
     mock_tree_instance.save.assert_called_once()
     mock_data_engine.assert_called_once()
-    mock_engine_instance.create_data_with_events.assert_called_once()
+    mock_engine_instance.create_data_with_events_async.assert_called_once()
     mock_dataset.save.assert_called_once()
 
 
@@ -200,7 +200,7 @@ def test_generate_command_with_sys_msg_override(
 
     mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
-    mock_engine_instance.create_data_with_events.return_value = iter(
+    mock_engine_instance.create_data_with_events_async.return_value = _async_iter(
         [{"event": "generation_complete", "total_samples": 5, "failed_samples": 0}, mock_dataset]
     )
 
@@ -219,7 +219,7 @@ def test_generate_command_with_sys_msg_override(
     assert result.exit_code == 0
 
     # Verify create_data was called with sys_msg=False
-    args, kwargs = mock_engine_instance.create_data_with_events.call_args
+    args, kwargs = mock_engine_instance.create_data_with_events_async.call_args
     assert kwargs["sys_msg"] is False
 
 
@@ -244,7 +244,7 @@ def test_generate_command_default_sys_msg(
 
     mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
-    mock_engine_instance.create_data_with_events.return_value = iter(
+    mock_engine_instance.create_data_with_events_async.return_value = _async_iter(
         [{"event": "generation_complete", "total_samples": 5, "failed_samples": 0}, mock_dataset]
     )
 
@@ -255,7 +255,7 @@ def test_generate_command_default_sys_msg(
     assert result.exit_code == 0
 
     # Verify create_data was called with default sys_msg (should be None to use engine default)
-    args, kwargs = mock_engine_instance.create_data_with_events.call_args
+    args, kwargs = mock_engine_instance.create_data_with_events_async.call_args
     assert "sys_msg" not in kwargs or kwargs["sys_msg"] is None
 
 
@@ -280,7 +280,7 @@ def test_generate_command_with_overrides(
 
     mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
-    mock_engine_instance.create_data_with_events.return_value = iter(
+    mock_engine_instance.create_data_with_events_async.return_value = _async_iter(
         [{"event": "generation_complete", "total_samples": 5, "failed_samples": 0}, mock_dataset]
     )
 
@@ -322,7 +322,7 @@ def test_generate_command_with_overrides(
     mock_tree_instance.save.assert_called_once_with("override_tree.jsonl")
     mock_dataset.save.assert_called_once_with("override_dataset.jsonl")
 
-    args, kwargs = mock_engine_instance.create_data_with_events.call_args
+    args, kwargs = mock_engine_instance.create_data_with_events_async.call_args
     assert kwargs["num_steps"] == 10  # noqa: PLR2004
     assert kwargs["batch_size"] == 2  # noqa: PLR2004
     assert kwargs["model_name"] == "model"  # Updated expectation based on current CLI behavior
@@ -351,7 +351,7 @@ def test_generate_command_with_jsonl(
     mock_data_engine.return_value = mock_engine_instance
     mock_dataset = Mock(spec=Dataset)
     mock_engine_instance.dataset = mock_dataset
-    mock_engine_instance.create_data_with_events.return_value = iter(
+    mock_engine_instance.create_data_with_events_async.return_value = _async_iter(
         [{"event": "generation_complete", "total_samples": 5, "failed_samples": 0}, mock_dataset]
     )
     # Create a temporary JSONL file

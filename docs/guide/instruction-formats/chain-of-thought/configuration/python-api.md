@@ -60,12 +60,12 @@ generator = DataSetGenerator(
 )
 
 # 4. Generate dataset with event monitoring
-dataset = generator.create_data(
+dataset = asyncio.run(generator.create_data_async(
     num_steps=10,
     batch_size=1,
     topic_model=tree,
     sys_msg=False
-)
+))
 
 # 5. Save and validate
 dataset.save("math_reasoning.jsonl")
@@ -250,12 +250,12 @@ def create_structured_cot_dataset():
     )
 
     # Generate conversations
-    dataset = generator.create_data(
+    dataset = asyncio.run(generator.create_data_async(
         num_steps=8,        # Fewer due to complexity
         batch_size=1,
         topic_model=graph,
         sys_msg=True        # Include system messages in conversations
-    )
+    ))
 
     return dataset
 
@@ -522,12 +522,12 @@ def robust_batch_generation(
             )
 
             # Generate dataset
-            dataset = generator.create_data(
+            dataset = asyncio.run(generator.create_data_async(
                 num_steps=samples_per_topic,
                 batch_size=1,
                 topic_model=tree,
                 sys_msg=False
-            )
+            ))
 
             # Save topic-specific dataset
             filename = f"dataset_{topic.replace(' ', '_').lower()}.jsonl"
@@ -736,12 +736,12 @@ def debug_generation_issues():
         )
 
         # Test with minimal configuration
-        dataset = generator.create_data(
+        dataset = asyncio.run(generator.create_data_async(
             num_steps=1,  # Start small
             batch_size=1,
             topic_model=None,  # Test without topics first
             sys_msg=False
-        )
+        ))
 
         print("Basic generation works")
 
@@ -789,7 +789,7 @@ async def parallel_generation(topics: List[str], max_workers: int = 3):
             reasoning_style="general"
         )
 
-        return generator.create_data(num_steps=5, topic_model=tree)
+        return asyncio.run(generator.create_data_async(num_steps=5, topic_model=tree))
 
     # Run in parallel
     with ThreadPoolExecutor(max_workers=max_workers) as executor:

@@ -57,29 +57,29 @@ generator = DataSetGenerator(
 )
 
 # Generate dataset from topic model
-dataset = generator.create_data(
+dataset = asyncio.run(generator.create_data_async(
     num_steps=100,
     batch_size=5,
     topic_model=tree,
     model_name="anthropic/claude-3-opus",
     sys_msg=True
-)
+))
 ```
 
 ### Core Methods
 
-#### create_data()
+#### create_data_async()
 
-Primary method for generating complete datasets:
+Primary coroutine for generating complete datasets (use `asyncio.run` or await within an event loop):
 
 ```python
-dataset = generator.create_data(
+dataset = asyncio.run(generator.create_data_async(
     num_steps=100,              # Total examples to generate
     batch_size=5,               # Examples per API call
     topic_model=topic_model,    # Tree or Graph instance
     model_name=None,            # Override model (optional)
     sys_msg=True                # Include system messages
-)
+))
 ```
 
 **Parameters:**
@@ -91,6 +91,9 @@ dataset = generator.create_data(
 - **sys_msg** (bool): Include system prompts in output format
 
 **Returns:** Dataset instance containing generated training examples
+
+> **Note:** The synchronous `create_data()` wrapper remains available for convenience and calls `asyncio.run` internally. Use `create_data_async()` directly when composing within existing event loops.
+
 
 #### create_batch()
 
@@ -209,7 +212,7 @@ Monitor generation statistics in real-time:
 
 ```python
 generator.enable_monitoring(verbose=True)
-dataset = generator.create_data(...)
+dataset = asyncio.run(generator.create_data_async(...)
 
 stats = generator.get_generation_stats()
 print(f"Success rate: {stats.success_rate:.2%}")
@@ -225,20 +228,20 @@ Control how topics are selected from the topic model:
 
 ```python
 # Sequential sampling (default)
-dataset = generator.create_data(topic_model=tree, sampling_strategy="sequential")
+dataset = asyncio.run(generator.create_data_async(topic_model=tree, sampling_strategy="sequential")
 
 # Random sampling with replacement
-dataset = generator.create_data(topic_model=tree, sampling_strategy="random")
+dataset = asyncio.run(generator.create_data_async(topic_model=tree, sampling_strategy="random")
 
 # Balanced sampling across tree branches
-dataset = generator.create_data(topic_model=tree, sampling_strategy="balanced")
+dataset = asyncio.run(generator.create_data_async(topic_model=tree, sampling_strategy="balanced")
 
 # Custom sampling function
 def custom_sampler(topic_model, count):
     # Implement domain-specific sampling logic
     return selected_topics
 
-dataset = generator.create_data(topic_model=tree, topic_sampler=custom_sampler)
+dataset = asyncio.run(generator.create_data_async(topic_model=tree, topic_sampler=custom_sampler)
 ```
 
 #### Multi-Provider Generation
@@ -253,7 +256,7 @@ complex_generator = DataSetGenerator(
     temperature=0.7
 )
 complex_topics = tree.get_topics_at_depth(3)
-complex_dataset = complex_generator.create_data(
+complex_dataset = complex_asyncio.run(generator.create_data_async(
     topics=complex_topics
 )
 
@@ -264,7 +267,7 @@ simple_generator = DataSetGenerator(
     temperature=0.8
 )
 simple_topics = tree.get_topics_at_depth(1)
-simple_dataset = simple_generator.create_data(
+simple_dataset = simple_asyncio.run(generator.create_data_async(
     topics=simple_topics
 )
 ```
@@ -303,7 +306,7 @@ try:
         instructions="Create educational content",
         model_name="openai/gpt-4"
     )
-    dataset = generator.create_data(topic_model=tree, num_steps=100)
+    dataset = asyncio.run(generator.create_data_async(topic_model=tree, num_steps=100)
 except ModelError as e:
     print(f"Model API issue: {e}")
     # Implement fallback strategy
