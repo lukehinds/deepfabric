@@ -11,6 +11,7 @@ from .dataset import Dataset
 from .exceptions import ConfigurationError
 from .generator import DataSetGenerator
 from .tui import get_dataset_tui, get_tui
+from .utils import ensure_not_running_loop
 
 if TYPE_CHECKING:
     from .topic_model import TopicModel
@@ -93,21 +94,8 @@ async def handle_dataset_events_async(
 
 def handle_dataset_events(generator, engine=None, debug: bool = False) -> Dataset | None:
     """Synchronous wrapper for async dataset event handling."""
-    _ensure_not_running_loop("handle_dataset_events")
+    ensure_not_running_loop("handle_dataset_events")
     return asyncio.run(handle_dataset_events_async(generator, engine=engine, debug=debug))
-
-
-def _ensure_not_running_loop(method_name: str) -> None:
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return
-    if loop.is_running():
-        msg = (
-            f"{method_name} cannot be called while an event loop is running. "
-            "Use the async variant instead."
-        )
-        raise RuntimeError(msg)
 
 
 def create_dataset(
@@ -142,7 +130,7 @@ def create_dataset(
     Raises:
         ConfigurationError: If dataset generation fails
     """
-    _ensure_not_running_loop("create_dataset")
+    ensure_not_running_loop("create_dataset")
     return asyncio.run(
         create_dataset_async(
             engine=engine,

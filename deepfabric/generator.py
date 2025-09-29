@@ -38,6 +38,7 @@ from .prompts import (
 from .schemas import ToolRegistry, get_conversation_schema
 from .tools.loader import get_available_tools, load_tools_from_dict, load_tools_from_file
 from .topic_model import TopicModel
+from .utils import ensure_not_running_loop
 
 # Handle circular import for type hints
 if TYPE_CHECKING:
@@ -163,20 +164,6 @@ class DataSetGenerator:
             "agent_cot_multi_turn",
         }:
             self._initialize_tool_registry()
-
-    @staticmethod
-    def _ensure_not_running_loop(method_name: str) -> None:
-        """Raise when called inside an active asyncio event loop."""
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        if loop.is_running():
-            msg = (
-                f"{method_name} cannot be called while an event loop is running. "
-                "Use the async variant instead."
-            )
-            raise RuntimeError(msg)
 
     def _initialize_tool_registry(self):
         """Initialize tool registry from configuration."""
@@ -403,7 +390,7 @@ class DataSetGenerator:
         model_name: str | None = None,
         sys_msg: bool | None = None,
     ):
-        self._ensure_not_running_loop("DataSetGenerator.create_data")
+        ensure_not_running_loop("DataSetGenerator.create_data")
         return asyncio.run(
             self.create_data_async(
                 num_steps=num_steps,
@@ -424,7 +411,7 @@ class DataSetGenerator:
         model_name: str | None = None,
         sys_msg: bool | None = None,
     ):
-        self._ensure_not_running_loop("DataSetGenerator.create_data_with_events")
+        ensure_not_running_loop("DataSetGenerator.create_data_with_events")
 
         async def _async_generator() -> AsyncGenerator[dict | Dataset, None]:
             async for event in self.create_data_with_events_async(
