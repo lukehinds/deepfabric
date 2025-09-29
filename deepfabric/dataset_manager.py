@@ -1,6 +1,8 @@
+import asyncio
 import os
 import traceback
 
+from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 
 from .config import DeepFabricConfig
@@ -17,25 +19,17 @@ if TYPE_CHECKING:
 DEBUG_MAX_FAILURES_TO_SHOW = 10
 
 
-def handle_dataset_events(generator, engine=None, debug: bool = False) -> Dataset | None:
-    """
-    Handle dataset generation with TUI progress.
-
-    Args:
-        generator: Generator yielding dataset events
-        engine: DataSetGenerator instance (for accessing failed_samples in debug mode)
-        debug: Enable debug output
-
-    Returns:
-        Dataset object or None if generation failed
-    """
+async def handle_dataset_events_async(
+    generator: AsyncIterator[dict | Dataset], engine=None, debug: bool = False
+) -> Dataset | None:
+    """Handle dataset generation with TUI progress."""
     tui = get_dataset_tui()
     progress = None
     task = None
 
     final_result: Dataset | None = None
     try:
-        for event in generator:
+        async for event in generator:
             if isinstance(event, dict) and "event" in event:
                 if event["event"] == "generation_start":
                     tui.show_generation_header(
@@ -97,6 +91,25 @@ def handle_dataset_events(generator, engine=None, debug: bool = False) -> Datase
     return final_result
 
 
+def handle_dataset_events(generator, engine=None, debug: bool = False) -> Dataset | None:
+    """Synchronous wrapper for async dataset event handling."""
+    _ensure_not_running_loop("handle_dataset_events")
+    return asyncio.run(handle_dataset_events_async(generator, engine=engine, debug=debug))
+
+
+def _ensure_not_running_loop(method_name: str) -> None:
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    if loop.is_running():
+        msg = (
+            f"{method_name} cannot be called while an event loop is running. "
+            "Use the async variant instead."
+        )
+        raise RuntimeError(msg)
+
+
 def create_dataset(
     engine: DataSetGenerator,
     topic_model: "TopicModel",
@@ -129,20 +142,46 @@ def create_dataset(
     Raises:
         ConfigurationError: If dataset generation fails
     """
+    _ensure_not_running_loop("create_dataset")
+    return asyncio.run(
+        create_dataset_async(
+            engine=engine,
+            topic_model=topic_model,
+            config=config,
+            num_steps=num_steps,
+            batch_size=batch_size,
+            sys_msg=sys_msg,
+            provider=provider,
+            model=model,
+            engine_overrides=engine_overrides,
+            debug=debug,
+        )
+    )
+
+
+async def create_dataset_async(
+    engine: DataSetGenerator,
+    topic_model: "TopicModel",
+    config: DeepFabricConfig,
+    num_steps: int | None = None,
+    batch_size: int | None = None,
+    sys_msg: bool | None = None,
+    provider: str | None = None,  # noqa: ARG001
+    model: str | None = None,
+    engine_overrides: dict | None = None,
+    debug: bool = False,
+) -> Dataset:
     dataset_config = config.get_dataset_config()
     dataset_params = dataset_config["creation"]
 
-    # Get final values
     final_num_steps = num_steps or dataset_params["num_steps"]
     final_batch_size = batch_size or dataset_params["batch_size"]
 
-    # Set model for dataset creation
     engine_params = config.get_engine_params(**(engine_overrides or {}))
     final_model = model or engine_params.get("model_name", DEFAULT_MODEL)
 
-    # Create dataset with overrides - using generator pattern for TUI
     try:
-        generator = engine.create_data_with_events(
+        generator = engine.create_data_with_events_async(
             num_steps=final_num_steps,
             batch_size=final_batch_size,
             topic_model=topic_model,
@@ -150,11 +189,10 @@ def create_dataset(
             sys_msg=sys_msg,
             num_example_demonstrations=dataset_params.get("num_example_demonstrations") or 3,
         )
-        dataset = handle_dataset_events(generator, engine=engine, debug=debug)
-    except Exception as e:
+        dataset = await handle_dataset_events_async(generator, engine=engine, debug=debug)
+    except Exception as e:  # noqa: BLE001
         raise ConfigurationError(f"Error creating dataset: {str(e)}") from e
 
-    # Validate dataset was created
     if dataset is None:
         raise ConfigurationError("Dataset generation failed - no dataset returned")
 
