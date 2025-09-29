@@ -1,7 +1,22 @@
 # Tutorial: Building a Math Reasoning Dataset
 
-This comprehensive tutorial walks you through creating a high-quality mathematical reasoning dataset using DeepFabric's Chain of Thought capabilities. We'll build a GSM8K-style dataset focused on elementary and middle school math problems.
+```python
+import asyncio
 
+def consume_tree(tree):
+    async def _run():
+        async for _ in tree.build_async():
+            pass
+    asyncio.run(_run())
+
+def consume_graph(graph):
+    async def _run():
+        async for _ in graph.build_async():
+            pass
+    asyncio.run(_run())
+```
+
+This comprehensive tutorial walks you through creating a high-quality mathematical reasoning dataset using DeepFabric's Chain of Thought capabilities. We'll build a GSM8K-style dataset focused on elementary and middle school math problems.
 ## Tutorial Overview
 
 **What you'll build**: A dataset of 50 mathematical word problems with step-by-step reasoning
@@ -144,7 +159,7 @@ def main():
 
     # Build tree with progress tracking
     topic_count = 0
-    for event in tree.build():
+    async for event in tree.build_async():
         if event['event'] == 'depth_start':
             print(f"  Building depth {event['depth']}...")
         elif event['event'] == 'build_complete':
@@ -476,7 +491,7 @@ def generate_domain_specific_datasets():
             temperature=0.7
         )
 
-        for event in tree.build():
+        async for event in tree.build_async():
             if event['event'] == 'build_complete':
                 print(f"  Topics: {event['total_paths']}")
 

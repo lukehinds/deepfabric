@@ -1,7 +1,22 @@
 # Structured Chain of Thought Format
 
-The structured Chain of Thought format combines the natural flow of conversations with explicit reasoning traces, making it ideal for educational dialogues and tutoring scenarios. This format captures both the conversational interaction and the underlying thought process of the assistant.
+```python
+import asyncio
 
+def consume_tree(tree):
+    async def _run():
+        async for _ in tree.build_async():
+            pass
+    asyncio.run(_run())
+
+def consume_graph(graph):
+    async def _run():
+        async for _ in graph.build_async():
+            pass
+    asyncio.run(_run())
+```
+
+The structured Chain of Thought format combines the natural flow of conversations with explicit reasoning traces, making it ideal for educational dialogues and tutoring scenarios. This format captures both the conversational interaction and the underlying thought process of the assistant.
 ## When to Use Structured CoT
 
 ### Ideal Use Cases
@@ -329,7 +344,7 @@ tree = Tree(
 )
 
 # Build tree
-for event in tree.build():
+async for event in tree.build_async():
     if event['event'] == 'build_complete':
         print(f"Built {event['total_paths']} educational topics")
 

@@ -2,6 +2,7 @@
 DeepFabric Chain of Thought Example - Hybrid Format
 """
 
+import asyncio
 import os
 import sys
 
@@ -28,9 +29,13 @@ def main():
 
     # Build the tree
     print("Building science reasoning topic tree...")
-    for event in tree.build():
-        if event['event'] == 'build_complete':
-            print(f"Tree built with {event['total_paths']} topic paths")
+
+    async def _build_tree() -> None:
+        async for event in tree.build_async():
+            if event["event"] == "build_complete":
+                print(f"Tree built with {event['total_paths']} topic paths")
+
+    asyncio.run(_build_tree())
 
     # Step 2: Create hybrid CoT dataset generator
     engine = DataSetGenerator(

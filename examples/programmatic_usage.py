@@ -9,6 +9,7 @@ Demonstrates all programmatic patterns:
 - Error handling best practices
 """
 
+import asyncio
 import json
 import os
 import sys
@@ -33,34 +34,42 @@ def example_tree_vs_graph():
     tree = Tree(
         topic_prompt="Web Development Technologies",
         provider="ollama",
-        model_name="qwen3:0.6b",
+        model_name="qwen3:8b",
         degree=2,
         depth=2,
         temperature=0.7,
     )
 
-    tree_events = []
-    for event in tree.build():
-        tree_events.append(event)
-        if event['event'] == 'build_complete':
-            print(f"   Tree: {event['total_paths']} paths")
+    tree_events: list[dict] = []
+
+    async def _build_tree() -> None:
+        async for event in tree.build_async():
+            tree_events.append(event)
+            if event["event"] == "build_complete":
+                print(f"   Tree: {event['total_paths']} paths")
+
+    asyncio.run(_build_tree())
 
     # Graph: Interconnected structure
     print("\n🕸️  Building Graph (interconnected)...")
     graph = Graph(
         topic_prompt="Web Development Technologies",
         provider="ollama",
-        model_name="qwen3:0.6b",
+        model_name="qwen3:8b",
         degree=2,
         depth=2,
         temperature=0.7,
     )
 
-    graph_events = []
-    for event in graph.build():
-        graph_events.append(event)
-        if event['event'] == 'build_complete':
-            print(f"   Graph: {event['nodes_count']} nodes")
+    graph_events: list[dict] = []
+
+    async def _build_graph() -> None:
+        async for event in graph.build_async():
+            graph_events.append(event)
+            if event["event"] == "build_complete":
+                print(f"   Graph: {event['nodes_count']} nodes")
+
+    asyncio.run(_build_graph())
 
     # Compare paths
     tree_paths = tree.get_all_paths()
@@ -89,7 +98,7 @@ def example_custom_topics():
     tree = Tree(
         topic_prompt="Data Science",
         provider="ollama",
-        model_name="qwen3:0.6b",
+        model_name="qwen3:8b",
         degree=3,
         depth=2,
         temperature=0.7,
@@ -124,7 +133,7 @@ def example_progress_monitoring():
     tree = Tree(
         topic_prompt="Software Architecture Patterns",
         provider="ollama",
-        model_name="qwen3:0.6b",
+        model_name="qwen3:8b",
         degree=3,
         depth=2,
         temperature=0.7,
@@ -135,24 +144,29 @@ def example_progress_monitoring():
     failed_count = 0
 
     print("🔄 Building with detailed monitoring...")
-    for event in tree.build():
-        event_type = event['event']
 
-        # Track events
-        if event_type not in events_by_type:
-            events_by_type[event_type] = []
-        events_by_type[event_type].append(event)
+    async def _monitor_build() -> None:
+        nonlocal failed_count
+        async for event in tree.build_async():
+            event_type = event["event"]
 
-        # Handle different event types
-        if event_type == 'build_start':
-            print(f"   🚀 Started: {event['model_name']}, depth={event['depth']}")
-        elif event_type == 'subtopics_generated':
-            status = "✅" if event['success'] else "❌"
-            if not event['success']:
-                failed_count += 1
-            print(f"   {status} Generated {event['count']} subtopics")
-        elif event_type == 'build_complete':
-            print(f"   🎉 Complete: {event['total_paths']} paths, {event['failed_generations']} failures")
+            # Track events
+            events_by_type.setdefault(event_type, []).append(event)
+
+            # Handle different event types
+            if event_type == "build_start":
+                print(f"   🚀 Started: {event['model_name']}, depth={event['depth']}")
+            elif event_type == "subtopics_generated":
+                status = "✅" if event["success"] else "❌"
+                if not event["success"]:
+                    failed_count += 1
+                print(f"   {status} Generated {event['count']} subtopics")
+            elif event_type == "build_complete":
+                print(
+                    f"   🎉 Complete: {event['total_paths']} paths, {event['failed_generations']} failures"
+                )
+
+    asyncio.run(_monitor_build())
 
     # Print event summary
     print("\n📈 Event Summary:")
@@ -174,7 +188,7 @@ def example_load_existing():
         graph_params = {
             "topic_prompt": "Web Development Technologies",
             "provider": "ollama",
-            "model_name": "qwen3:0.6b",
+            "model_name": "qwen3:8b",
             "temperature": 0.7,
             "degree": 2,
             "depth": 2,
@@ -210,24 +224,26 @@ def example_error_handling():
         tree = Tree(
             topic_prompt="Small Topic",
             provider="ollama",
-            model_name="qwen3:0.6b",
+            model_name="qwen3:8b",
             degree=1,  # Very small tree
             depth=1,
             temperature=0.7,
         )
 
-        # Build tree
-        for event in tree.build():
-            if event['event'] == 'build_complete':
-                total_paths = event['total_paths']
-                print(f"🌳 Built tree with {total_paths} paths")
+        async def _build_small_tree() -> None:
+            async for event in tree.build_async():
+                if event["event"] == "build_complete":
+                    total_paths = event["total_paths"]
+                    print(f"🌳 Built tree with {total_paths} paths")
+
+        asyncio.run(_build_small_tree())
 
         # Create engine
         engine = DataSetGenerator(
             instructions="Create examples",
             generation_system_prompt="You are a helpful assistant.",
             provider="ollama",
-            model_name="qwen3:0.6b",
+            model_name="qwen3:8b",
             temperature=0.7,
         )
 
@@ -272,7 +288,7 @@ def example_dataset_generation():
         tree = Tree(
             topic_prompt="Data Science",
             provider="ollama",
-            model_name="qwen3:0.6b",
+            model_name="qwen3:8b",
             degree=3,
             depth=2,
             temperature=0.7,
@@ -284,7 +300,7 @@ def example_dataset_generation():
             instructions="Create comprehensive tutorials with code examples",
             generation_system_prompt="You are a data science educator creating practical tutorials.",
             provider="ollama",
-            model_name="qwen3:0.6b",
+            model_name="qwen3:8b",
             temperature=0.3,
         )
 

@@ -62,7 +62,14 @@ tree = Tree(
     depth=3,
     temperature=0.7
 )
-tree.build()
+
+import asyncio
+
+async def build_tree() -> None:
+    async for _ in tree.build_async():
+        pass
+
+asyncio.run(build_tree())
 
 # 2. Create dataset generator
 generator = DataSetGenerator(

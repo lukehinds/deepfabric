@@ -1,9 +1,24 @@
 # Hybrid Chain of Thought Format
 
+```python
+import asyncio
+
+def consume_tree(tree):
+    async def _run():
+        async for _ in tree.build_async():
+            pass
+    asyncio.run(_run())
+
+def consume_graph(graph):
+    async def _run():
+        async for _ in graph.build_async():
+            pass
+    asyncio.run(_run())
+```
+
 The hybrid Chain of Thought format combines the natural expressiveness of free-text reasoning with the structured precision of step-by-step traces. This format is ideal
 for complex problems that benefit from both intuitive explanation and systematic decomposition. It is also an effective way of reducing over-fit risks that lots of
 structured reasoning text can provide.
-
 ## When to Use Hybrid CoT
 
 ### Ideal Use Cases
@@ -209,7 +224,7 @@ tree = Tree(
 )
 
 # Build tree
-for event in tree.build():
+async for event in tree.build_async():
     if event['event'] == 'build_complete':
         print(f"Built {event['total_paths']} complex topic paths")
 

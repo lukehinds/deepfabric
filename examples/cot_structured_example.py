@@ -4,6 +4,7 @@ DeepFabric Chain of Thought Example - Structured Format
 Generates conversation-based datasets with structured reasoning traces.
 """
 
+import asyncio
 import os
 import sys
 
@@ -30,9 +31,13 @@ def main():
 
     # Build the graph
     print("Building CS reasoning topic graph...")
-    for event in graph.build():
-        if event['event'] == 'build_complete':
-            print(f"✅ Graph built with {event['nodes_count']} nodes")
+
+    async def _build_graph() -> None:
+        async for event in graph.build_async():
+            if event["event"] == "build_complete":
+                print(f"✅ Graph built with {event['nodes_count']} nodes")
+
+    asyncio.run(_build_graph())
 
     # Step 2: Create structured CoT dataset generator
     engine = DataSetGenerator(

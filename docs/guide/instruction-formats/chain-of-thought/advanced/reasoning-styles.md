@@ -1,7 +1,22 @@
 # Reasoning Styles Guide
 
-DeepFabric's Chain of Thought implementation supports three distinct reasoning styles that optimize the generated reasoning patterns for different domains and problem types. Understanding when and how to use each style is crucial for creating high-quality CoT datasets.
+```python
+import asyncio
 
+def consume_tree(tree):
+    async def _run():
+        async for _ in tree.build_async():
+            pass
+    asyncio.run(_run())
+
+def consume_graph(graph):
+    async def _run():
+        async for _ in graph.build_async():
+            pass
+    asyncio.run(_run())
+```
+
+DeepFabric's Chain of Thought implementation supports three distinct reasoning styles that optimize the generated reasoning patterns for different domains and problem types. Understanding when and how to use each style is crucial for creating high-quality CoT datasets.
 ## Overview of Reasoning Styles
 
 | Style | Best For | Characteristics | Example Domains |
@@ -245,7 +260,7 @@ def create_mixed_style_dataset():
             temperature=config["temperature"]
         )
 
-        for event in tree.build():
+        async for event in tree.build_async():
             if event['event'] == 'build_complete':
                 print(f"  Topics: {event['total_paths']}")
 

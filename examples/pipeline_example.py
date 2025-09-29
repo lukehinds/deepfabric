@@ -9,6 +9,7 @@ Complete pipeline demonstrating:
 - Performance optimization
 """
 
+import asyncio
 import json
 import os
 import sys
@@ -144,9 +145,12 @@ def main():
 
     try:
         # Build the tree using the generator pattern
-        for event in tree.build():
-            if event['event'] == 'build_complete':
-                print(f" Topic tree created with {event['total_paths']} paths")
+        async def _build_tree() -> None:
+            async for event in tree.build_async():
+                if event["event"] == "build_complete":
+                    print(f" Topic tree created with {event['total_paths']} paths")
+
+        asyncio.run(_build_tree())
 
         tree.save(os.path.join(OUTPUT_DIR, "python_patterns_tree.jsonl"))
     except Exception as e:

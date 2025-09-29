@@ -12,6 +12,11 @@ from click.testing import CliRunner
 from deepfabric.cli import cli
 
 
+async def _async_iter(items):
+    for item in items:
+        yield item
+
+
 @pytest.fixture
 def cli_runner():
     """Create a CLI runner for testing."""
@@ -139,7 +144,7 @@ def test_generate_command_basic(
     from deepfabric.tree import Tree  # noqa: PLC0415
 
     mock_tree_instance = Mock(spec=Tree)
-    mock_tree_instance.build.return_value = iter(
+    mock_tree_instance.build_async.return_value = _async_iter(
         [{"event": "build_complete", "total_paths": 9, "failed_generations": 0}]
     )  # Make build return proper event
     mock_tree_instance.tree_paths = [
@@ -167,7 +172,7 @@ def test_generate_command_basic(
 
     # Verify mocks were called correctly
     mock_create_topic_generator.assert_called_once()
-    mock_tree_instance.build.assert_called_once()
+    mock_tree_instance.build_async.assert_called_once()
     mock_tree_instance.save.assert_called_once()
     mock_data_engine.assert_called_once()
     mock_engine_instance.create_data_with_events.assert_called_once()
@@ -185,7 +190,7 @@ def test_generate_command_with_sys_msg_override(
     from deepfabric.tree import Tree  # noqa: PLC0415
 
     mock_tree_instance = Mock(spec=Tree)
-    mock_tree_instance.build.return_value = iter(
+    mock_tree_instance.build_async.return_value = _async_iter(
         [{"event": "build_complete", "total_paths": 9, "failed_generations": 0}]
     )
     mock_tree_instance.tree_paths = [["root", "child1"], ["root", "child2"]]
@@ -229,7 +234,7 @@ def test_generate_command_default_sys_msg(
     from deepfabric.tree import Tree  # noqa: PLC0415
 
     mock_tree_instance = Mock(spec=Tree)
-    mock_tree_instance.build.return_value = iter(
+    mock_tree_instance.build_async.return_value = _async_iter(
         [{"event": "build_complete", "total_paths": 9, "failed_generations": 0}]
     )
     mock_tree_instance.tree_paths = [["root", "child1"], ["root", "child2"]]
@@ -265,7 +270,7 @@ def test_generate_command_with_overrides(
     from deepfabric.tree import Tree  # noqa: PLC0415
 
     mock_tree_instance = Mock(spec=Tree)
-    mock_tree_instance.build.return_value = iter(
+    mock_tree_instance.build_async.return_value = _async_iter(
         [{"event": "build_complete", "total_paths": 9, "failed_generations": 0}]
     )
     mock_tree_instance.tree_paths = [["root", "child1"], ["root", "child2"]]

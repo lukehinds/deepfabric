@@ -1,5 +1,6 @@
 """LLM client implementation using Outlines for structured generation."""
 
+import asyncio
 import os
 
 from typing import Any
@@ -96,6 +97,40 @@ def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
         raise handle_provider_error(e, provider, model_name) from e
 
 
+def make_async_outlines_model(provider: str, model_name: str, **kwargs) -> Any | None:
+    """Create an async Outlines model when the provider supports it.
+
+    Returns ``None`` for providers without async-capable clients.
+    """
+
+    try:
+        if provider == "openai":
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                _raise_api_key_error("OPENAI_API_KEY")
+
+            client = openai.AsyncOpenAI(api_key=api_key, **kwargs)
+            return outlines.from_openai(client, model_name)
+
+        if provider == "ollama":
+            base_url = kwargs.get("base_url", "http://localhost:11434/v1")
+            client = openai.AsyncOpenAI(
+                base_url=base_url,
+                api_key="ollama",
+                **{k: v for k, v in kwargs.items() if k != "base_url"},
+            )
+            return outlines.from_openai(client, model_name)
+
+    except DataSetGeneratorError:
+        raise
+    except Exception as e:
+        raise handle_provider_error(e, provider, model_name) from e
+
+    # Outlines does not currently expose async structured generation wrappers
+    # for the remaining providers. Fallback to synchronous execution later.
+    return None
+
+
 class LLMClient:
     """Wrapper for Outlines models with retry logic and error handling."""
 
@@ -110,6 +145,7 @@ class LLMClient:
         self.provider = provider
         self.model_name = model_name
         self.model: Any = make_outlines_model(provider, model_name, **kwargs)
+        self.async_model: Any | None = make_async_outlines_model(provider, model_name, **kwargs)
         if self.model is None:
             msg = f"Failed to create model for {provider}/{model_name}"
             raise DataSetGeneratorError(msg)
@@ -142,6 +178,30 @@ class LLMClient:
                 # Parse and validate the JSON response with Pydantic
                 return schema.model_validate_json(json_output)
 
+            except Exception as e:
+                last_error = e
+                if attempt == max_retries - 1:
+                    break
+
+        if last_error is not None:
+            _raise_generation_error(max_retries, last_error)
+        msg = "Failed to generate output: no attempts were made"
+        raise DataSetGeneratorError(msg)
+
+    async def generate_async(self, prompt: str, schema: Any, max_retries: int = 3, **kwargs) -> Any:
+        """Asynchronously generate structured output using provider async clients."""
+
+        if self.async_model is None:
+            # Fallback to running the synchronous path in a worker thread
+            return await asyncio.to_thread(self.generate, prompt, schema, max_retries, **kwargs)
+
+        last_error: Exception | None = None
+        kwargs = self._convert_generation_params(**kwargs)
+
+        for attempt in range(max_retries):
+            try:
+                json_output = await self.async_model(prompt, schema, **kwargs)
+                return schema.model_validate_json(json_output)
             except Exception as e:
                 last_error = e
                 if attempt == max_retries - 1:

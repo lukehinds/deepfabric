@@ -2,7 +2,7 @@
 
 This directory contains practical examples demonstrating different DeepFabric usage patterns, from basic quickstart to production pipelines.
 
-Note that for a good amount of these, we use qwen3:0.6b as its a fast model to pull (0.5gb) and being low parameter, its also very fast. This
+Note that for a good amount of these, we use qwen3:8b as its a fast model to pull and being low parameter, its also fast. This
 makes it useful for showing how things work. It is however not a good candidate for distillation as it has limitations around it the depth of
 its training and therefore has limited knowledge compared to the bigger models.
 
@@ -140,9 +140,16 @@ Agent chain of thought with tool calling and embedded execution traces:
 
 ### Basic Pipeline
 ```python
+import asyncio
+
 # 1. Create topic structure
 tree = Tree(topic_prompt="Your topic", model_name="provider/model", degree=3, depth=2)
-tree.build()
+
+async def build_tree() -> None:
+    async for _ in tree.build_async():
+        pass
+
+asyncio.run(build_tree())
 
 # 2. Generate dataset
 engine = DataSetGenerator(instructions="Your instructions", model_name="provider/model")

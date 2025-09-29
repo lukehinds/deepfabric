@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 import warnings
@@ -155,7 +156,7 @@ class Tree(TopicModel):
         self.tree_paths: list[list[str]] = []
         self.failed_generations: list[dict[str, Any]] = []
 
-    def build(self, model_name: str | None = None):
+    async def build_async(self, model_name: str | None = None):
         """Build the complete topic tree.
 
         Args:
@@ -181,13 +182,14 @@ class Tree(TopicModel):
                 raise RuntimeError(error_msg)
 
         try:
-            yield from self._build_subtree_generator(
+            async for event in self._build_subtree_generator(
                 [self.config.topic_prompt],
                 self.config.topic_system_prompt,
                 self.config.depth,
                 self.config.degree,
                 1,
-            )
+            ):
+                yield event
 
             # Check if build was completely unsuccessful (no paths generated)
             _raise_if_build_failed()
@@ -217,7 +219,7 @@ class Tree(TopicModel):
         """Returns all the paths in the topic model."""
         return self.tree_paths
 
-    def get_subtopics(
+    async def get_subtopics(
         self, system_prompt: str, node_path: list[str], num_subtopics: int
     ) -> list[str]:
         """Generate subtopics using structured generation."""
@@ -234,7 +236,7 @@ class Tree(TopicModel):
 
         try:
             # Generate structured subtopics using TopicList schema
-            topic_response = self.llm_client.generate(
+            topic_response = await self.llm_client.generate_async(
                 prompt=prompt,
                 schema=TopicList,
                 max_retries=MAX_RETRY_ATTEMPTS,
@@ -287,7 +289,7 @@ class Tree(TopicModel):
             return "conversational"
         return "general"
 
-    def _build_subtree_generator(
+    async def _build_subtree_generator(
         self,
         node_path: list[str],
         system_prompt: str,
@@ -314,7 +316,7 @@ class Tree(TopicModel):
             yield {"event": "leaf_reached", "path": node_path}
             return
 
-        subtopics = self.get_subtopics(system_prompt, node_path, n_child)
+        subtopics = await self.get_subtopics(system_prompt, node_path, n_child)
 
         event = {
             "event": "subtopics_generated",
@@ -336,11 +338,20 @@ class Tree(TopicModel):
             yield {"event": "leaf_reached", "path": node_path}
             return
 
-        for subtopic in subtopics:
-            child_path = node_path + [subtopic]
-            yield from self._build_subtree_generator(
+        async def _collect_child_events(child_subtopic: str) -> list[dict[str, Any]]:
+            child_path = node_path + [child_subtopic]
+            events: list[dict[str, Any]] = []
+            async for child_event in self._build_subtree_generator(
                 child_path, system_prompt, total_depth, n_child, current_depth + 1
-            )
+            ):
+                events.append(child_event)
+            return events
+
+        tasks = [asyncio.create_task(_collect_child_events(subtopic)) for subtopic in subtopics]
+
+        for child_events in await asyncio.gather(*tasks):
+            for child_event in child_events:
+                yield child_event
 
     def save(self, save_path: str) -> None:
         """Save the topic tree to a file."""

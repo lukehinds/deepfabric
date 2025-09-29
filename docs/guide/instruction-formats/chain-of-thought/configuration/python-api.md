@@ -4,7 +4,26 @@ This guide demonstrates how to configure and generate Chain of Thought datasets 
 
 ## Quick Start Example
 
+> **Note**: All examples assume an async context. Wrap snippets with `asyncio.run(...)` or integrate with your existing event loop when using `build_async()` methods.
+
 ```python
+import asyncio
+
+def consume_tree(tree):
+    async def _run():
+        async for _ in tree.build_async():
+            pass
+    asyncio.run(_run())
+
+def consume_graph(graph):
+    async def _run():
+        async for _ in graph.build_async():
+            pass
+    asyncio.run(_run())
+```
+
+```python
+import asyncio
 from deepfabric import DataSetGenerator
 from deepfabric.tree import Tree
 from deepfabric.dataset import Dataset
@@ -21,9 +40,13 @@ tree = Tree(
 
 # 2. Build topic tree with progress monitoring
 print("Building topic tree...")
-for event in tree.build():
-    if event['event'] == 'build_complete':
-        print(f"Generated {event['total_paths']} topic paths")
+
+async def build_tree() -> None:
+    async for event in tree.build_async():
+        if event['event'] == 'build_complete':
+            print(f"Generated {event['total_paths']} topic paths")
+
+asyncio.run(build_tree())
 
 # 3. Create CoT generator
 generator = DataSetGenerator(
@@ -69,7 +92,7 @@ tree = Tree(
 )
 
 # Build with progress tracking
-for event in tree.build():
+async for event in tree.build_async():
     if event['event'] == 'depth_start':
         print(f"Starting depth {event['depth']}")
     elif event['event'] == 'build_complete':
@@ -91,7 +114,7 @@ graph = Graph(
 )
 
 # Build with node tracking
-for event in graph.build():
+async for event in graph.build_async():
     if event['event'] == 'node_expanded':
         print(f"Expanded: {event['node_topic']}")
     elif event['event'] == 'build_complete':
@@ -147,7 +170,7 @@ def create_freetext_cot_dataset():
 
     # Build topics
     topics_created = 0
-    for event in tree.build():
+    async for event in tree.build_async():
         if event['event'] == 'build_complete':
             topics_created = event['total_paths']
             print(f"Created {topics_created} math topics")
@@ -207,7 +230,7 @@ def create_structured_cot_dataset():
     )
 
     # Build graph
-    for event in graph.build():
+    async for event in graph.build_async():
         if event['event'] == 'build_complete':
             print(f"Created graph with {event['nodes_count']} nodes")
 
@@ -267,7 +290,7 @@ def create_hybrid_cot_dataset():
     )
 
     # Build topics
-    for event in tree.build():
+    async for event in tree.build_async():
         if event['event'] == 'build_complete':
             print(f"Generated {event['total_paths']} complex topics")
 
@@ -478,7 +501,7 @@ def robust_batch_generation(
 
             # Build tree with timeout protection
             tree_built = False
-            for event in tree.build():
+            async for event in tree.build_async():
                 if event['event'] == 'build_complete':
                     tree_built = True
                     print(f"  Tree: {event['total_paths']} paths")
@@ -755,7 +778,7 @@ async def parallel_generation(topics: List[str], max_workers: int = 3):
             model_name="gpt-4o-mini"
         )
 
-        for event in tree.build():
+        async for event in tree.build_async():
             if event['event'] == 'build_complete':
                 break
 
