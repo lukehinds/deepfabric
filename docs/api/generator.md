@@ -256,7 +256,7 @@ complex_generator = DataSetGenerator(
     temperature=0.7
 )
 complex_topics = tree.get_topics_at_depth(3)
-complex_dataset = asyncio.run(generator.create_data_async(
+complex_dataset = asyncio.run(complex_generator.create_data_async(
     topics=complex_topics
 )
 
