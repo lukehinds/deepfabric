@@ -459,6 +459,127 @@ formatters:
 
 ---
 
+## Single Tool Call Formatter
+
+**Template**: `builtin://single_tool_call.py`
+**Use Case**: Individual tool calling format where each tool call is in its own message exchange
+
+### Description
+
+The Single Tool Call formatter transforms agent reasoning datasets into a conversational format where each tool call is handled in its own message exchange, rather than embedding multiple tool calls within a single response. This format is ideal for training models to make single, focused tool calls with clear reasoning prefixes.
+
+### Configuration Options
+
+```yaml
+config:
+  system_prompt: "You are a helpful assistant..."            # Default: "You are a helpful assistant with access to the following functions. Use them if required:"
+  include_tools_in_system: true                             # Default: true
+  include_reasoning_prefix: true                             # Default: true
+  reasoning_prefix_template: "I'll {action} for you."       # Default: "I'll {action} for you."
+  tool_call_format: "<tool_call>\n{tool_call}\n</tool_call>" # Default: "<tool_call>\n{tool_call}\n</tool_call>"
+  tool_response_as_json: true                               # Default: true
+```
+
+### Input Formats Supported
+
+- **Agent CoT Tools**: Agent reasoning with tool usage from `agent_cot_tools` conversation type
+- **Simple Agent CoT**: Simple agent chain-of-thought with tool selection
+- **Hybrid Agent CoT**: Hybrid agent reasoning with tool traces
+- **Generic Tool**: Any format with question, tool_used, tool_input, tool_output, and answer
+
+### Output Format
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant with access to the following functions. Use them if required:\n\n{\"functions\": [{\"name\": \"get_weather\", \"description\": \"Get weather information\", \"parameters\": {...}}]}"
+    },
+    {
+      "role": "user",
+      "content": "What's the weather in Paris and the time in Tokyo?"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll check the weather in Paris for you.\n\n<tool_call>\n{\"name\": \"get_weather\", \"arguments\": {\"location\": \"Paris\"}}\n</tool_call>"
+    },
+    {
+      "role": "tool",
+      "content": "{\"temperature\": \"15°C\", \"conditions\": \"Partly cloudy\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "Now let me check the time in Tokyo.\n\n<tool_call>\n{\"name\": \"get_time\", \"arguments\": {\"timezone\": \"Asia/Tokyo\"}}\n</tool_call>"
+    },
+    {
+      "role": "tool",
+      "content": "{\"time\": \"2024-01-15 22:30:00\", \"timezone\": \"JST\"}"
+    },
+    {
+      "role": "assistant",
+      "content": "The weather in Paris is currently 15°C and partly cloudy. The current time in Tokyo is 10:30 PM JST."
+    }
+  ]
+}
+```
+
+### Key Features
+
+1. **Individual Tool Calls**: Each tool call is in its own assistant message, followed by its tool response
+2. **Reasoning Prefixes**: Optional natural language explanations before each tool call
+3. **Tool Action Generation**: Automatically generates contextual action descriptions (e.g., "check the weather in Paris")
+4. **JSON Tool Responses**: Formats tool outputs as valid JSON for consistency
+5. **System Tool Integration**: Includes available tools in the system message with proper function definitions
+
+### Example Configuration
+
+```yaml
+formatters:
+- name: "single_tool_format"
+  template: "builtin://single_tool_call.py"
+  config:
+    system_prompt: "You are a helpful assistant with access to the following functions. Use them if required:"
+    include_tools_in_system: true
+    include_reasoning_prefix: true
+    reasoning_prefix_template: "I'll {action} for you."
+    tool_call_format: "<tool_call>\n{tool_call}\n</tool_call>"
+    tool_response_as_json: true
+  output: "single_tool_call_dataset.jsonl"
+```
+
+### Advanced Configuration
+
+**Disable Reasoning Prefixes**:
+```yaml
+config:
+  include_reasoning_prefix: false
+  tool_call_format: "<tool_call>\n{tool_call}\n</tool_call>"
+```
+
+**Custom Tool Call Format**:
+```yaml
+config:
+  tool_call_format: "FUNCTION_CALL: {tool_call}"
+  reasoning_prefix_template: "Let me {action}."
+```
+
+**Plain Text Tool Responses**:
+```yaml
+config:
+  tool_response_as_json: false
+```
+
+### Use Cases
+
+- **Single Function Training**: Training models to make one tool call at a time
+- **Sequential Tool Usage**: Teaching models to chain tool calls in separate messages
+- **Clear Tool Boundaries**: When you need explicit separation between tool calls and responses
+- **Function Call Debugging**: Easier to trace individual tool executions
+- **API Integration**: Matches many real-world API calling patterns
+
+---
+
 ## ChatML Formatter
 
 **Template**: `builtin://chatml.py`
@@ -543,6 +664,8 @@ formatters:
 - **Alpaca**: Single-turn instruction-response pairs
 
 ### For Tool/Function Calling
+- **Single Tool Call**: Individual tool call format with each call in its own message exchange
+- **Tool Calling**: Embedded tool calling with thinking traces and multiple tools per response
 - **Harmony**: TypeScript-style function definitions with channels for tool calls and responses
 - **Custom formatters**: For specific tool calling conventions
 
