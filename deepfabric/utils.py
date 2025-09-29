@@ -1,6 +1,23 @@
+import asyncio
 import ast
 import json
 import re
+
+
+def ensure_not_running_loop(method_name: str) -> None:
+    """Raise when invoked inside an active asyncio event loop."""
+
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+
+    if loop.is_running():
+        msg = (
+            f"{method_name} cannot be called while an event loop is running. "
+            "Use the async variant instead."
+        )
+        raise RuntimeError(msg)
 
 
 def extract_list(input_string: str):
