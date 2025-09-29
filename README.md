@@ -61,6 +61,7 @@ No more unruly models failing to Tool call or comply with reams of natural langu
 | **GRPO** | `builtin://grpo.py` | Mathematical reasoning | GRPO training |
 | **Im Format** | `builtin://im_format.py` | Chat with delimiters | ChatML-compatible models |
 | **Tool Calling** | `builtin://tool_calling.py` | Function calling | Agent training |
+| **Single Tool Call** | `builtin://single_tool_call.py` | Individual tool calls | Single function execution |
 | **Harmony** | `builtin://harmony.py` | Reasoning with tags | (gpt-oss) |
 | **Custom** | `file://your_format.py` | Your requirements | Any framework |
 

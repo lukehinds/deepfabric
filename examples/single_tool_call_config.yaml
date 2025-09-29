@@ -1,0 +1,67 @@
+# Single Tool Call Format Configuration
+# This configuration generates datasets where each tool call is in its own message exchange
+
+dataset_system_prompt: "You are an intelligent AI assistant with access to various tools. When presented with a task, analyze what's needed, select appropriate tools, execute them with proper parameters, and provide clear answers."
+
+# Topic Tree Configuration
+topic_tree:
+  topic_prompt: "Real-world scenarios requiring tool usage"
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.7
+  depth: 3
+  degree: 3
+  save_as: "topics.jsonl"
+
+# Data Engine Configuration
+data_engine:
+  generation_system_prompt: "You are an AI assistant that uses tools to help users."
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.8
+  conversation_type: "agent_cot_tools"
+  available_tools: ["get_weather", "get_time", "calculator", "web_search"]
+  max_tools_per_query: 2
+  max_retries: 3
+
+# Dataset Assembly Configuration
+dataset:
+  creation:
+    num_steps: 27
+    batch_size: 1
+    sys_msg: true
+
+  save_as: "raw_dataset.jsonl"
+
+  # Single Tool Call Formatter Configuration
+  formatters:
+    - name: "single_tool_format"
+      template: "builtin://single_tool_call"
+      output: "single_tool_call_dataset.jsonl"
+      config:
+        # System prompt that explains tool calling behavior
+        system_prompt: "You are a helpful assistant with access to the following functions. Use them if required:"
+
+        # Whether to include available tools in system message
+        include_tools_in_system: true
+
+        # Whether to include reasoning prefix before tool calls
+        include_reasoning_prefix: true
+
+        # Template for reasoning prefix ({action} gets replaced with tool action)
+        reasoning_prefix_template: "I'll {action} for you."
+
+        # Format for tool call XML tags
+        tool_call_format: "<tool_call>\n{tool_call}\n</tool_call>"
+
+        # Whether to format tool responses as JSON
+        tool_response_as_json: true
+
+# Optional HuggingFace Hub upload
+# huggingface:
+#   repository: "your-username/single-tool-call-dataset"
+#   token: "your-hf-token"
+#   tags:
+#     - "tool-calling"
+#     - "function-calling"
+#     - "single-tool"
