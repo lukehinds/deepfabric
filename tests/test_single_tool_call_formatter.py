@@ -199,6 +199,58 @@ class TestSingleToolCallFormatter:
         result = formatter._format_single_sample(invalid_sample)
         assert result is None
 
+    def test_multiple_tool_calls(self):
+        """Test handling of multiple tool calls without duplicating final answer."""
+        formatter = SingleToolCallFormatter()
+
+        sample = {
+            "question": "What's the weather and time?",
+            "tool_used": "get_weather",
+            "tool_input": '{"location": "Paris"}',
+            "tool_output": "15°C, sunny",
+            "additional_tools": [
+                {
+                    "name": "get_time",
+                    "arguments": {"timezone": "Europe/Paris"},
+                    "result": "14:30 CET",
+                }
+            ],
+            "answer": "The weather in Paris is 15°C and sunny. The current time is 14:30 CET.",
+        }
+
+        result = formatter._format_single_sample(sample)
+        assert result is not None
+
+        messages = result["messages"]
+
+        # Count the number of assistant messages with the final answer
+        final_answer_count = sum(
+            1 for msg in messages if msg["role"] == "assistant" and "14:30 CET" in msg["content"]
+        )
+
+        # Should only have one final answer message
+        assert final_answer_count == 1
+
+        # Verify message sequence
+        roles = [msg["role"] for msg in messages]
+        # Should have: system (optional), user, assistant (weather call), tool, assistant (time call), tool, assistant (final)
+        expected_min_assistant_msgs = 3  # weather call, time call, final answer
+        expected_tool_msgs = 2  # weather response, time response
+        assert roles.count("assistant") >= expected_min_assistant_msgs
+        assert roles.count("tool") == expected_tool_msgs
+
+        # Check that the additional tool has proper reasoning prefix
+        assistant_msgs = [msg for msg in messages if msg["role"] == "assistant"]
+        # Find the message with the time tool call
+        time_call_msg = next((msg for msg in assistant_msgs if "get_time" in msg["content"]), None)
+        assert time_call_msg is not None
+        # Should have specific action for timezone
+        assert "check the time in Europe/Paris" in time_call_msg["content"]
+
+        # Verify the final message is the answer
+        assert messages[-1]["role"] == "assistant"
+        assert messages[-1]["content"] == sample["answer"]
+
     def test_config_model(self):
         """Test configuration model."""
         config = SingleToolCallConfig()

@@ -78,12 +78,12 @@ class SingleToolCallFormatter(BaseFormatter):
         """Return the configuration model for this formatter."""
         return SingleToolCallConfig
 
-    def validate(self, sample: dict) -> bool:
-        """Validate that sample has required fields for tool calling format."""
+    def validate(self, entry: dict) -> bool:
+        """Validate that entry has required fields for tool calling format."""
         required_fields = ["question", "tool_used"]
         # Check for either "answer" (SimpleAgentCoT) or "final_answer" (HybridAgentCoT)
-        has_answer = "answer" in sample or "final_answer" in sample
-        return all(field in sample for field in required_fields) and has_answer
+        has_answer = "answer" in entry or "final_answer" in entry
+        return all(field in entry for field in required_fields) and has_answer
 
     def _format_single_sample(self, sample: dict) -> dict | None:
         """
@@ -98,8 +98,12 @@ class SingleToolCallFormatter(BaseFormatter):
         if not self.validate(sample):
             return None
 
-        # Get configuration instance
-        config = self._config_model or SingleToolCallConfig()
+        # Get configuration instance - cast to proper type for type hints
+        config: SingleToolCallConfig = (
+            self._config_model
+            if isinstance(self._config_model, SingleToolCallConfig)
+            else SingleToolCallConfig()
+        )
 
         # Extract components from agent reasoning sample
         question = sample["question"]
@@ -176,9 +180,6 @@ class SingleToolCallFormatter(BaseFormatter):
 
         messages.append({"role": "tool", "content": tool_response_content})
 
-        # Add final assistant answer
-        messages.append({"role": "assistant", "content": answer})
-
         # Handle multiple tool calls if present
         # Check if there are additional tool calls in the sample
         if "additional_tools" in sample:
@@ -208,9 +209,8 @@ class SingleToolCallFormatter(BaseFormatter):
 
                 messages.append({"role": "tool", "content": tool_response_content})
 
-            # Add a final summary if multiple tools were used
-            if len(sample.get("additional_tools", [])) > 0:
-                messages.append({"role": "assistant", "content": answer})
+        # Add final assistant answer (only once, after all tool calls)
+        messages.append({"role": "assistant", "content": answer})
 
         return {"messages": messages}
 
@@ -228,18 +228,29 @@ class SingleToolCallFormatter(BaseFormatter):
         # Try to get a specific action or use a generic one
         action = tool_actions.get(tool_name, f"use the {tool_name} tool")
 
-        # If there's location/timezone info in the sample, make it more specific
-        if "tool_input" in sample:
+        # Check both tool_input and arguments keys for parameters
+        if "tool_input" in sample or "arguments" in sample:
             try:
-                tool_input = sample["tool_input"]
-                if isinstance(tool_input, str):
-                    tool_input = json.loads(tool_input.replace("'", '"'))
+                tool_args = None
+                if "tool_input" in sample:
+                    tool_input = sample["tool_input"]
+                    if isinstance(tool_input, str):
+                        tool_args = json.loads(tool_input.replace("'", '"'))
+                    else:
+                        tool_args = tool_input
+                elif "arguments" in sample:
+                    tool_args = sample["arguments"]
 
-                if tool_name == "get_weather" and "location" in tool_input:
-                    action = f"check the weather in {tool_input['location']}"
-                elif tool_name == "get_time" and "timezone" in tool_input:
-                    action = f"check the time in {tool_input['timezone']}"
-            except (json.JSONDecodeError, KeyError):
+                if tool_args:
+                    if tool_name == "get_weather" and "location" in tool_args:
+                        action = f"check the weather in {tool_args['location']}"
+                    elif tool_name == "get_time" and "timezone" in tool_args:
+                        action = f"check the time in {tool_args['timezone']}"
+                    elif tool_name == "calculator" and "expression" in tool_args:
+                        action = f"calculate {tool_args['expression']}"
+                    elif tool_name == "web_search" and "query" in tool_args:
+                        action = f"search for {tool_args['query']}"
+            except (json.JSONDecodeError, KeyError, TypeError):
                 pass
 
         return action
