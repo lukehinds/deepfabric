@@ -84,6 +84,84 @@ class Dataset:
 
         return instance
 
+    @classmethod
+    def from_huggingface(cls, dataset_name: str, split: str = "train", **kwargs) -> "Dataset":
+        """Create a Dataset instance from a HuggingFace dataset.
+
+        Args:
+            dataset_name: Name of the dataset on HuggingFace (e.g., 'lukehinds/agent-tool-calling')
+            split: Dataset split to load ('train', 'test', 'validation', etc.)
+            **kwargs: Additional arguments to pass to load_dataset (e.g., config_name, revision)
+
+        Returns:
+            A new Dataset instance populated with the HuggingFace dataset.
+
+        Examples:
+            # Load from HuggingFace Hub
+            dataset = Dataset.from_huggingface('lukehinds/agent-tool-calling', split='train')
+
+            # Load with specific configuration
+            dataset = Dataset.from_huggingface('bigcode/the-stack', split='train', config_name='python')
+        """
+        try:
+            from datasets import load_dataset
+        except ImportError:
+            raise ImportError(
+                "The 'datasets' library is required to load HuggingFace datasets. "
+                "Install it with: pip install datasets"
+            )
+
+        # Load the dataset from HuggingFace
+        hf_dataset = load_dataset(dataset_name, split=split, **kwargs)
+
+        instance = cls()
+
+        # Convert HuggingFace dataset to DeepFabric format
+        for item in hf_dataset:
+            # Check if it's already in the expected format
+            if "messages" in item:
+                sample = item
+            # Try to convert from common formats
+            elif "conversations" in item:
+                # Handle datasets with 'conversations' field
+                sample = {"messages": item["conversations"]}
+            elif "prompt" in item and "response" in item:
+                # Handle prompt/response format
+                sample = {
+                    "messages": [
+                        {"role": "user", "content": item["prompt"]},
+                        {"role": "assistant", "content": item["response"]},
+                    ]
+                }
+            elif "instruction" in item and "output" in item:
+                # Handle instruction/output format
+                sample = {
+                    "messages": [
+                        {"role": "user", "content": item["instruction"]},
+                        {"role": "assistant", "content": item["output"]},
+                    ]
+                }
+                # Add system message if present
+                if "input" in item and item["input"]:
+                    sample["messages"].insert(0, {"role": "system", "content": item["input"]})
+            elif "text" in item:
+                # Handle simple text format
+                sample = {"messages": [{"role": "assistant", "content": item["text"]}]}
+            else:
+                # For other formats, try to preserve the original structure
+                sample = item
+
+            if cls.validate_sample(sample):
+                instance.samples.append(sample)
+            else:
+                instance.failed_samples.append(sample)
+
+        print(f"Loaded {len(instance.samples)} samples from {dataset_name} ({split} split)")
+        if instance.failed_samples:
+            print(f"Warning: {len(instance.failed_samples)} samples failed validation")
+
+        return instance
+
     @staticmethod
     def validate_sample(sample: dict) -> bool:
         """Validate if a sample has the correct format.

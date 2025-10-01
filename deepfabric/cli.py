@@ -697,6 +697,8 @@ def info() -> None:
             ("generate", "Generate training data from configuration"),
             ("validate", "Validate a configuration file"),
             ("visualize", "Create SVG visualization of a topic graph"),
+            ("load-hf", "Load and convert dataset from HuggingFace Hub"),
+            ("format", "Apply formatters to an existing dataset"),
             ("upload", "Upload dataset to Hugging Face Hub"),
             ("upload-kaggle", "Upload dataset to Kaggle"),
             ("info", "Show this information"),
@@ -720,6 +722,154 @@ def info() -> None:
     except Exception as e:
         tui = get_tui()
         tui.error(f"Error getting info: {str(e)}")
+        sys.exit(1)
+
+
+@cli.command("load-hf")
+@click.argument("dataset_name")
+@click.option(
+    "--split",
+    default="train",
+    help="Dataset split to load (default: train)",
+)
+@click.option(
+    "--output",
+    "-o",
+    required=True,
+    help="Output path for the converted dataset",
+)
+@click.option(
+    "--config-name",
+    help="Dataset configuration name (if applicable)",
+)
+@click.option(
+    "--formatter",
+    "-f",
+    type=click.Choice(["im_format", "unsloth", "alpaca", "chatml", "grpo", "harmony"]),
+    help="Optional formatter to apply after loading",
+)
+@click.option(
+    "--formatter-output",
+    help="Output path for formatted dataset (if --formatter is used)",
+)
+def load_hf(
+    dataset_name: str,
+    split: str,
+    output: str,
+    config_name: str | None = None,
+    formatter: str | None = None,
+    formatter_output: str | None = None,
+) -> None:
+    """Load a dataset from HuggingFace Hub and convert to DeepFabric format.
+
+    Examples:
+        deepfabric load-hf lukehinds/agent-tool-calling -o agent_tools.jsonl
+
+        deepfabric load-hf user/dataset --split test -o test_data.jsonl
+
+        deepfabric load-hf user/dataset -o data.jsonl -f alpaca -fo data_alpaca.jsonl
+    """
+    trace("cli_load_hf", {"dataset": dataset_name, "split": split})
+
+    tui = get_tui()
+
+    try:
+        from .dataset import Dataset  # noqa: PLC0415
+
+        tui.info(f"Loading dataset '{dataset_name}' (split: {split})...")
+
+        # Load dataset from HuggingFace
+        kwargs = {}
+        if config_name:
+            kwargs["config_name"] = config_name
+
+        dataset = Dataset.from_huggingface(dataset_name, split=split, **kwargs)
+
+        if len(dataset) == 0:
+            tui.error("No valid samples loaded from HuggingFace dataset")
+            sys.exit(1)
+
+        tui.success(f"Loaded {len(dataset)} samples from HuggingFace")
+
+        # Save the base dataset
+        dataset.save(output)
+        tui.success(f"Saved dataset to: {output}")
+
+        # Optionally apply formatter
+        if formatter:
+            tui.info(f"Applying '{formatter}' formatter...")
+
+            formatter_output_path = formatter_output or f"{output.rsplit('.', 1)[0]}_{formatter}.jsonl"
+
+            # Default configs for formatters
+            default_configs = {
+                "im_format": {
+                    "include_system": True,
+                    "system_message": "You are a helpful assistant.",
+                    "roles_map": {"user": "user", "assistant": "assistant", "system": "system"},
+                },
+                "unsloth": {
+                    "include_system": False,
+                    "system_message": None,
+                    "roles_map": {"user": "user", "assistant": "assistant", "system": "system"},
+                },
+                "alpaca": {
+                    "instruction_template": "### Instruction:\n{instruction}\n\n### Response:",
+                    "include_empty_input": False,
+                },
+                "chatml": {
+                    "output_format": "text",
+                    "start_token": "<|im_start|>",
+                    "end_token": "<|im_end|>",
+                    "include_system": False,
+                },
+                "grpo": {
+                    "reasoning_start_tag": "<start_working_out>",
+                    "reasoning_end_tag": "<end_working_out>",
+                    "solution_start_tag": "<SOLUTION>",
+                    "solution_end_tag": "</SOLUTION>",
+                },
+                "harmony": {
+                    "output_format": "text",
+                    "default_channel": "final",
+                    "include_developer_role": False,
+                    "reasoning_level": "high",
+                    "include_metadata": True,
+                },
+            }
+
+            formatter_config = [
+                {
+                    "name": formatter,
+                    "template": f"builtin://{formatter}.py",
+                    "output": formatter_output_path,
+                    "config": default_configs.get(formatter, {}),
+                }
+            ]
+
+            formatted_datasets = dataset.apply_formatters(formatter_config)
+
+            if formatter in formatted_datasets:
+                formatted_dataset = formatted_datasets[formatter]
+                tui.success(f"Applied '{formatter}' formatter successfully")
+                tui.info(f"  Formatted output: {formatter_output_path}")
+                tui.info(f"  Formatted samples: {len(formatted_dataset)}")
+
+        # Show statistics
+        tui.console.print("\n📊 Dataset Statistics:", style="cyan bold")
+        stats = dataset.get_statistics()
+        if "error" not in stats:
+            tui.info(f"Total samples: {stats['total_samples']}")
+            tui.info(f"Avg messages per sample: {stats['avg_messages_per_sample']:.2f}")
+            tui.info(f"Avg content length: {stats['avg_content_length']:.2f}")
+
+    except ImportError:
+        tui.error("The 'datasets' library is required. Install with: pip install datasets")
+        sys.exit(1)
+    except Exception as e:
+        tui.error(f"Error loading HuggingFace dataset: {str(e)}")
+        if "--debug" in sys.argv:
+            raise
         sys.exit(1)
 
 
