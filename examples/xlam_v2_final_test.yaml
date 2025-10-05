@@ -1,0 +1,87 @@
+# XLAM 2.0 Final Test - With Unique Domain Policies
+dataset_system_prompt: "You are a helpful AI assistant."
+
+topic_tree:
+  topic_prompt: |
+    Generate diverse scenarios across domains:
+    - Customer service (orders, reservations, support)
+    - Travel (flights, hotels, bookings)
+    - Finance (transactions, accounts, payments)
+    - E-commerce (shopping, returns, tracking)
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.8
+  depth: 2
+  degree: 3
+  save_as: "final_topics.jsonl"
+
+data_engine:
+  conversation_type: "xlam_multi_turn"
+  generation_system_prompt: "Generate realistic multi-turn conversations"
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.7
+
+  tool_registry:
+    - name: "get_order_status"
+      description: "Get order status and tracking"
+      parameters:
+        - name: "order_id"
+          type: "str"
+          description: "Order ID"
+          required: true
+      returns: "Order status and tracking info"
+      category: "ecommerce"
+
+    - name: "process_refund"
+      description: "Process a refund request"
+      parameters:
+        - name: "order_id"
+          type: "str"
+          description: "Order ID"
+          required: true
+        - name: "reason"
+          type: "str"
+          description: "Refund reason"
+          required: true
+      returns: "Refund confirmation"
+      category: "ecommerce"
+
+    - name: "check_flight"
+      description: "Check flight status"
+      parameters:
+        - name: "flight_number"
+          type: "str"
+          description: "Flight number"
+          required: true
+      returns: "Flight status"
+      category: "travel"
+
+    - name: "transfer_funds"
+      description: "Transfer money between accounts"
+      parameters:
+        - name: "from_account"
+          type: "str"
+          description: "Source account"
+          required: true
+        - name: "to_account"
+          type: "str"
+          description: "Destination account"
+          required: true
+        - name: "amount"
+          type: "float"
+          description: "Transfer amount"
+          required: true
+      returns: "Transfer confirmation"
+      category: "finance"
+
+dataset:
+  creation:
+    num_steps: 5
+    batch_size: 1
+    sys_msg: false
+  save_as: "final_raw.jsonl"
+
+formatter:
+  name: "xlam_v2"
+  save_as: "final_xlam.jsonl"

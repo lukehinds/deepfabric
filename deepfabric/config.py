@@ -131,6 +131,7 @@ class DataEngineConfig(BaseModel):
         "agent_cot_tools",
         "agent_cot_hybrid",
         "agent_cot_multi_turn",
+        "xlam_multi_turn",
     ] = Field(default="basic", description="Type of conversation to generate")
     reasoning_style: Literal["mathematical", "logical", "general"] = Field(
         default="general", description="Style of reasoning for CoT generation"
@@ -149,6 +150,10 @@ class DataEngineConfig(BaseModel):
     )
     tool_registry_path: str | None = Field(
         default=None, description="Path to custom tool definitions file (JSON/YAML)"
+    )
+    domain_context: str | None = Field(
+        default=None,
+        description="Domain/scenario context for XLAM multi-turn (becomes 'system' field)",
     )
 
 

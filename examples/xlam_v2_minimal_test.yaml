@@ -1,0 +1,41 @@
+# Minimal XLAM 2.0 test config
+dataset_system_prompt: "You are a helpful AI assistant."
+
+topic_tree:
+  topic_prompt: "Customer service order status inquiry"
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.7
+  depth: 1
+  degree: 2
+  save_as: "test_topics.jsonl"
+
+data_engine:
+  conversation_type: "xlam_multi_turn"
+  generation_system_prompt: "Generate a realistic conversation"
+  domain_context: "Customer service AI"
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.5
+
+  tool_registry:
+    - name: "get_order"
+      description: "Get order details"
+      parameters:
+        - name: "order_id"
+          type: "str"
+          description: "Order ID"
+          required: true
+      returns: "Order details"
+      category: "ecommerce"
+
+dataset:
+  creation:
+    num_steps: 1
+    batch_size: 1
+    sys_msg: false
+  save_as: "test_raw.jsonl"
+
+formatter:
+  name: "xlam_v2"
+  save_as: "test_xlam.jsonl"

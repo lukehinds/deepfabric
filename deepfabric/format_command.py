@@ -81,6 +81,7 @@ def format_command(
                 "reasoning_level": "high",
                 "include_metadata": True,
             },
+            "xlam_v2": {},
         }
 
         formatter_configs = [
@@ -120,7 +121,7 @@ def format_command(
 @click.option(
     "--formatter",
     "-f",
-    type=click.Choice(["im_format", "unsloth", "alpaca", "chatml", "grpo", "harmony"]),
+    type=click.Choice(["im_format", "unsloth", "alpaca", "chatml", "grpo", "harmony", "xlam_v2"]),
     help="Formatter to apply",
 )
 @click.option(

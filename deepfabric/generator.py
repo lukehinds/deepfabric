@@ -1,6 +1,7 @@
 import asyncio
 import math
 import random
+import traceback
 
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Literal
@@ -33,6 +34,7 @@ from .prompts import (
     HYBRID_COT_PROMPT,
     STRUCTURED_COT_MATHEMATICAL_PROMPT,
     STRUCTURED_COT_PROMPT,
+    XLAM_MULTI_TURN_PROMPT,
     AgentPromptBuilder,
 )
 from .schemas import ToolRegistry, get_conversation_schema
@@ -106,6 +108,7 @@ class DataSetGeneratorConfig(BaseModel):
         "agent_cot_tools",
         "agent_cot_hybrid",
         "agent_cot_multi_turn",
+        "xlam_multi_turn",
     ] = Field(default="basic", description="Type of conversation to generate")
     reasoning_style: Literal["mathematical", "logical", "general"] = Field(
         default="general", description="Style of reasoning for CoT generation"
@@ -124,6 +127,10 @@ class DataSetGeneratorConfig(BaseModel):
     )
     tool_registry_path: str | None = Field(
         default=None, description="Path to custom tool definitions file (JSON/YAML)"
+    )
+    domain_context: str | None = Field(
+        default=None,
+        description="Domain/scenario context for XLAM multi-turn (becomes 'system' field)",
     )
 
 
@@ -162,6 +169,7 @@ class DataSetGenerator:
             "agent_cot_tools",
             "agent_cot_hybrid",
             "agent_cot_multi_turn",
+            "xlam_multi_turn",
         }:
             self._initialize_tool_registry()
 
@@ -290,11 +298,14 @@ class DataSetGenerator:
 
         async def _generate(prompt: str) -> tuple[bool, dict | Exception]:
             try:
+                # Use higher token limit for multi-turn conversations
+                max_tokens = 4000 if self.config.conversation_type == "xlam_multi_turn" else 2000
+
                 conversation = await self.llm_client.generate_async(
                     prompt=prompt,
                     schema=schema_class,
                     max_retries=self.config.max_retries,
-                    max_tokens=2000,
+                    max_tokens=max_tokens,
                     temperature=self.config.temperature,
                 )
 
@@ -311,14 +322,31 @@ class DataSetGenerator:
 
                 if (
                     self.config.conversation_type
-                    in {"agent_cot_tools", "agent_cot_hybrid", "agent_cot_multi_turn"}
+                    in {
+                        "agent_cot_tools",
+                        "agent_cot_hybrid",
+                        "agent_cot_multi_turn",
+                        "xlam_multi_turn",
+                    }
                     and self.tool_registry is not None
                 ):
                     sample["available_tools"] = [
                         tool.model_dump() for tool in self.tool_registry.tools
                     ]
 
+                # Add domain context for XLAM multi-turn
+                if self.config.conversation_type == "xlam_multi_turn":
+                    if self.config.domain_context:
+                        sample["domain_context"] = self.config.domain_context
+                    elif "scenario_description" not in sample:
+                        sample["scenario_description"] = "AI assistant conversation"
+
             except Exception as e:  # noqa: BLE001
+                # Debug: print error for xlam_multi_turn
+                if self.config.conversation_type == "xlam_multi_turn":
+                    print(f"❌ XLAM generation error: {e}")
+
+                    traceback.print_exc()
                 return False, e
             else:
                 return True, sample
@@ -695,7 +723,18 @@ class DataSetGenerator:
         prompt = prompt.replace(
             "{{{{examples}}}}", self.build_examples_text(num_example_demonstrations)
         )
-        return prompt.replace("{{{{subtopics}}}}", self.build_subtopics_text(subtopics_list))
+        prompt = prompt.replace("{{{{subtopics}}}}", self.build_subtopics_text(subtopics_list))
+
+        # XLAM multi-turn specific replacements
+        if self.config.conversation_type == "xlam_multi_turn":
+            tools_text = self.build_tools_text()
+            domain_context = (
+                self.config.domain_context or "AI assistant with access to various tools"
+            )
+            prompt = prompt.replace("{{{{tools}}}}", tools_text)
+            prompt = prompt.replace("{{{{domain_context}}}}", domain_context)
+
+        return prompt
 
     def build_system_prompt(self):
         """Return the original system prompt for dataset inclusion."""
@@ -714,6 +753,25 @@ class DataSetGenerator:
         examples_text = "Here are output examples:\n\n"
         examples_text += "\n".join(f"Example {i + 1}: \n\n{ex}\n" for i, ex in enumerate(examples))
         return f"\nHere are output examples:\n<examples>\n{examples_text}\n</examples>\n"
+
+    def build_tools_text(self) -> str:
+        """Build formatted tools text for XLAM multi-turn prompts."""
+        if not self.tool_registry:
+            return "No tools available"
+
+        tools_text = []
+        for tool in self.tool_registry.tools:
+            params_text = []
+            for param in tool.parameters:
+                req = " (required)" if param.required else " (optional)"
+                params_text.append(f"  - {param.name} ({param.type}){req}: {param.description}")
+
+            tool_text = f"• {tool.name}: {tool.description}\n  Parameters:\n" + "\n".join(
+                params_text
+            )
+            tools_text.append(tool_text)
+
+        return "\n\n".join(tools_text)
 
     def build_subtopics_text(self, subtopic_list: list[str] | None):
         if subtopic_list is None:
@@ -747,6 +805,11 @@ class DataSetGenerator:
             if self.tool_registry is not None:
                 return AgentPromptBuilder.build_multi_turn_context_prompt(self.tool_registry)
             return AGENT_COT_MULTI_TURN_PROMPT
+
+        if self.config.conversation_type == "xlam_multi_turn":
+            # For XLAM multi-turn, we use a custom prompt with tools and domain context
+
+            return XLAM_MULTI_TURN_PROMPT
 
         # Default CoT prompts for non-mathematical reasoning
         cot_prompts = {

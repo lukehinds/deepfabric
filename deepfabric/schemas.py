@@ -1,3 +1,4 @@
+import json
 import re
 
 from decimal import ROUND_HALF_UP, Decimal
@@ -166,6 +167,93 @@ class AgentCoTMultiTurn(BaseModel):
     )
 
 
+# XLAM 2.0 (APIGen-MT) Multi-Turn Agent Schemas
+class XlamConversationTurn(BaseModel):
+    """A single turn in an XLAM 2.0 multi-turn conversation."""
+
+    from_: Literal["human", "gpt", "function_call", "observation"] = Field(
+        alias="from", description="The speaker/actor for this turn"
+    )
+    value: str = Field(description="The content of this turn")
+
+    class Config:
+        populate_by_name = True
+        extra = "forbid"
+
+
+class XlamFunctionCall(BaseModel):
+    """Structured function call for XLAM format."""
+
+    name: str = Field(description="Function name to call")
+    arguments: dict[str, Any] = Field(description="Function arguments as key-value pairs")
+
+    class Config:
+        extra = "forbid"
+
+
+class XlamMultiTurnAgent(BaseModel):
+    """
+    XLAM 2.0 multi-turn agent conversation with function calling.
+
+    This schema generates the core conversation structure that will be
+    formatted into XLAM 2.0 (APIGen-MT) format by the XlamV2Formatter.
+
+    Expected flow patterns:
+    1. human → gpt → function_call → observation → gpt (tool use)
+    2. human → gpt → human → gpt (clarification)
+    3. human → function_call → observation → gpt (direct execution)
+    """
+
+    # Core conversation turns
+    turns: list[XlamConversationTurn] = Field(
+        min_length=3,
+        max_length=15,
+        description="Conversation turns in sequence (human, gpt, function_call, observation)",
+    )
+
+    # Metadata for context (not in final XLAM output, but useful for generation)
+    scenario_description: str = Field(
+        description="Brief description of the scenario/domain context"
+    )
+    # Domain-specific system prompt (becomes 'system' field in XLAM output)
+    domain_policy: str = Field(
+        description="Detailed domain-specific policy, rules, and guidelines for this scenario (e.g., airline booking policy, e-commerce return policy). This should be unique and detailed for each scenario.",
+    )
+    # Note: Made required for OpenAI structured output compatibility (OpenAI requires all fields in 'required' array)
+    planning_notes: str = Field(
+        description="Internal reasoning about conversation flow and tool usage strategy (can be empty string if not needed)",
+    )
+
+    class Config:
+        extra = "forbid"
+
+    def get_function_calls(self) -> list[dict[str, Any]]:
+        """Extract all function calls from the conversation."""
+
+        calls = []
+        for turn in self.turns:
+            if turn.from_ == "function_call":
+                try:
+                    call_data = json.loads(turn.value)
+                    calls.append(call_data)
+                except json.JSONDecodeError:
+                    continue
+        return calls
+
+    def validate_conversation_flow(self) -> bool:
+        """Validate that conversation follows logical turn patterns."""
+        # Must start with human
+        if not self.turns or self.turns[0].from_ != "human":
+            return False
+
+        # function_call must be followed by observation
+        for i, turn in enumerate(self.turns[:-1]):
+            if turn.from_ == "function_call" and self.turns[i + 1].from_ != "observation":
+                return False
+
+        return True
+
+
 # Tool calling schemas for conversations that include function calls
 class FunctionCall(BaseModel):
     """A function call with arguments."""
@@ -330,6 +418,7 @@ CONVERSATION_SCHEMAS = {
     "agent_cot_tools": SimpleAgentCoT,
     "agent_cot_hybrid": HybridAgentCoT,
     "agent_cot_multi_turn": AgentCoTMultiTurn,
+    "xlam_multi_turn": XlamMultiTurnAgent,  # XLAM 2.0 (APIGen-MT) format
 }
 
 
