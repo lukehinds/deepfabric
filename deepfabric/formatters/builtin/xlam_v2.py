@@ -62,18 +62,12 @@ class XlamV2Formatter(BaseFormatter):
     def __init__(self, config: dict[str, Any] | None = None):
         super().__init__(config)
 
-        # Get configuration
-        if self._config_model:
-            xlam_config: XlamV2Config = XlamV2Config.model_validate(self._config_model)
-            self.validate_strict = xlam_config.validate_strict
-            self.include_system_prompt = xlam_config.include_system_prompt
-            self.min_turns = xlam_config.min_turns
-            self.max_turns = xlam_config.max_turns
-        else:
-            self.validate_strict = self.config.get("validate_strict", True)
-            self.include_system_prompt = self.config.get("include_system_prompt", True)
-            self.min_turns = self.config.get("min_turns", 3)
-            self.max_turns = self.config.get("max_turns", 15)
+        # _config_model is guaranteed to be XlamV2Config due to get_config_model()
+        xlam_config: XlamV2Config = self._config_model  # type: ignore[assignment]
+        self.validate_strict = xlam_config.validate_strict
+        self.include_system_prompt = xlam_config.include_system_prompt
+        self.min_turns = xlam_config.min_turns
+        self.max_turns = xlam_config.max_turns
 
     def get_config_model(self) -> type[BaseModel]:
         """Return the configuration model for this formatter."""
@@ -88,6 +82,21 @@ class XlamV2Formatter(BaseFormatter):
             "min_turns": 3,
             "max_turns": 15,
         }
+
+    def _get_from_field(self, turn: dict | Any) -> str | None:
+        """
+        Extract 'from' field from a turn, handling both dict and Pydantic model.
+
+        Args:
+            turn: Conversation turn (dict or XlamConversationTurn)
+
+        Returns:
+            The 'from' field value or None if not found
+        """
+        if isinstance(turn, dict):
+            return turn.get("from") or turn.get("from_")
+        # Handle Pydantic model
+        return getattr(turn, "from_", None) or getattr(turn, "from", None)
 
     def validate(self, entry: dict) -> bool:  # noqa: PLR0911
         """
@@ -126,28 +135,29 @@ class XlamV2Formatter(BaseFormatter):
 
         # Validate conversation flow if strict mode
         if self.validate_strict:
-            # Helper to get 'from' field (handles both 'from' and 'from_')
-            def get_from(turn):
-                return turn.get("from") or turn.get("from_")
-
             # Must start with human
-            if not turns or get_from(turns[0]) != "human":
+            if not turns or self._get_from_field(turns[0]) != "human":
                 return False
 
             # function_call must be followed by observation
             for i, turn in enumerate(turns[:-1]):
                 if (
-                    get_from(turn) == "function_call"
+                    self._get_from_field(turn) == "function_call"
                     and i + 1 < len(turns)
-                    and get_from(turns[i + 1]) != "observation"
+                    and self._get_from_field(turns[i + 1]) != "observation"
                 ):
                     return False
 
             # Validate function_call turns have valid JSON
             for turn in turns:
-                if get_from(turn) == "function_call":
+                if self._get_from_field(turn) == "function_call":
+                    value = (
+                        turn.get("value", "{}")
+                        if isinstance(turn, dict)
+                        else getattr(turn, "value", "{}")
+                    )
                     try:
-                        call_data = json.loads(turn.get("value", "{}"))
+                        call_data = json.loads(value)
                         if "name" not in call_data or "arguments" not in call_data:
                             return False
                     except json.JSONDecodeError:
@@ -204,14 +214,8 @@ class XlamV2Formatter(BaseFormatter):
         conversations = []
 
         for turn in sample.get("turns", []):
-            # Handle both dict format and XlamConversationTurn objects
-            if isinstance(turn, dict):
-                from_field = turn.get("from") or turn.get("from_")
-                value = turn.get("value", "")
-            else:
-                # Handle Pydantic model
-                from_field = getattr(turn, "from_", None) or getattr(turn, "from", None)
-                value = getattr(turn, "value", "")
+            from_field = self._get_from_field(turn)
+            value = turn.get("value", "") if isinstance(turn, dict) else getattr(turn, "value", "")
 
             if from_field and value is not None:
                 conversations.append({"from": from_field, "value": str(value)})

@@ -1,7 +1,7 @@
 import asyncio
+import logging
 import math
 import random
-import traceback
 
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Literal
@@ -45,6 +45,8 @@ from .utils import ensure_not_running_loop
 # Handle circular import for type hints
 if TYPE_CHECKING:
     from .topic_model import TopicModel
+
+logger = logging.getLogger(__name__)
 
 
 class DataSetGeneratorConfig(BaseModel):
@@ -342,11 +344,8 @@ class DataSetGenerator:
                         sample["scenario_description"] = "AI assistant conversation"
 
             except Exception as e:  # noqa: BLE001
-                # Debug: print error for xlam_multi_turn
                 if self.config.conversation_type == "xlam_multi_turn":
-                    print(f"❌ XLAM generation error: {e}")
-
-                    traceback.print_exc()
+                    logger.error("XLAM generation error: %s", e, exc_info=True)
                 return False, e
             else:
                 return True, sample
@@ -680,9 +679,7 @@ class DataSetGenerator:
                     self.failure_analysis["api_errors"].append(error_msg)
 
                 self.failed_samples.append(error_msg)
-
-                print(f"Error: {error_msg}")
-
+                logger.exception("API error: %s", error_msg)
                 return False, 0  # Don't retry authentication/API errors
             except Exception as e:
                 if attempt == self.config.max_retries - 1:

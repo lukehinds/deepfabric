@@ -1,10 +1,13 @@
 import json
+import logging
 import re
 
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+logger = logging.getLogger(__name__)
 
 
 # Basic message schema
@@ -236,7 +239,12 @@ class XlamMultiTurnAgent(BaseModel):
                 try:
                     call_data = json.loads(turn.value)
                     calls.append(call_data)
-                except json.JSONDecodeError:
+                except json.JSONDecodeError as e:
+                    logger.warning(
+                        "Failed to decode JSON for function call. Value: %s, Error: %s",
+                        turn.value[:100],  # Log first 100 chars to avoid huge logs
+                        str(e),
+                    )
                     continue
         return calls
 

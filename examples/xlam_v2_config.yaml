@@ -27,7 +27,7 @@ topic_tree:
   save_as: "tools_v2_topics.jsonl"
 
 data_engine:
-  conversation_type: "tools_multi_turn"
+  conversation_type: "xlam_multi_turn"
 
   generation_system_prompt: |
     Generate multi-turn conversations where an AI agent uses available tools
@@ -356,13 +356,14 @@ dataset:
     batch_size: 1
     sys_msg: false  # System message handled in domain_context
 
-  save_as: "tools_v2_raw_dataset.jsonl"
+  save_as: "xlam_v2_raw_dataset.jsonl"
 
-formatter:
-  name: "tools_v2"
-  config:
-    validate_strict: true
-    include_system_prompt: true
-    min_turns: 3
-    max_turns: 12
-  save_as: "tools_v2_dataset.jsonl"
+  formatters:
+    - name: "xlam_v2"
+      template: "builtin://xlam_v2"
+      config:
+        validate_strict: true
+        include_system_prompt: true
+        min_turns: 3
+        max_turns: 12
+      output: "xlam_v2_formatted.jsonl"
