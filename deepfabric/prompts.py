@@ -212,6 +212,46 @@ Create realistic tool chaining patterns and decision-making processes.
 {{{{examples}}}}
 {{{{subtopics}}}}"""
 
+XLAM_MULTI_TURN_PROMPT = """Generate a realistic multi-turn conversation between a user (human) and an AI agent (gpt) that uses function calling.
+
+SCENARIO: {{{{subtopics}}}}
+
+AVAILABLE TOOLS (use these appropriately for the scenario):
+{{{{tools}}}}
+
+CRITICAL REQUIREMENTS:
+1. **Generate a UNIQUE, DETAILED domain_policy for this specific scenario**
+   - Examples:
+     * Airline/Travel: "Airline Reservation Policy: Bookings can be modified up to 24 hours before departure. Cancellations within 24 hours incur 50% fee. Full refunds available if cancelled 7+ days in advance. All modifications require booking ID and verification."
+     * E-commerce: "Return Policy: Items can be returned within 30 days of delivery. Refunds processed within 5-7 business days. Free return shipping for defective items. Restocking fee of 15% applies to non-defective returns."
+     * Finance: "Transaction Policy: Daily transfer limit $10,000. International transfers require 2-factor authentication. Transfers processed within 1-3 business days. Fees: domestic $0, international 3%."
+   - Make it comprehensive with specific rules, time limits, fees, and procedures
+   - This becomes the 'system' field in the output
+
+2. Create a natural 3-12 turn conversation showing realistic user-agent interaction
+3. User may provide information incrementally across multiple turns
+4. Agent must use function_call turns to invoke tools when needed (format: {{"name": "tool_name", "arguments": {{"param": "value"}}}} )
+5. After each function_call, include an observation turn with realistic tool output
+6. Agent must interpret observation results and respond helpfully to the user
+7. Keep conversation focused on the scenario topic
+8. Use tools from the available set that logically solve the user's needs
+9. Show natural clarification exchanges when needed
+
+TURN TYPES AND FLOW PATTERNS:
+- human: User requests, clarifications, additional information
+- gpt: Agent responses, questions for clarification, final answers
+- function_call: Tool invocations (must be valid JSON with "name" and "arguments")
+- observation: Tool execution results (can be empty string, JSON, or descriptive text)
+
+COMMON PATTERNS:
+1. human → gpt (ask clarifying question) → human (provide info) → function_call → observation → gpt (answer)
+2. human → function_call → observation → gpt (direct tool use with immediate response)
+3. human → gpt → function_call → observation → function_call → observation → gpt (multi-tool sequence)
+
+INSTRUCTIONS:
+{{{{instructions}}}}
+
+Focus on creating realistic, natural conversations with a unique domain policy for this specific scenario."""
 
 CONVERSATION_GENERATION_PROMPT = """Generate a training conversation for a language model with this system prompt:
 

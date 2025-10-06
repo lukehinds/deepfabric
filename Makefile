@@ -15,7 +15,7 @@ format: ## Format code with ruff (parallel)
 	uv run ruff format deepfabric/ tests/
 
 lint:
-	uv run ruff check .
+	uv run ruff check . --exclude notebooks/
 
 test:
 	uv run pytest

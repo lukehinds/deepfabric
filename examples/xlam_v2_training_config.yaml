@@ -1,0 +1,84 @@
+# XLAM 2.0 Training Configuration
+# Configuration for fine-tuning Qwen 2.5 on XLAM function calling dataset
+
+model:
+  name: "unsloth/Qwen2.5-7B-Instruct"
+  max_seq_length: 2048
+  load_in_4bit: true
+
+lora:
+  # LoRA configuration from APIGen-MT paper
+  r: 16
+  alpha: 16
+  dropout: 0.0
+  target_modules:
+    - "q_proj"
+    - "k_proj"
+    - "v_proj"
+    - "o_proj"
+    - "gate_proj"
+    - "up_proj"
+    - "down_proj"
+  bias: "none"
+
+training:
+  # Training hyperparameters
+  batch_size: 2
+  gradient_accumulation_steps: 4
+  effective_batch_size: 8  # batch_size * gradient_accumulation_steps
+
+  learning_rate: 2.0e-4
+  num_epochs: 3
+  warmup_steps: 10
+  weight_decay: 0.01
+  lr_scheduler_type: "linear"
+
+  # Optimizer
+  optim: "adamw_8bit"
+
+  # Precision
+  fp16: auto  # Use fp16 if bf16 not supported
+  bf16: auto  # Use bf16 if supported
+
+  # Logging and checkpointing
+  logging_steps: 10
+  save_steps: 100
+  save_total_limit: 3
+
+  # Other
+  seed: 42
+  packing: false  # Keep false for function calling
+
+dataset:
+  # HuggingFace repo (set if uploading)
+  hf_repo: null  # e.g., "username/xlam-dataset"
+
+  # Local path to XLAM 2.0 formatted dataset
+  local_xlam_path: "xlam_v2_formatted.jsonl"
+
+output:
+  checkpoint_dir: "./xlam_checkpoints"
+  final_model_name: "xlam-qwen2.5-7b-lora"
+
+  # Export options
+  save_merged: true
+  merged_precision: "merged_16bit"  # or "merged_4bit"
+  save_gguf: false
+  gguf_quantization: "q4_k_m"
+
+evaluation:
+  # Evaluation configuration
+  enabled: true
+  num_test_cases: 10
+
+  # Metrics to track
+  metrics:
+    - "tool_selection_accuracy"
+    - "parameter_extraction_accuracy"
+    - "multi_turn_coherence"
+
+huggingface:
+  # HuggingFace Hub settings (optional)
+  push_to_hub: false
+  repo_name: null  # e.g., "username/xlam-qwen2.5-7b-lora"
+  token: null  # Set via environment variable HF_TOKEN

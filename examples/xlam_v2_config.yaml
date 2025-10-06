@@ -1,0 +1,369 @@
+# XLAM 2.0 (APIGen-MT) Multi-Turn Configuration
+# Generates multi-turn function-calling conversations in XLAM 2.0 format
+
+dataset_system_prompt: |
+  You are an AI assistant that helps users by calling appropriate functions
+  and interpreting their results in natural multi-turn conversations.
+
+topic_tree:
+  topic_prompt: |
+    Generate diverse realistic scenarios requiring multi-turn AI assistance across these domains:
+    - Customer service (reservations, cancellations, updates)
+    - E-commerce (shopping, orders, returns, tracking)
+    - Travel planning (flights, hotels, directions, weather)
+    - Personal productivity (calendar, reminders, tasks, emails)
+    - Information retrieval (web search, news, definitions, translations)
+    - Data analysis (statistics, calculations, database queries)
+    - Financial services (stock prices, currency exchange, budgeting)
+
+    Focus on scenarios where users naturally provide information incrementally
+    and agents need to call multiple functions across conversation turns.
+
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.8
+  depth: 3
+  degree: 4
+  save_as: "tools_v2_topics.jsonl"
+
+data_engine:
+  conversation_type: "xlam_multi_turn"
+
+  generation_system_prompt: |
+    Generate multi-turn conversations where an AI agent uses available tools
+    to help users accomplish their goals. Match the topic scenario and use
+    appropriate tools from the available set.
+
+    Create realistic conversations with:
+    - Natural user requests that may span multiple turns
+    - Clarifying questions from the agent when needed
+    - Proper function calling with correct arguments
+    - Realistic tool outputs
+    - Helpful final responses that interpret results
+
+  # Domain/scenario context (becomes 'system' field in XLAM 2.0)
+  domain_context: |
+    You are a helpful AI assistant with access to various tools and APIs.
+    Provide accurate, helpful responses and call functions appropriately
+    to assist users with their requests.
+
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.7
+
+  # Tool rotation for diversity
+  tools_per_sample: 6
+  tool_rotation_strategy: "category"
+  max_tools_per_query: 3
+
+  # Tool registry with 20 diverse tools across categories
+  tool_registry:
+    # ============================================================
+    # CUSTOMER SERVICE
+    # ============================================================
+    - name: "get_reservation_details"
+      description: "Retrieve details of an existing reservation"
+      parameters:
+        - name: "reservation_id"
+          type: "str"
+          description: "The reservation ID to look up"
+          required: true
+      returns: "Reservation details including dates, passengers, and status"
+      category: "customer_service"
+
+    - name: "cancel_reservation"
+      description: "Cancel an existing reservation"
+      parameters:
+        - name: "reservation_id"
+          type: "str"
+          description: "The reservation ID to cancel"
+          required: true
+        - name: "reason"
+          type: "str"
+          description: "Reason for cancellation"
+          required: false
+      returns: "Cancellation confirmation and refund details"
+      category: "customer_service"
+
+    - name: "update_reservation"
+      description: "Modify an existing reservation"
+      parameters:
+        - name: "reservation_id"
+          type: "str"
+          description: "The reservation ID to update"
+          required: true
+        - name: "updates"
+          type: "dict"
+          description: "Fields to update (dates, passengers, etc.)"
+          required: true
+      returns: "Updated reservation details"
+      category: "customer_service"
+
+    # ============================================================
+    # E-COMMERCE
+    # ============================================================
+    - name: "search_products"
+      description: "Search for products in the catalog"
+      parameters:
+        - name: "query"
+          type: "str"
+          description: "Search query (product name, category, etc.)"
+          required: true
+        - name: "max_results"
+          type: "int"
+          description: "Maximum number of results to return"
+          required: false
+          default: 10
+      returns: "List of matching products with prices and availability"
+      category: "ecommerce"
+
+    - name: "get_order_status"
+      description: "Check the status of an order"
+      parameters:
+        - name: "order_id"
+          type: "str"
+          description: "The order ID to check"
+          required: true
+      returns: "Order status, tracking info, and estimated delivery"
+      category: "ecommerce"
+
+    - name: "track_shipment"
+      description: "Get real-time tracking information for a shipment"
+      parameters:
+        - name: "tracking_number"
+          type: "str"
+          description: "Shipment tracking number"
+          required: true
+      returns: "Current location and delivery status"
+      category: "ecommerce"
+
+    # ============================================================
+    # TRAVEL
+    # ============================================================
+    - name: "get_weather"
+      description: "Get current weather conditions for a location"
+      parameters:
+        - name: "location"
+          type: "str"
+          description: "City name or location"
+          required: true
+        - name: "units"
+          type: "str"
+          description: "Temperature units (celsius/fahrenheit)"
+          required: false
+          default: "celsius"
+      returns: "Current weather conditions and temperature"
+      category: "travel"
+
+    - name: "search_flights"
+      description: "Search for available flights"
+      parameters:
+        - name: "origin"
+          type: "str"
+          description: "Departure airport code"
+          required: true
+        - name: "destination"
+          type: "str"
+          description: "Arrival airport code"
+          required: true
+        - name: "date"
+          type: "str"
+          description: "Departure date (YYYY-MM-DD)"
+          required: true
+      returns: "Available flights with times and prices"
+      category: "travel"
+
+    - name: "get_directions"
+      description: "Get directions between two locations"
+      parameters:
+        - name: "origin"
+          type: "str"
+          description: "Starting location"
+          required: true
+        - name: "destination"
+          type: "str"
+          description: "Destination location"
+          required: true
+        - name: "mode"
+          type: "str"
+          description: "Travel mode (driving/walking/transit)"
+          required: false
+          default: "driving"
+      returns: "Turn-by-turn directions and estimated travel time"
+      category: "travel"
+
+    # ============================================================
+    # PRODUCTIVITY
+    # ============================================================
+    - name: "create_calendar_event"
+      description: "Create a new calendar event"
+      parameters:
+        - name: "title"
+          type: "str"
+          description: "Event title"
+          required: true
+        - name: "start_time"
+          type: "str"
+          description: "Start time (ISO format)"
+          required: true
+        - name: "duration_minutes"
+          type: "int"
+          description: "Event duration in minutes"
+          required: true
+      returns: "Created event details with confirmation"
+      category: "productivity"
+
+    - name: "send_email"
+      description: "Send an email message"
+      parameters:
+        - name: "to"
+          type: "str"
+          description: "Recipient email address"
+          required: true
+        - name: "subject"
+          type: "str"
+          description: "Email subject"
+          required: true
+        - name: "body"
+          type: "str"
+          description: "Email body content"
+          required: true
+      returns: "Email sent confirmation"
+      category: "productivity"
+
+    - name: "set_reminder"
+      description: "Set a reminder for a future time"
+      parameters:
+        - name: "message"
+          type: "str"
+          description: "Reminder message"
+          required: true
+        - name: "time"
+          type: "str"
+          description: "When to send reminder (ISO format)"
+          required: true
+      returns: "Reminder confirmation"
+      category: "productivity"
+
+    # ============================================================
+    # INFORMATION
+    # ============================================================
+    - name: "search_web"
+      description: "Search the web for information"
+      parameters:
+        - name: "query"
+          type: "str"
+          description: "Search query"
+          required: true
+        - name: "num_results"
+          type: "int"
+          description: "Number of results to return"
+          required: false
+          default: 5
+      returns: "List of search results with titles and snippets"
+      category: "information"
+
+    - name: "get_news"
+      description: "Get latest news articles"
+      parameters:
+        - name: "topic"
+          type: "str"
+          description: "News topic or category"
+          required: false
+        - name: "country"
+          type: "str"
+          description: "Country code for regional news"
+          required: false
+      returns: "Recent news articles with headlines and summaries"
+      category: "information"
+
+    - name: "translate_text"
+      description: "Translate text between languages"
+      parameters:
+        - name: "text"
+          type: "str"
+          description: "Text to translate"
+          required: true
+        - name: "target_language"
+          type: "str"
+          description: "Target language code"
+          required: true
+        - name: "source_language"
+          type: "str"
+          description: "Source language (auto-detect if not provided)"
+          required: false
+      returns: "Translated text"
+      category: "information"
+
+    # ============================================================
+    # DATA & FINANCE
+    # ============================================================
+    - name: "calculate"
+      description: "Perform mathematical calculations"
+      parameters:
+        - name: "expression"
+          type: "str"
+          description: "Mathematical expression to evaluate"
+          required: true
+      returns: "Calculation result"
+      category: "data"
+
+    - name: "get_stock_price"
+      description: "Get current stock price and market data"
+      parameters:
+        - name: "symbol"
+          type: "str"
+          description: "Stock ticker symbol"
+          required: true
+      returns: "Current price, change, and market data"
+      category: "finance"
+
+    - name: "convert_currency"
+      description: "Convert amount between currencies"
+      parameters:
+        - name: "amount"
+          type: "float"
+          description: "Amount to convert"
+          required: true
+        - name: "from_currency"
+          type: "str"
+          description: "Source currency code"
+          required: true
+        - name: "to_currency"
+          type: "str"
+          description: "Target currency code"
+          required: true
+      returns: "Converted amount"
+      category: "finance"
+
+    - name: "query_database"
+      description: "Execute a database query"
+      parameters:
+        - name: "query"
+          type: "str"
+          description: "SQL query to execute"
+          required: true
+        - name: "database"
+          type: "str"
+          description: "Database name"
+          required: true
+      returns: "Query results as structured data"
+      category: "data"
+
+dataset:
+  creation:
+    num_steps: 10  # Generate 10 samples for testing
+    batch_size: 1
+    sys_msg: false  # System message handled in domain_context
+
+  save_as: "xlam_v2_raw_dataset.jsonl"
+
+  formatters:
+    - name: "xlam_v2"
+      template: "builtin://xlam_v2"
+      config:
+        validate_strict: true
+        include_system_prompt: true
+        min_turns: 3
+        max_turns: 12
+      output: "xlam_v2_formatted.jsonl"
