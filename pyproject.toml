@@ -1,6 +1,6 @@
 [project]
 name = "deepfabric"
-version = "2.7.0"
+version = "2.8.0"
 description = "Large Scale Topic based Synthetic Data Generation"
 authors = [{name = "Luke Hinds", email = "luke@rdrocket.com"}]
 readme = "README.md"
