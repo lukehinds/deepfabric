@@ -10,6 +10,7 @@ import openai
 import outlines
 
 from google import genai
+from pydantic import BaseModel
 
 from ..exceptions import DataSetGeneratorError
 from .errors import handle_provider_error
@@ -31,6 +32,71 @@ def _raise_generation_error(max_retries: int, error: Exception) -> None:
     """Raise an error for generation failure."""
     msg = f"Failed to generate output after {max_retries} attempts: {error!s}"
     raise DataSetGeneratorError(msg) from error
+
+
+def _strip_additional_properties(schema_dict: dict) -> dict:
+    """
+    Recursively remove additionalProperties from JSON schema.
+
+    Gemini doesn't support additionalProperties field in JSON schemas.
+    This function strips it out from the schema and all nested definitions.
+
+    Args:
+        schema_dict: JSON schema dictionary
+
+    Returns:
+        Modified schema dict without additionalProperties
+    """
+    if not isinstance(schema_dict, dict):
+        return schema_dict
+
+    # Remove additionalProperties from current level
+    schema_dict.pop("additionalProperties", None)
+
+    # Recursively process nested structures
+    if "$defs" in schema_dict:
+        for def_name, def_schema in schema_dict["$defs"].items():
+            schema_dict["$defs"][def_name] = _strip_additional_properties(def_schema)
+
+    # Process properties
+    if "properties" in schema_dict:
+        for prop_name, prop_schema in schema_dict["properties"].items():
+            schema_dict["properties"][prop_name] = _strip_additional_properties(prop_schema)
+
+    # Process items (for arrays)
+    if "items" in schema_dict:
+        schema_dict["items"] = _strip_additional_properties(schema_dict["items"])
+
+    return schema_dict
+
+
+def _create_gemini_compatible_schema(schema: type[BaseModel]) -> type[BaseModel]:
+    """
+    Create a Gemini-compatible version of a Pydantic schema.
+
+    Gemini doesn't support additionalProperties. This function creates a wrapper
+    that generates schemas without this field.
+
+    Args:
+        schema: Original Pydantic model
+
+    Returns:
+        Wrapper model that generates Gemini-compatible schemas
+    """
+    # Create a new model class that overrides model_json_schema
+    class GeminiCompatModel(schema):  # type: ignore[misc,valid-type]
+        @classmethod
+        def model_json_schema(cls, **kwargs):
+            # Get the original schema
+            original_schema = super().model_json_schema(**kwargs)
+            # Strip additionalProperties
+            return _strip_additional_properties(original_schema)
+
+    # Set name and docstring
+    GeminiCompatModel.__name__ = f"{schema.__name__}GeminiCompat"
+    GeminiCompatModel.__doc__ = schema.__doc__
+
+    return GeminiCompatModel
 
 
 def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
@@ -170,12 +236,18 @@ class LLMClient:
         # Convert provider-specific parameters
         kwargs = self._convert_generation_params(**kwargs)
 
+        # For Gemini, use compatible schema without additionalProperties
+        generation_schema = schema
+        if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
+            generation_schema = _create_gemini_compatible_schema(schema)
+
         for attempt in range(max_retries):
             try:
                 # Generate JSON string with Outlines using the schema as output type
-                json_output = self.model(prompt, schema, **kwargs)
+                json_output = self.model(prompt, generation_schema, **kwargs)
 
-                # Parse and validate the JSON response with Pydantic
+                # Parse and validate the JSON response with the ORIGINAL schema
+                # This ensures we still get proper validation
                 return schema.model_validate_json(json_output)
 
             except Exception as e:
@@ -198,9 +270,15 @@ class LLMClient:
         last_error: Exception | None = None
         kwargs = self._convert_generation_params(**kwargs)
 
+        # For Gemini, use compatible schema without additionalProperties
+        generation_schema = schema
+        if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
+            generation_schema = _create_gemini_compatible_schema(schema)
+
         for attempt in range(max_retries):
             try:
-                json_output = await self.async_model(prompt, schema, **kwargs)
+                json_output = await self.async_model(prompt, generation_schema, **kwargs)
+                # Validate with original schema to ensure proper validation
                 return schema.model_validate_json(json_output)
             except Exception as e:
                 last_error = e
