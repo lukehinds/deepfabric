@@ -643,8 +643,7 @@ def test_topic_only_with_load_graph_fails(cli_runner, sample_config_file):
 
         # Should fail validation
         assert result.exit_code != 0
-        assert "topic-only cannot be used" in result.output
-        assert "load-graph" in result.output
+        assert "--topic-only cannot be used with --load-tree or --load-graph" in result.output
 
     finally:
         if os.path.exists(temp_json_path):
