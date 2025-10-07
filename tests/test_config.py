@@ -127,6 +127,7 @@ def test_load_from_yaml(sample_yaml_file, sample_config_dict):
     expected_data_engine["available_tools"] = []  # Default value
     expected_data_engine["custom_tools"] = []  # Default value
     expected_data_engine["max_tools_per_query"] = 3  # Default value
+    expected_data_engine["max_tokens"] = 2000
 
     actual_data_engine = config.data_engine.model_dump(exclude_none=True)
     assert actual_data_engine == expected_data_engine
