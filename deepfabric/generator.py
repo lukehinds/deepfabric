@@ -303,8 +303,10 @@ class DataSetGenerator:
 
         async def _generate(prompt: str) -> tuple[bool, dict | Exception]:
             try:
-                # Use higher token limit for multi-turn conversations
-                max_tokens = 4000 if self.config.conversation_type == "xlam_multi_turn" else self.config.max_tokens
+                # Use higher of max_tokens, 4000 tokens for multi-turn conversations
+                max_tokens = self.config.max_tokens
+                if self.config.conversation_type == "xlam_multi_turn":
+                    max_tokens = max(max_tokens, 4000)
 
                 conversation = await self.llm_client.generate_async(
                     prompt=prompt,
