@@ -105,8 +105,6 @@ def create_dataset(
     num_steps: int | None = None,
     batch_size: int | None = None,
     sys_msg: bool | None = None,
-    provider: str | None = None,  # noqa: ARG001
-    model: str | None = None,
     engine_overrides: dict | None = None,
     debug: bool = False,
 ) -> Dataset:
@@ -114,14 +112,12 @@ def create_dataset(
     Create dataset using the data engine and topic model.
 
     Args:
-        engine: DataSetGenerator instance
+        engine: DataSetGenerator instance (already configured with correct model)
         topic_model: TopicModel (Tree or Graph) to use for generation
         config: DeepFabricConfig object
         num_steps: Override for number of steps
         batch_size: Override for batch size
         sys_msg: Override for including system message
-        provider: Override for LLM provider
-        model: Override for model name
         engine_overrides: Additional engine parameter overrides
 
     Returns:
@@ -139,8 +135,6 @@ def create_dataset(
             num_steps=num_steps,
             batch_size=batch_size,
             sys_msg=sys_msg,
-            provider=provider,
-            model=model,
             engine_overrides=engine_overrides,
             debug=debug,
         )
@@ -154,8 +148,6 @@ async def create_dataset_async(
     num_steps: int | None = None,
     batch_size: int | None = None,
     sys_msg: bool | None = None,
-    provider: str | None = None,  # noqa: ARG001
-    model: str | None = None,
     engine_overrides: dict | None = None,
     debug: bool = False,
 ) -> Dataset:
@@ -165,15 +157,11 @@ async def create_dataset_async(
     final_num_steps = num_steps or dataset_params["num_steps"]
     final_batch_size = batch_size or dataset_params["batch_size"]
 
-    engine_params = config.get_engine_params(**(engine_overrides or {}))
-    final_model = model or engine_params.get("model_name", DEFAULT_MODEL)
-
     try:
         generator = engine.create_data_with_events_async(
             num_steps=final_num_steps,
             batch_size=final_batch_size,
             topic_model=topic_model,
-            model_name=final_model,
             sys_msg=sys_msg,
             num_example_demonstrations=dataset_params.get("num_example_demonstrations") or 3,
         )

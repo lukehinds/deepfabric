@@ -174,7 +174,6 @@ class LLMClient:
             try:
                 # Generate JSON string with Outlines using the schema as output type
                 json_output = self.model(prompt, schema, **kwargs)
-
                 # Parse and validate the JSON response with Pydantic
                 return schema.model_validate_json(json_output)
 
@@ -201,7 +200,7 @@ class LLMClient:
         for attempt in range(max_retries):
             try:
                 json_output = await self.async_model(prompt, schema, **kwargs)
-                return schema.model_validate_json(json_output)
+                return schema.model_validate_json(json_output, strict=False)
             except Exception as e:
                 last_error = e
                 if attempt == max_retries - 1:
@@ -221,4 +220,4 @@ class LLMClient:
         return kwargs
 
     def __repr__(self) -> str:
-        return f"LLMClient(provider={self.provider}, model={self.model_name})"
+        return f"LLMClient({self.provider}/{self.model_name})"

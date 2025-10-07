@@ -45,7 +45,7 @@ async def _process_graph_events(graph: Graph) -> dict | None:
         async for event in graph.build_async():
             if event["event"] == "depth_start":
                 if not tui_started:
-                    tui.start_building(graph.model_name, graph.depth, graph.degree)
+                    tui.start_building(f"{graph.provider}/{graph.model_name}", graph.depth, graph.degree)
                     tui_started = True
                 depth = int(event["depth"]) if isinstance(event["depth"], str | int) else 0
                 leaf_count = (

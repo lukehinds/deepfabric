@@ -322,11 +322,19 @@ def test_generate_command_with_overrides(
     mock_tree_instance.save.assert_called_once_with("override_tree.jsonl")
     mock_dataset.save.assert_called_once_with("override_dataset.jsonl")
 
+    # Verify engine creation received the correct overrides
+    args, kwargs = mock_data_engine.call_args
+    # The model should be in the llm_config, not passed separately
+    assert "llm_config" in kwargs
+    assert kwargs["llm_config"].model == "model"
+    assert kwargs["llm_config"].provider == "override"
+
+    # Verify dataset generation parameters (model_name no longer passed at generation time)
     args, kwargs = mock_engine_instance.create_data_with_events_async.call_args
     assert kwargs["num_steps"] == 10  # noqa: PLR2004
     assert kwargs["batch_size"] == 2  # noqa: PLR2004
-    assert kwargs["model_name"] == "model"  # Updated expectation based on current CLI behavior
     assert kwargs["sys_msg"] is False
+    assert "model_name" not in kwargs  # Model is configured at engine creation, not generation time
 
 
 @patch("deepfabric.topic_manager.read_topic_tree_from_jsonl")
@@ -508,3 +516,97 @@ def test_visualize_command(mock_from_json, cli_runner):
         # Cleanup
         if os.path.exists(temp_path):
             os.unlink(temp_path)
+
+
+@patch("deepfabric.generator.LLMClient")
+@patch("deepfabric.topic_manager.create_topic_generator")
+def test_create_dataset_integration_real_flow(mock_create_topic_generator, mock_llm_client):
+    """Integration test: create_dataset with real generator and dataset_manager flow.
+
+    This test is crucial because it exercises the real code path through dataset_manager.py,
+    which was previously bypassed by mocking create_data_with_events_async directly.
+    This catches issues like passing model_name at generation time instead of engine creation.
+    """
+    import yaml  # noqa: PLC0415
+    from deepfabric.config import DeepFabricConfig  # noqa: PLC0415
+    from deepfabric.dataset_manager import create_dataset  # noqa: PLC0415
+    from deepfabric.generator import DataSetGenerator  # noqa: PLC0415
+
+    # Create minimal config with llm_config
+    config_dict = {
+        "dataset_system_prompt": "Test system prompt",
+        "topic_tree": {
+            "topic_prompt": "Test topic",
+            "topic_system_prompt": "Test tree system prompt",
+            "llm_config": {
+                "provider": "openai",
+                "model": "gpt-4",
+                "temperature": 0.7,
+            },
+            "degree": 2,
+            "depth": 1,
+        },
+        "data_engine": {
+            "generation_system_prompt": "Test generation prompt",
+            "llm_config": {
+                "provider": "openai",
+                "model": "gpt-4",
+                "temperature": 0.8,
+            },
+        },
+        "dataset": {
+            "creation": {
+                "num_steps": 1,
+                "batch_size": 1,
+            },
+            "save_as": "test_dataset.jsonl",
+        },
+    }
+
+    # Save to temp YAML and load
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(config_dict, f)
+        config_path = f.name
+
+    try:
+        config = DeepFabricConfig.from_yaml(config_path)
+        engine_params = config.get_engine_params()
+
+        # Verify llm_config was properly created
+        assert "llm_config" in engine_params
+        assert engine_params["llm_config"].model == "gpt-4"
+        assert engine_params["llm_config"].provider == "openai"
+
+        engine = DataSetGenerator(**engine_params)
+
+        # Create mock topic model with proper get_all_paths() implementation
+        mock_tree = Mock()
+        mock_tree.tree_paths = [["root", "child"]]
+        mock_tree.get_all_paths.return_value = [["root", "child"]]
+
+        # Mock LLM client to avoid actual API calls
+        mock_llm_instance = Mock()
+        mock_llm_instance.generate_async.return_value = Mock(
+            question="Test question?",
+            answer="Test answer.",
+            reasoning="Test reasoning",
+        )
+        mock_llm_client.return_value = mock_llm_instance
+
+        # This should NOT raise "unexpected keyword argument 'model_name'"
+        # The key test: we're calling the real create_dataset which calls through
+        # to dataset_manager.py and then to engine.create_data_with_events_async
+        dataset = create_dataset(
+            engine=engine,
+            topic_model=mock_tree,
+            config=config,
+            num_steps=1,
+            batch_size=1,
+        )
+
+        # Verify dataset was created
+        assert dataset is not None
+        assert hasattr(dataset, "samples")
+
+    finally:
+        os.unlink(config_path)

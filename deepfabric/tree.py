@@ -5,14 +5,16 @@ import warnings
 
 from typing import Any, TypedDict
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .config import LLMProviderConfig
 from .constants import (
+    DEFAULT_MAX_RETRIES,
     DEFAULT_MAX_TOKENS,
+    DEFAULT_REQUEST_TIMEOUT,
     MAX_RETRY_ATTEMPTS,
     TOPIC_TREE_DEFAULT_DEGREE,
     TOPIC_TREE_DEFAULT_DEPTH,
-    TOPIC_TREE_DEFAULT_MODEL,
     TOPIC_TREE_DEFAULT_TEMPERATURE,
 )
 from .exceptions import TreeError
@@ -59,22 +61,39 @@ class TreeConfig(BaseModel):
         le=UPPER_DEPTH,
         description="The depth of the tree",
     )
-    provider: str = Field(
-        default="ollama",
-        min_length=1,
-        description="LLM provider (openai, anthropic, gemini, ollama)",
+    llm_config: LLMProviderConfig | None = Field(
+        None, description="LLM provider configuration"
     )
-    model_name: str = Field(
-        default=TOPIC_TREE_DEFAULT_MODEL,
-        min_length=1,
-        description="The name of the model to be used",
-    )
-    temperature: float = Field(
-        default=TOPIC_TREE_DEFAULT_TEMPERATURE,
-        ge=0.0,
-        le=2.0,
-        description="Temperature for model generation",
-    )
+
+    # Backward compatibility fields for individual LLM params
+    provider: str | None = Field(None, description="LLM provider (deprecated: use llm_config)")
+    model_name: str | None = Field(None, description="Model name (deprecated: use llm_config)")
+    temperature: float | None = Field(None, description="Temperature (deprecated: use llm_config)")
+    max_retries: int | None = Field(None, description="Max retries (deprecated: use llm_config)")
+    request_timeout: int | None = Field(None, description="Request timeout (deprecated: use llm_config)")
+
+    @model_validator(mode="after")
+    def ensure_llm_config(self) -> "TreeConfig":
+        """Ensure llm_config exists, creating from individual fields if needed (backward compatibility)."""
+        if self.llm_config is None:
+            from .constants import (  # noqa: PLC0415
+                DEFAULT_MAX_TOKENS,
+                DEFAULT_MODEL,
+                DEFAULT_PROVIDER,
+                DEFAULT_MAX_RETRIES,
+                DEFAULT_REQUEST_TIMEOUT,
+            )
+
+            self.llm_config = LLMProviderConfig(
+                provider=self.provider or DEFAULT_PROVIDER,
+                model=self.model_name or DEFAULT_MODEL,
+                temperature=self.temperature if self.temperature is not None else TOPIC_TREE_DEFAULT_TEMPERATURE,
+                max_tokens=DEFAULT_MAX_TOKENS,
+                max_retries=self.max_retries if self.max_retries is not None else DEFAULT_MAX_RETRIES,
+                request_timeout=self.request_timeout if self.request_timeout is not None else DEFAULT_REQUEST_TIMEOUT,
+            )
+        return self
+
 
 
 class TreeValidator:
@@ -132,19 +151,16 @@ class Tree(TopicModel):
         except Exception as e:
             raise TreeError(f"Invalid tree configuration: {str(e)}") from e  # noqa: TRY003
 
-        # Initialize from config
+        # Initialize from config - llm_config is guaranteed to exist now
         self.topic_prompt = self.config.topic_prompt
         self.model_system_prompt = self.config.topic_system_prompt
         self.degree = self.config.degree
         self.depth = self.config.depth
-        self.temperature = self.config.temperature
-        self.provider = self.config.provider
-        self.model_name = self.config.model_name
 
-        # Initialize LLM client
+        # Initialize LLM client using llm_config
         self.llm_client = LLMClient(
-            provider=self.provider,
-            model_name=self.model_name,
+            provider=self.config.llm_config.provider,
+            model_name=self.config.llm_config.model,
         )
 
         trace(
@@ -156,21 +172,30 @@ class Tree(TopicModel):
         self.tree_paths: list[list[str]] = []
         self.failed_generations: list[dict[str, Any]] = []
 
-    async def build_async(self, model_name: str | None = None):
-        """Build the complete topic tree.
+    @property
+    def provider(self) -> str:
+        """Backward compatibility property for provider access."""
+        return self.config.llm_config.provider
 
-        Args:
-            model_name: Optional model name to override the configured model
+    @property
+    def model_name(self) -> str:
+        """Backward compatibility property for model name access."""
+        return self.config.llm_config.model
+
+    @property
+    def temperature(self) -> float:
+        """Backward compatibility property for temperature access."""
+        return self.config.llm_config.temperature
+
+    async def build_async(self):
+        """Build the complete topic tree.
 
         Yields:
             dict: Progress events with event type and associated data
         """
-        if model_name:
-            self.model_name = model_name
-
         yield {
             "event": "build_start",
-            "model_name": self.model_name,
+            "model_name": f"{self.provider}/{self.model_name}",  # Combined format for display
             "depth": self.config.depth,
             "degree": self.config.degree,
         }

@@ -6,7 +6,9 @@ import tempfile
 import pytest
 import yaml
 
-from deepfabric.config import DeepFabricConfig
+from pydantic import ValidationError
+
+from deepfabric.config import DeepFabricConfig, LLMProviderConfig
 from deepfabric.exceptions import ConfigurationError
 
 
@@ -120,15 +122,16 @@ def test_load_from_yaml(sample_yaml_file, sample_config_dict):
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
 
     assert config.dataset_system_prompt == sample_config_dict["dataset_system_prompt"]
-    assert config.topic_tree.model_dump(exclude_none=True) == sample_config_dict["topic_tree"]
+    assert config.topic_tree.model_dump(exclude_none=True, exclude={"llm_config"}) == sample_config_dict["topic_tree"]
 
     # Add the new agent fields to the expected config for comparison
     expected_data_engine = sample_config_dict["data_engine"].copy()
     expected_data_engine["available_tools"] = []  # Default value
     expected_data_engine["custom_tools"] = []  # Default value
     expected_data_engine["max_tools_per_query"] = 3  # Default value
+    expected_data_engine["max_tokens"] = 2000  # Default value from LLMProviderConfig
 
-    actual_data_engine = config.data_engine.model_dump(exclude_none=True)
+    actual_data_engine = config.data_engine.model_dump(exclude_none=True, exclude={"llm_config"})
     assert actual_data_engine == expected_data_engine
     assert config.dataset.model_dump(exclude_none=True) == sample_config_dict["dataset"]
 
@@ -143,9 +146,12 @@ def test_get_topic_tree_args(sample_yaml_file):
     assert args["topic_system_prompt"] == "Test system prompt"
     assert args["degree"] == 3  # noqa: PLR2004
     assert args["depth"] == 2  # noqa: PLR2004
-    assert args["temperature"] == 0.7  # noqa: PLR2004
-    assert args["provider"] == "test"
-    assert args["model_name"] == "model"
+    # Check llm_config instead of individual fields
+    assert "llm_config" in args
+    assert isinstance(args["llm_config"], LLMProviderConfig)
+    assert args["llm_config"].temperature == 0.7  # noqa: PLR2004
+    assert args["llm_config"].provider == "test"
+    assert args["llm_config"].model == "model"
 
 
 def test_get_engine_args(sample_yaml_file):
@@ -156,10 +162,13 @@ def test_get_engine_args(sample_yaml_file):
     assert isinstance(args, dict)
     assert args["instructions"] == "Test instructions"
     assert args["generation_system_prompt"] == "Test system prompt"
-    assert args["model_name"] == "model"
-    assert args["provider"] == "test"
-    assert args["temperature"] == 0.9  # noqa: PLR2004
-    assert args["max_retries"] == 2  # noqa: PLR2004
+    # Check llm_config instead of individual fields
+    assert "llm_config" in args
+    assert isinstance(args["llm_config"], LLMProviderConfig)
+    assert args["llm_config"].model == "model"
+    assert args["llm_config"].provider == "test"
+    assert args["llm_config"].temperature == 0.9  # noqa: PLR2004
+    assert args["llm_config"].max_retries == 2  # noqa: PLR2004
     assert args["sys_msg"] is True  # Default from dataset config
 
 
@@ -181,8 +190,10 @@ def test_get_topic_tree_args_with_overrides(sample_yaml_file):
         temperature=0.5,
     )
 
-    assert args["model_name"] == "model"
-    assert args["temperature"] == 0.5  # noqa: PLR2004
+    # Check that overrides are applied to llm_config
+    assert isinstance(args["llm_config"], LLMProviderConfig)
+    assert args["llm_config"].model == "model"
+    assert args["llm_config"].temperature == 0.5  # noqa: PLR2004
 
 
 def test_get_engine_args_with_overrides(sample_yaml_file):
@@ -194,8 +205,10 @@ def test_get_engine_args_with_overrides(sample_yaml_file):
         temperature=0.5,
     )
 
-    assert args["model_name"] == "model"
-    assert args["temperature"] == 0.5  # noqa: PLR2004
+    # Check that overrides are applied to llm_config
+    assert isinstance(args["llm_config"], LLMProviderConfig)
+    assert args["llm_config"].model == "model"
+    assert args["llm_config"].temperature == 0.5  # noqa: PLR2004
 
 
 def test_get_dataset_config(sample_yaml_file, sample_config_dict):
@@ -230,6 +243,328 @@ def test_invalid_yaml_content():
     try:
         with pytest.raises(ConfigurationError):
             DeepFabricConfig.from_yaml(temp_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+# LLMProviderConfig Tests
+
+
+def test_llm_provider_config_defaults():
+    """Test LLMProviderConfig with default values."""
+    config = LLMProviderConfig()
+
+    assert config.provider == "ollama"
+    assert config.model == "mistral:latest"
+    assert config.temperature == 0.7  # noqa: PLR2004
+    assert config.max_tokens == 1000  # noqa: PLR2004
+    assert config.max_retries == 3  # noqa: PLR2004
+    assert config.request_timeout == 30  # noqa: PLR2004
+
+
+def test_llm_provider_config_custom_values():
+    """Test LLMProviderConfig with custom values."""
+    config = LLMProviderConfig(
+        provider="openai",
+        model="gpt-4",
+        temperature=0.5,
+        max_tokens=2000,
+        max_retries=5,
+        request_timeout=60,
+    )
+
+    assert config.provider == "openai"
+    assert config.model == "gpt-4"
+    assert config.temperature == 0.5  # noqa: PLR2004
+    assert config.max_tokens == 2000  # noqa: PLR2004
+    assert config.max_retries == 5  # noqa: PLR2004
+    assert config.request_timeout == 60  # noqa: PLR2004
+
+
+def test_llm_provider_config_validation():
+    """Test LLMProviderConfig validation."""
+    # Test invalid temperature (too high)
+    with pytest.raises(ValidationError):
+        LLMProviderConfig(temperature=3.0)
+
+    # Test invalid temperature (negative)
+    with pytest.raises(ValidationError):
+        LLMProviderConfig(temperature=-0.1)
+
+    # Test invalid max_retries (too high)
+    with pytest.raises(ValidationError):
+        LLMProviderConfig(max_retries=11)
+
+    # Test invalid max_tokens (too low)
+    with pytest.raises(ValidationError):
+        LLMProviderConfig(max_tokens=0)
+
+
+def test_topic_tree_config_with_llm_config():
+    """Test TopicTreeConfig with llm_config."""
+    config_dict = {
+        "dataset_system_prompt": "Test system prompt",
+        "topic_tree": {
+            "topic_prompt": "Test root prompt",
+            "topic_system_prompt": "Test system prompt",
+            "degree": 3,
+            "depth": 2,
+            "save_as": "test_tree.jsonl",
+            "llm_config": {
+                "provider": "openai",
+                "model": "gpt-4",
+                "temperature": 0.8,
+                "max_tokens": 1500,
+                "max_retries": 4,
+                "request_timeout": 45,
+            },
+        },
+        "data_engine": {
+            "generation_system_prompt": "Test system prompt",
+            "provider": "test",
+            "model": "model",
+        },
+        "dataset": {
+            "creation": {
+                "num_steps": 5,
+                "batch_size": 1,
+            },
+            "save_as": "test_dataset.jsonl",
+        },
+    }
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(config_dict, f)
+        temp_path = f.name
+
+    try:
+        config = DeepFabricConfig.from_yaml(temp_path)
+        assert config.topic_tree.llm_config is not None
+        assert config.topic_tree.llm_config.provider == "openai"
+        assert config.topic_tree.llm_config.model == "gpt-4"
+        assert config.topic_tree.llm_config.temperature == 0.8  # noqa: PLR2004
+        assert config.topic_tree.llm_config.max_tokens == 1500  # noqa: PLR2004
+        assert config.topic_tree.llm_config.max_retries == 4  # noqa: PLR2004
+        assert config.topic_tree.llm_config.request_timeout == 45  # noqa: PLR2004
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_llm_config_takes_precedence_over_individual_fields():
+    """Test that llm_config takes precedence over individual fields in parameter resolution."""
+    config_dict = {
+        "dataset_system_prompt": "Test system prompt",
+        "topic_tree": {
+            "topic_prompt": "Test root prompt",
+            "topic_system_prompt": "Test system prompt",
+            "degree": 3,
+            "depth": 2,
+            "save_as": "test_tree.jsonl",
+            "provider": "ollama",  # Individual field
+            "model": "mistral",  # Individual field
+            "temperature": 0.5,  # Individual field
+            "llm_config": {  # This should take precedence
+                "provider": "openai",
+                "model": "gpt-4",
+                "temperature": 0.9,
+                "max_tokens": 2000,
+                "max_retries": 5,
+                "request_timeout": 60,
+            },
+        },
+        "data_engine": {
+            "generation_system_prompt": "Test system prompt",
+            "provider": "test",
+            "model": "model",
+        },
+        "dataset": {
+            "creation": {
+                "num_steps": 5,
+                "batch_size": 1,
+            },
+            "save_as": "test_dataset.jsonl",
+        },
+    }
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(config_dict, f)
+        temp_path = f.name
+
+    try:
+        config = DeepFabricConfig.from_yaml(temp_path)
+        params = config.get_topic_tree_params()
+
+        # llm_config should take precedence
+        assert isinstance(params["llm_config"], LLMProviderConfig)
+        assert params["llm_config"].provider == "openai"
+        assert params["llm_config"].model == "gpt-4"
+        assert params["llm_config"].temperature == 0.9  # noqa: PLR2004
+        assert params["llm_config"].max_tokens == 2000  # noqa: PLR2004
+        assert params["llm_config"].max_retries == 5  # noqa: PLR2004
+        assert params["llm_config"].request_timeout == 60  # noqa: PLR2004
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_cli_overrides_take_precedence_over_llm_config():
+    """Test that CLI overrides take precedence over llm_config."""
+    config_dict = {
+        "dataset_system_prompt": "Test system prompt",
+        "topic_tree": {
+            "topic_prompt": "Test root prompt",
+            "topic_system_prompt": "Test system prompt",
+            "degree": 3,
+            "depth": 2,
+            "save_as": "test_tree.jsonl",
+            "llm_config": {
+                "provider": "openai",
+                "model": "gpt-4",
+                "temperature": 0.9,
+                "max_tokens": 2000,
+                "max_retries": 5,
+                "request_timeout": 60,
+            },
+        },
+        "data_engine": {
+            "generation_system_prompt": "Test system prompt",
+            "provider": "test",
+            "model": "model",
+        },
+        "dataset": {
+            "creation": {
+                "num_steps": 5,
+                "batch_size": 1,
+            },
+            "save_as": "test_dataset.jsonl",
+        },
+    }
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(config_dict, f)
+        temp_path = f.name
+
+    try:
+        config = DeepFabricConfig.from_yaml(temp_path)
+        params = config.get_topic_tree_params(
+            provider="anthropic",
+            model="claude-3",
+            temperature=0.3,
+            max_tokens=3000,
+        )
+
+        # CLI overrides should take precedence
+        assert isinstance(params["llm_config"], LLMProviderConfig)
+        assert params["llm_config"].provider == "anthropic"
+        assert params["llm_config"].model == "claude-3"
+        assert params["llm_config"].temperature == 0.3  # noqa: PLR2004
+        assert params["llm_config"].max_tokens == 3000  # noqa: PLR2004
+        # Non-overridden values from llm_config
+        assert params["llm_config"].max_retries == 5  # noqa: PLR2004
+        assert params["llm_config"].request_timeout == 60  # noqa: PLR2004
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_backward_compatibility_without_llm_config():
+    """Test that configs without llm_config still work (backward compatibility)."""
+    config_dict = {
+        "dataset_system_prompt": "Test system prompt",
+        "topic_tree": {
+            "topic_prompt": "Test root prompt",
+            "topic_system_prompt": "Test system prompt",
+            "degree": 3,
+            "depth": 2,
+            "save_as": "test_tree.jsonl",
+            "provider": "openai",
+            "model": "gpt-4",
+            "temperature": 0.8,
+        },
+        "data_engine": {
+            "generation_system_prompt": "Test system prompt",
+            "provider": "anthropic",
+            "model": "claude-3",
+            "temperature": 0.6,
+            "max_retries": 4,
+        },
+        "dataset": {
+            "creation": {
+                "num_steps": 5,
+                "batch_size": 1,
+            },
+            "save_as": "test_dataset.jsonl",
+        },
+    }
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(config_dict, f)
+        temp_path = f.name
+
+    try:
+        config = DeepFabricConfig.from_yaml(temp_path)
+
+        # Test topic_tree params - should still work with individual fields
+        tree_params = config.get_topic_tree_params()
+        assert isinstance(tree_params["llm_config"], LLMProviderConfig)
+        assert tree_params["llm_config"].provider == "openai"
+        assert tree_params["llm_config"].model == "gpt-4"
+        assert tree_params["llm_config"].temperature == 0.8  # noqa: PLR2004
+
+        # Test data_engine params - should still work with individual fields
+        engine_params = config.get_engine_params()
+        assert isinstance(engine_params["llm_config"], LLMProviderConfig)
+        assert engine_params["llm_config"].provider == "anthropic"
+        assert engine_params["llm_config"].model == "claude-3"
+        assert engine_params["llm_config"].temperature == 0.6  # noqa: PLR2004
+        assert engine_params["llm_config"].max_retries == 4  # noqa: PLR2004
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_data_engine_with_llm_config():
+    """Test DataEngineConfig with llm_config."""
+    config_dict = {
+        "dataset_system_prompt": "Test system prompt",
+        "data_engine": {
+            "generation_system_prompt": "Test system prompt",
+            "llm_config": {
+                "provider": "gemini",
+                "model": "gemini-pro",
+                "temperature": 0.7,
+                "max_tokens": 4000,
+                "max_retries": 6,
+                "request_timeout": 90,
+            },
+        },
+        "dataset": {
+            "creation": {
+                "num_steps": 5,
+                "batch_size": 1,
+            },
+            "save_as": "test_dataset.jsonl",
+        },
+    }
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(config_dict, f)
+        temp_path = f.name
+
+    try:
+        config = DeepFabricConfig.from_yaml(temp_path)
+        params = config.get_engine_params()
+
+        assert isinstance(params["llm_config"], LLMProviderConfig)
+        assert params["llm_config"].provider == "gemini"
+        assert params["llm_config"].model == "gemini-pro"
+        assert params["llm_config"].temperature == 0.7  # noqa: PLR2004
+        # Note: max_tokens is NOT stored in llm_config for DataSetGenerator
+        # It's a separate field used for single sample generation
+        assert params["llm_config"].max_retries == 6  # noqa: PLR2004
+        assert params["llm_config"].request_timeout == 90  # noqa: PLR2004
     finally:
         if os.path.exists(temp_path):
             os.unlink(temp_path)

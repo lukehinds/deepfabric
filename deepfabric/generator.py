@@ -5,8 +5,9 @@ import random
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .config import LLMProviderConfig
 from .constants import (
     API_ERROR_INDICATORS,
     DEFAULT_MAX_RETRIES,
@@ -58,25 +59,20 @@ class DataSetGeneratorConfig(BaseModel):
         None,
         description="System prompt that goes into the final dataset (falls back to generation_system_prompt if not provided)",
     )
-    provider: str = Field(
-        ..., min_length=1, description="LLM provider (openai, anthropic, gemini, ollama)"
+    llm_config: LLMProviderConfig | None = Field(
+        None, description="LLM provider configuration"
     )
-    model_name: str = Field(..., min_length=1, description="Name of the model to use")
+
+    # Backward compatibility fields for individual LLM params
+    provider: str | None = Field(None, description="LLM provider (deprecated: use llm_config)")
+    model_name: str | None = Field(None, description="Model name (deprecated: use llm_config)")
+    temperature: float | None = Field(None, description="Temperature (deprecated: use llm_config)")
+    max_retries: int | None = Field(None, description="Max retries (deprecated: use llm_config)")
+    request_timeout: int | None = Field(None, description="Request timeout (deprecated: use llm_config)")
+
     prompt_template: str | None = Field(default=None, description="Custom prompt template")
     example_data: Dataset | None = Field(
         default=None, description="Example dataset for few-shot learning"
-    )
-    temperature: float = Field(
-        default=ENGINE_DEFAULT_TEMPERATURE,
-        ge=0.0,
-        le=2.0,
-        description="Temperature for model generation",
-    )
-    max_retries: int = Field(
-        default=DEFAULT_MAX_RETRIES,
-        ge=1,
-        le=10,
-        description="Maximum number of retries for failed requests",
     )
     default_batch_size: int = Field(
         default=ENGINE_DEFAULT_BATCH_SIZE,
@@ -90,10 +86,10 @@ class DataSetGeneratorConfig(BaseModel):
         le=10,
         description="Default number of examples to include",
     )
-    request_timeout: int = Field(
-        default=DEFAULT_REQUEST_TIMEOUT, ge=5, le=300, description="Request timeout in seconds"
-    )
     sys_msg: bool = Field(default=True, description="Whether to include system message in dataset")
+    max_tokens: int | None = Field(
+        default=2000, description="Max tokens for single sample generation"
+    )
 
     # Chain of Thought parameters
     conversation_type: Literal[
@@ -122,9 +118,33 @@ class DataSetGeneratorConfig(BaseModel):
     max_tools_per_query: int = Field(
         default=3, ge=1, le=10, description="Maximum number of tools an agent can use per query"
     )
+
     tool_registry_path: str | None = Field(
         default=None, description="Path to custom tool definitions file (JSON/YAML)"
     )
+
+    @model_validator(mode="after")
+    def ensure_llm_config(self) -> "DataSetGeneratorConfig":
+        """Ensure llm_config exists, creating from individual fields if needed (backward compatibility)."""
+        if self.llm_config is None:
+            from .constants import (  # noqa: PLC0415
+                DEFAULT_MAX_TOKENS,
+                DEFAULT_MODEL,
+                DEFAULT_PROVIDER,
+                ENGINE_DEFAULT_TEMPERATURE,
+                DEFAULT_MAX_RETRIES,
+                DEFAULT_REQUEST_TIMEOUT,
+            )
+
+            self.llm_config = LLMProviderConfig(
+                provider=self.provider or DEFAULT_PROVIDER,
+                model=self.model_name or DEFAULT_MODEL,
+                temperature=self.temperature if self.temperature is not None else ENGINE_DEFAULT_TEMPERATURE,
+                max_tokens=self.max_tokens or DEFAULT_MAX_TOKENS,
+                max_retries=self.max_retries if self.max_retries is not None else DEFAULT_MAX_RETRIES,
+                request_timeout=self.request_timeout if self.request_timeout is not None else DEFAULT_REQUEST_TIMEOUT,
+            )
+        return self
 
 
 class DataSetGenerator:
@@ -135,19 +155,17 @@ class DataSetGenerator:
         except Exception as e:
             raise DataSetGeneratorError(f"Invalid generator configuration: {str(e)}") from e  # noqa: TRY003
 
-        # Initialize from config
-        self.provider = self.config.provider
-        self.model_name = self.config.model_name
+        # Initialize from config - llm_config is guaranteed to exist now
         self.dataset = Dataset()
         self.failed_samples = []
         self.failure_analysis = {category: [] for category in ERROR_CATEGORIES}
 
-        # Initialize LLM client
+        # Initialize LLM client using llm_config
         self.llm_client = LLMClient(
-            provider=self.provider,
-            model_name=self.model_name,
+            provider=self.config.llm_config.provider,
+            model_name=self.config.llm_config.model,
         )
-        trace("generator_created", {"provider": self.provider})
+        trace("generator_created", {"provider": self.config.llm_config.provider})
 
         # Store dataset system prompt for dataset inclusion (with fallback)
         self.dataset_system_prompt = (
@@ -193,6 +211,16 @@ class DataSetGenerator:
 
         except Exception as e:
             raise DataSetGeneratorError(f"Failed to initialize tool registry: {str(e)}") from e
+
+    @property
+    def provider(self) -> str:
+        """Backward compatibility property for provider access."""
+        return self.config.llm_config.provider
+
+    @property
+    def model_name(self) -> str:
+        """Backward compatibility property for model name access."""
+        return self.config.llm_config.model
 
     def _validate_create_data_params(
         self,
@@ -293,9 +321,9 @@ class DataSetGenerator:
                 conversation = await self.llm_client.generate_async(
                     prompt=prompt,
                     schema=schema_class,
-                    max_retries=self.config.max_retries,
-                    max_tokens=2000,
-                    temperature=self.config.temperature,
+                    max_retries=self.config.llm_config.max_retries,
+                    max_tokens=self.config.llm_config.max_tokens,
+                    temperature=self.config.llm_config.temperature,
                 )
 
                 sample = conversation.model_dump()
@@ -387,7 +415,6 @@ class DataSetGenerator:
         num_example_demonstrations: int = 3,
         batch_size: int = 10,
         topic_model: TopicModel | None = None,
-        model_name: str | None = None,
         sys_msg: bool | None = None,
     ):
         ensure_not_running_loop("DataSetGenerator.create_data")
@@ -397,7 +424,6 @@ class DataSetGenerator:
                 num_example_demonstrations=num_example_demonstrations,
                 batch_size=batch_size,
                 topic_model=topic_model,
-                model_name=model_name,
                 sys_msg=sys_msg,
             )
         )
@@ -408,7 +434,6 @@ class DataSetGenerator:
         num_example_demonstrations: int = 3,
         batch_size: int = 10,
         topic_model: TopicModel | None = None,
-        model_name: str | None = None,
         sys_msg: bool | None = None,
     ):
         ensure_not_running_loop("DataSetGenerator.create_data_with_events")
@@ -419,7 +444,6 @@ class DataSetGenerator:
                 num_example_demonstrations=num_example_demonstrations,
                 batch_size=batch_size,
                 topic_model=topic_model,
-                model_name=model_name,
                 sys_msg=sys_msg,
             ):
                 yield event
@@ -448,19 +472,12 @@ class DataSetGenerator:
         num_example_demonstrations: int = 3,
         batch_size: int = 10,
         topic_model: TopicModel | None = None,
-        model_name: str | None = None,
         sys_msg: bool | None = None,
     ) -> Dataset:
         if num_steps is None:
             num_steps = 1
 
         self._validate_create_data_params(num_steps, batch_size, topic_model)
-
-        if model_name:
-            self.model_name = model_name.strip()
-
-        if not self.model_name:
-            raise DataSetGeneratorError("")
 
         include_sys_msg = sys_msg if sys_msg is not None else self.config.sys_msg
 
@@ -501,19 +518,12 @@ class DataSetGenerator:
         num_example_demonstrations: int = 3,
         batch_size: int = 10,
         topic_model: TopicModel | None = None,
-        model_name: str | None = None,
         sys_msg: bool | None = None,
     ) -> AsyncGenerator[dict | Dataset, None]:
         if num_steps is None:
             num_steps = 1
 
         self._validate_create_data_params(num_steps, batch_size, topic_model)
-
-        if model_name:
-            self.model_name = model_name.strip()
-
-        if not self.model_name:
-            raise DataSetGeneratorError("")
 
         include_sys_msg = sys_msg if sys_msg is not None else self.config.sys_msg
 
@@ -547,7 +557,7 @@ class DataSetGenerator:
         try:
             yield {
                 "event": "generation_start",
-                "model_name": self.model_name,
+                "model_name": f"{self.provider}/{self.model_name}",  # Combined format for display
                 "num_steps": num_steps,
                 "batch_size": batch_size,
                 "total_samples": total_samples,
@@ -618,7 +628,7 @@ class DataSetGenerator:
         include_sys_msg: bool,
     ) -> tuple[bool, int]:
         """Process a batch with retry logic."""
-        for attempt in range(self.config.max_retries):
+        for attempt in range(self.config.llm_config.max_retries):
             try:
                 samples, failed_responses = await self._generate_structured_samples_async(
                     prompts, include_sys_msg
@@ -657,7 +667,7 @@ class DataSetGenerator:
 
                 return False, 0  # Don't retry authentication/API errors
             except Exception as e:
-                if attempt == self.config.max_retries - 1:
+                if attempt == self.config.llm_config.max_retries - 1:
                     self.failed_samples.append(str(e))
                     failure_type = self.analyze_failure(str(e), error=e)
                     self.failure_analysis[failure_type].append(str(e))

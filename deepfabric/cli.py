@@ -239,7 +239,15 @@ def _run_generation(
 ) -> None:
     """Create the dataset using the prepared configuration and topic model."""
 
-    engine_params = preparation.config.get_engine_params(**preparation.engine_overrides)
+    # Apply CLI provider/model overrides to engine_overrides BEFORE creating engine
+    # This ensures the engine is created with the correct model configured
+    engine_overrides = preparation.engine_overrides.copy()
+    if options.provider:
+        engine_overrides["provider"] = options.provider
+    if options.model:
+        engine_overrides["model"] = options.model
+
+    engine_params = preparation.config.get_engine_params(**engine_overrides)
     engine = DataSetGenerator(**engine_params)
 
     dataset = create_dataset(
@@ -249,9 +257,7 @@ def _run_generation(
         num_steps=preparation.num_steps,
         batch_size=preparation.batch_size,
         sys_msg=options.sys_msg,
-        provider=options.provider,
-        model=options.model,
-        engine_overrides=preparation.engine_overrides,
+        engine_overrides=engine_overrides,
         debug=options.debug,
     )
 

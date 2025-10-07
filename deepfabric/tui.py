@@ -76,7 +76,13 @@ class TreeBuildingTUI:
         self.max_depth = 0
 
     def start_building(self, model_name: str, depth: int, degree: int) -> None:
-        """Start the tree building process."""
+        """Start the tree building process.
+
+        Args:
+            model_name: Model identifier in format 'provider/model'
+            depth: Tree depth
+            degree: Tree degree (branching factor)
+        """
         self.max_depth = depth
 
         # Show header
@@ -150,7 +156,13 @@ class GraphBuildingTUI:
         self.failed_attempts = 0
 
     def start_building(self, model_name: str, depth: int, degree: int) -> None:
-        """Start the graph building process."""
+        """Start the graph building process.
+
+        Args:
+            model_name: Model identifier in format 'provider/model'
+            depth: Graph depth
+            degree: Graph degree (branching factor)
+        """
         # Show header
         header = self.tui.create_header(
             "DeepFabric Graph Generation",
@@ -244,7 +256,13 @@ class DatasetGenerationTUI:
         )
 
     def show_generation_header(self, model_name: str, num_steps: int, batch_size: int) -> None:
-        """Display the dataset generation header."""
+        """Display the dataset generation header.
+
+        Args:
+            model_name: Model identifier in format 'provider/model'
+            num_steps: Number of generation steps
+            batch_size: Batch size per step
+        """
         header = self.tui.create_header(
             "DeepFabric Dataset Generation", f"Creating synthetic training data with {model_name}"
         )

@@ -2,12 +2,15 @@ from typing import Any, Literal
 
 import yaml
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .constants import (
     DEFAULT_MAX_RETRIES,
+    DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
+    DEFAULT_REQUEST_TIMEOUT,
+    DEFAULT_TEMPERATURE,
     ENGINE_DEFAULT_BATCH_SIZE,
     ENGINE_DEFAULT_NUM_EXAMPLES,
     ENGINE_DEFAULT_TEMPERATURE,
@@ -19,6 +22,44 @@ from .exceptions import ConfigurationError
 from .metrics import trace
 
 
+class LLMProviderConfig(BaseModel):
+    """Configuration for LLM provider settings."""
+
+    provider: str = Field(
+        default=DEFAULT_PROVIDER,
+        min_length=1,
+        description="LLM provider (openai, anthropic, gemini, ollama)",
+    )
+    model: str = Field(
+        default=DEFAULT_MODEL,
+        min_length=1,
+        description="The name of the model to be used",
+    )
+    temperature: float = Field(
+        default=DEFAULT_TEMPERATURE,
+        ge=0.0,
+        le=2.0,
+        description="Temperature for model generation",
+    )
+    max_tokens: int | None = Field(
+        default=DEFAULT_MAX_TOKENS,
+        ge=1,
+        description="Maximum tokens for generation",
+    )
+    max_retries: int = Field(
+        default=DEFAULT_MAX_RETRIES,
+        ge=0,
+        le=10,
+        description="Maximum number of retries for failed generations",
+    )
+    request_timeout: int = Field(
+        default=DEFAULT_REQUEST_TIMEOUT,
+        ge=5,
+        le=300,
+        description="Request timeout in seconds",
+    )
+
+
 class TopicTreeConfig(BaseModel):
     """Configuration for topic tree generation."""
 
@@ -27,6 +68,10 @@ class TopicTreeConfig(BaseModel):
     )
     topic_system_prompt: str = Field(
         default="", description="System prompt for topic exploration and generation"
+    )
+    llm_config: LLMProviderConfig | None = Field(
+        default=None,
+        description="LLM provider configuration (takes precedence over individual fields)",
     )
     provider: str = Field(
         default=DEFAULT_PROVIDER,
@@ -58,6 +103,20 @@ class TopicTreeConfig(BaseModel):
     )
     save_as: str | None = Field(default=None, description="Where to save the generated topic tree")
 
+    @model_validator(mode="after")
+    def ensure_llm_config(self) -> "TopicTreeConfig":
+        """Ensure llm_config exists, creating from individual fields if needed (backward compatibility)."""
+        if self.llm_config is None:
+            self.llm_config = LLMProviderConfig(
+                provider=self.provider,
+                model=self.model,
+                temperature=self.temperature,
+                max_tokens=DEFAULT_MAX_TOKENS,
+                max_retries=DEFAULT_MAX_RETRIES,
+                request_timeout=DEFAULT_REQUEST_TIMEOUT,
+            )
+        return self
+
 
 class TopicGraphConfig(BaseModel):
     """Configuration for topic graph generation."""
@@ -67,6 +126,10 @@ class TopicGraphConfig(BaseModel):
     )
     topic_system_prompt: str = Field(
         default="", description="System prompt for topic exploration and generation"
+    )
+    llm_config: LLMProviderConfig | None = Field(
+        default=None,
+        description="LLM provider configuration (takes precedence over individual fields)",
     )
     provider: str = Field(
         default=DEFAULT_PROVIDER,
@@ -88,6 +151,20 @@ class TopicGraphConfig(BaseModel):
     depth: int = Field(default=2, ge=1, le=5, description="The depth of the graph")
     save_as: str | None = Field(default=None, description="Where to save the generated topic graph")
 
+    @model_validator(mode="after")
+    def ensure_llm_config(self) -> "TopicGraphConfig":
+        """Ensure llm_config exists, creating from individual fields if needed (backward compatibility)."""
+        if self.llm_config is None:
+            self.llm_config = LLMProviderConfig(
+                provider=self.provider,
+                model=self.model,
+                temperature=self.temperature,
+                max_tokens=DEFAULT_MAX_TOKENS,
+                max_retries=DEFAULT_MAX_RETRIES,
+                request_timeout=DEFAULT_REQUEST_TIMEOUT,
+            )
+        return self
+
 
 class DataEngineConfig(BaseModel):
     """Configuration for data engine generation."""
@@ -95,6 +172,10 @@ class DataEngineConfig(BaseModel):
     instructions: str = Field(default="", description="Additional instructions for data generation")
     generation_system_prompt: str = Field(
         ..., min_length=1, description="System prompt for content generation"
+    )
+    llm_config: LLMProviderConfig | None = Field(
+        default=None,
+        description="LLM provider configuration (takes precedence over individual fields)",
     )
     provider: str = Field(
         default=DEFAULT_PROVIDER,
@@ -150,6 +231,23 @@ class DataEngineConfig(BaseModel):
     tool_registry_path: str | None = Field(
         default=None, description="Path to custom tool definitions file (JSON/YAML)"
     )
+    max_tokens: int | None = Field(
+        default=2000, description="Max Tokens for Single sample generation"
+    )
+
+    @model_validator(mode="after")
+    def ensure_llm_config(self) -> "DataEngineConfig":
+        """Ensure llm_config exists, creating from individual fields if needed (backward compatibility)."""
+        if self.llm_config is None:
+            self.llm_config = LLMProviderConfig(
+                provider=self.provider,
+                model=self.model,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens or DEFAULT_MAX_TOKENS,
+                max_retries=self.max_retries,
+                request_timeout=DEFAULT_REQUEST_TIMEOUT,
+            )
+        return self
 
 
 class DatasetCreationConfig(BaseModel):
@@ -330,31 +428,27 @@ class DeepFabricConfig(BaseModel):
         if not self.topic_tree:
             raise ConfigurationError("missing 'topic_tree' configuration")  # noqa: TRY003
         try:
-            # Convert Pydantic model to dict and exclude save_as
-            params = self.topic_tree.model_dump(exclude={"save_as"})
+            # Get LLM config - validators ensure it always exists
+            llm_config = self.topic_tree.llm_config
+            assert llm_config is not None, "Validator should ensure llm_config exists"
 
-            # Handle provider and model separately if present
-            override_provider = overrides.pop("provider", None)
-            override_model = overrides.pop("model", None)
-            config_provider = params.pop("provider", None)
-            config_model = params.pop("model", None)
+            # Extract LLM-related overrides
+            llm_override_keys = {"provider", "model", "temperature", "max_retries", "max_tokens", "request_timeout"}
+            llm_overrides = {k: overrides.pop(k) for k in list(overrides.keys()) if k in llm_override_keys}
 
-            # Apply remaining overrides
+            # Convert Pydantic model to dict, excluding llm fields and llm_config
+            params = self.topic_tree.model_dump(
+                exclude={"save_as", "llm_config"} | llm_override_keys
+            )
+
+            # Apply remaining overrides to params
             params.update(overrides)
 
-            # Determine final provider
-            final_provider = override_provider or config_provider or DEFAULT_PROVIDER
-            params["provider"] = final_provider
-
-            # Determine final model and model_name
-            if override_model:
-                # If model is overridden, use just the model name (provider is separate)
-                params["model_name"] = override_model
-            elif config_model:
-                # If model comes from config, use as-is for model_name
-                params["model_name"] = config_model
-            elif "model_name" not in params:
-                params["model_name"] = DEFAULT_MODEL
+            # Apply LLM overrides using model_copy (or pass through unchanged)
+            if llm_overrides:
+                params["llm_config"] = llm_config.model_copy(update=llm_overrides)
+            else:
+                params["llm_config"] = llm_config
 
         except Exception as e:
             raise ConfigurationError(f"config error: {str(e)}") from e  # noqa: TRY003
@@ -366,31 +460,66 @@ class DeepFabricConfig(BaseModel):
         if not self.topic_graph:
             raise ConfigurationError("missing 'topic_graph' configuration")  # noqa: TRY003
         try:
-            # Convert Pydantic model to dict and exclude save_as
-            params = self.topic_graph.model_dump(exclude={"save_as"})
+            # Convert Pydantic model to dict and exclude save_as and llm_config
+            params = self.topic_graph.model_dump(exclude={"save_as", "llm_config"})
+
+            # Get LLM config - validators ensure it always exists
+            llm_config = self.topic_graph.llm_config
+            assert llm_config is not None, "Validator should ensure llm_config exists"
 
             # Handle provider and model separately if present
             override_provider = overrides.pop("provider", None)
             override_model = overrides.pop("model", None)
-            config_provider = params.pop("provider", None)
-            config_model = params.pop("model", None)
+            override_temperature = overrides.pop("temperature", None)
+            override_max_retries = overrides.pop("max_retries", None)
+            override_max_tokens = overrides.pop("max_tokens", None)
+            override_request_timeout = overrides.pop("request_timeout", None)
+
+            # Remove deprecated individual fields from params
+            params.pop("provider", None)
+            params.pop("model", None)
+            params.pop("temperature", None)
+            params.pop("max_retries", None)
 
             # Apply remaining overrides
             params.update(overrides)
 
-            # Determine final provider
-            final_provider = override_provider or config_provider or DEFAULT_PROVIDER
-            params["provider"] = final_provider
+            # Priority: CLI overrides > llm_config (2 levels)
+            resolved_provider = override_provider or llm_config.provider
+            resolved_model = override_model or llm_config.model
+            resolved_temperature = (
+                override_temperature
+                if override_temperature is not None
+                else llm_config.temperature
+            )
+            resolved_max_retries = (
+                override_max_retries
+                if override_max_retries is not None
+                else llm_config.max_retries
+            )
+            resolved_max_tokens = (
+                override_max_tokens
+                if override_max_tokens is not None
+                else llm_config.max_tokens
+            )
+            resolved_request_timeout = (
+                override_request_timeout
+                if override_request_timeout is not None
+                else llm_config.request_timeout
+            )
 
-            # Determine final model and model_name
-            if override_model:
-                # If model is overridden, use just the model name (provider is separate)
-                params["model_name"] = override_model
-            elif config_model:
-                # If model comes from config, use as-is for model_name
-                params["model_name"] = config_model
-            elif "model_name" not in params:
-                params["model_name"] = DEFAULT_MODEL
+            # Create LLMProviderConfig instance
+            llm_config_obj = LLMProviderConfig(
+                provider=resolved_provider,
+                model=resolved_model,
+                temperature=resolved_temperature,
+                max_tokens=resolved_max_tokens,
+                max_retries=resolved_max_retries,
+                request_timeout=resolved_request_timeout,
+            )
+
+            # Return params with llm_config
+            params["llm_config"] = llm_config_obj
 
         except Exception as e:
             raise ConfigurationError(f"config error: {str(e)}") from e  # noqa: TRY003
@@ -399,31 +528,64 @@ class DeepFabricConfig(BaseModel):
     def get_engine_params(self, **overrides) -> dict:
         """Get parameters for DataSetGenerator instantiation."""
         try:
-            # Convert Pydantic model to dict and exclude save_as
-            params = self.data_engine.model_dump(exclude={"save_as"})
+            # Convert Pydantic model to dict and exclude save_as and llm_config
+            params = self.data_engine.model_dump(exclude={"save_as", "llm_config"})
 
-            # Handle provider and model separately if present
+            # Get LLM config - validators ensure it always exists
+            llm_config = self.data_engine.llm_config
+            assert llm_config is not None, "Validator should ensure llm_config exists"
+
+            # Handle LLM-related overrides separately
             override_provider = overrides.pop("provider", None)
             override_model = overrides.pop("model", None)
-            config_provider = params.pop("provider", None)
-            config_model = params.pop("model", None)
+            override_temperature = overrides.pop("temperature", None)
+            override_max_retries = overrides.pop("max_retries", None)
+            override_max_tokens = overrides.pop("max_tokens", None)
+            override_request_timeout = overrides.pop("request_timeout", None)
+
+            # Remove deprecated individual fields from params
+            params.pop("provider", None)
+            params.pop("model", None)
+            params.pop("temperature", None)
+            params.pop("max_retries", None)
 
             # Apply remaining overrides
             params.update(overrides)
 
-            # Determine final provider
-            final_provider = override_provider or config_provider or DEFAULT_PROVIDER
-            params["provider"] = final_provider
+            # Priority: CLI overrides > llm_config (2 levels)
+            resolved_provider = override_provider or llm_config.provider
+            resolved_model = override_model or llm_config.model
+            resolved_temperature = (
+                override_temperature
+                if override_temperature is not None
+                else llm_config.temperature
+            )
+            resolved_max_retries = (
+                override_max_retries
+                if override_max_retries is not None
+                else llm_config.max_retries
+            )
+            resolved_max_tokens = (
+                override_max_tokens
+                if override_max_tokens is not None
+                else llm_config.max_tokens
+            )
+            resolved_request_timeout = (
+                override_request_timeout
+                if override_request_timeout is not None
+                else llm_config.request_timeout
+            )
 
-            # Determine final model and model_name
-            if override_model:
-                # If model is overridden, use just the model name (provider is separate)
-                params["model_name"] = override_model
-            elif config_model:
-                # If model comes from config, use as-is for model_name
-                params["model_name"] = config_model
-            elif "model_name" not in params:
-                params["model_name"] = DEFAULT_MODEL
+            # Create LLMProviderConfig instance from resolved parameters
+            llm_config_obj = LLMProviderConfig(
+                provider=resolved_provider,
+                model=resolved_model,
+                temperature=resolved_temperature,
+                max_tokens=resolved_max_tokens,
+                max_retries=resolved_max_retries,
+                request_timeout=resolved_request_timeout,
+            )
+            params["llm_config"] = llm_config_obj
 
             # Get sys_msg from dataset config, defaulting to True
             sys_msg_value = self.dataset.creation.sys_msg

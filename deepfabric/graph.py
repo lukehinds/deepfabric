@@ -4,12 +4,14 @@ import textwrap
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .config import LLMProviderConfig
 from .constants import (
+    DEFAULT_MAX_RETRIES,
     DEFAULT_MAX_TOKENS,
+    DEFAULT_REQUEST_TIMEOUT,
     MAX_RETRY_ATTEMPTS,
-    TOPIC_GRAPH_DEFAULT_MODEL,
     TOPIC_GRAPH_DEFAULT_TEMPERATURE,
     TOPIC_GRAPH_SUMMARY,
 )
@@ -40,24 +42,41 @@ class GraphConfig(BaseModel):
     topic_system_prompt: str = Field(
         default="", description="System prompt for topic exploration and generation"
     )
-    provider: str = Field(
-        default="ollama",
-        min_length=1,
-        description="LLM provider (openai, anthropic, gemini, ollama)",
-    )
-    model_name: str = Field(
-        default=TOPIC_GRAPH_DEFAULT_MODEL,
-        min_length=1,
-        description="The name of the model to be used",
-    )
-    temperature: float = Field(
-        default=TOPIC_GRAPH_DEFAULT_TEMPERATURE,
-        ge=0.0,
-        le=2.0,
-        description="Temperature for model generation",
-    )
     degree: int = Field(default=3, ge=1, le=10, description="The branching factor of the graph")
     depth: int = Field(default=2, ge=1, le=5, description="The depth of the graph")
+    llm_config: LLMProviderConfig | None = Field(
+        None, description="LLM provider configuration"
+    )
+
+    # Backward compatibility fields for individual LLM params
+    provider: str | None = Field(None, description="LLM provider (deprecated: use llm_config)")
+    model_name: str | None = Field(None, description="Model name (deprecated: use llm_config)")
+    temperature: float | None = Field(None, description="Temperature (deprecated: use llm_config)")
+    max_retries: int | None = Field(None, description="Max retries (deprecated: use llm_config)")
+    request_timeout: int | None = Field(None, description="Request timeout (deprecated: use llm_config)")
+
+    @model_validator(mode="after")
+    def ensure_llm_config(self) -> "GraphConfig":
+        """Ensure llm_config exists, creating from individual fields if needed (backward compatibility)."""
+        if self.llm_config is None:
+            from .constants import (  # noqa: PLC0415
+                DEFAULT_MAX_TOKENS,
+                DEFAULT_MODEL,
+                DEFAULT_PROVIDER,
+                DEFAULT_MAX_RETRIES,
+                DEFAULT_REQUEST_TIMEOUT,
+            )
+
+            self.llm_config = LLMProviderConfig(
+                provider=self.provider or DEFAULT_PROVIDER,
+                model=self.model_name or DEFAULT_MODEL,
+                temperature=self.temperature if self.temperature is not None else TOPIC_GRAPH_DEFAULT_TEMPERATURE,
+                max_tokens=DEFAULT_MAX_TOKENS,
+                max_retries=self.max_retries if self.max_retries is not None else DEFAULT_MAX_RETRIES,
+                request_timeout=self.request_timeout if self.request_timeout is not None else DEFAULT_REQUEST_TIMEOUT,
+            )
+        return self
+
 
 
 # Pydantic Models for strict data representation
@@ -110,19 +129,16 @@ class Graph(TopicModel):
         except Exception as e:
             raise ValueError(f"Invalid graph configuration: {str(e)}") from e  # noqa: TRY003
 
-        # Initialize from config
+        # Initialize from config - llm_config is guaranteed to exist now
         self.topic_prompt = self.config.topic_prompt
         self.model_system_prompt = self.config.topic_system_prompt
-        self.provider = self.config.provider
-        self.model_name = self.config.model_name
-        self.temperature = self.config.temperature
         self.degree = self.config.degree
         self.depth = self.config.depth
 
-        # Initialize LLM client
+        # Initialize LLM client using llm_config
         self.llm_client = LLMClient(
-            provider=self.provider,
-            model_name=self.model_name,
+            provider=self.config.llm_config.provider,
+            model_name=self.config.llm_config.model,
         )
 
         trace(
@@ -133,6 +149,21 @@ class Graph(TopicModel):
         self.nodes: dict[int, Node] = {0: self.root}
         self._next_node_id: int = 1
         self.failed_generations: list[dict[str, Any]] = []
+
+    @property
+    def provider(self) -> str:
+        """Backward compatibility property for provider access."""
+        return self.config.llm_config.provider
+
+    @property
+    def model_name(self) -> str:
+        """Backward compatibility property for model name access."""
+        return self.config.llm_config.model
+
+    @property
+    def temperature(self) -> float:
+        """Backward compatibility property for temperature access."""
+        return self.config.llm_config.temperature
 
     def _wrap_text(self, text: str, width: int = 30) -> str:
         """Wrap text to a specified width."""
