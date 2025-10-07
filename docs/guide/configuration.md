@@ -99,7 +99,7 @@ data_engine:
   provider: "anthropic"
   model: "claude-3-sonnet"
   temperature: 0.8
-  max_tokens: 128000
+  max_tokens: 4096
   max_retries: 3
   request_timeout: 30
   default_batch_size: 5
