@@ -621,7 +621,7 @@ def test_topic_only_with_load_tree_fails(cli_runner, sample_config_file):
 
         # Should fail validation
         assert result.exit_code != 0
-        assert "--topic-only cannot be used with --load-tree" in result.output
+        assert "--topic-only cannot be used with --load-tree or --load-graph" in result.output
 
     finally:
         if os.path.exists(temp_jsonl_path):
