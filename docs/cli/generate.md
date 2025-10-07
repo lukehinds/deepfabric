@@ -56,6 +56,20 @@ deepfabric generate config.yaml --load-graph existing_graph.json
 
 This approach accelerates iteration when experimenting with dataset generation parameters while keeping the topic structure constant.
 
+## Topic-Only Generation
+
+Generate and save only the topic structure without proceeding to dataset creation:
+
+```bash
+# Generate topic tree only
+deepfabric generate config.yaml --topic-only
+
+# Generate topic graph only
+deepfabric generate config.yaml --mode graph --topic-only
+```
+
+The `--topic-only` flag stops the pipeline after topic generation and saves the topic structure to the configured location. This enables rapid iteration on topic modeling parameters, review of topic structures before committing computational resources to dataset generation, and separation of topic exploration from content creation workflows.
+
 ## Topic Modeling Parameters
 
 Fine-tune topic generation behavior through command-line parameters:
