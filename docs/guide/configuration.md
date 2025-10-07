@@ -90,6 +90,23 @@ data_engine:
 
 The `instructions` field guides the generation process, specifying the type and format of content to create. This field accepts detailed specifications about output format, complexity level, target audience, and quality criteria.
 
+We can also supply `max_tokens` for each llm call for the data engine (default is 2000):
+
+```yaml
+data_engine:
+  instructions: "Create a practical code example with detailed explanation"
+  generation_system_prompt: "You are an expert data scientist creating educational content for machine learning practitioners."
+  provider: "anthropic"
+  model: "claude-3-sonnet"
+  temperature: 0.8
+  max_tokens: 128000
+  max_retries: 3
+  request_timeout: 30
+  default_batch_size: 5
+  default_num_examples: 3
+```
+
+
 Error handling parameters like `max_retries` and `request_timeout` ensure robust operation when working with external API services that may experience temporary issues.
 
 ## Dataset Creation Parameters

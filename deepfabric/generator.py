@@ -82,6 +82,9 @@ class DataSetGeneratorConfig(BaseModel):
         le=10,
         description="Maximum number of retries for failed requests",
     )
+    max_tokens: int = Field(
+        default=2000, ge=1, description="Maximum tokens to generate in a single call to the llm"
+    )
     default_batch_size: int = Field(
         default=ENGINE_DEFAULT_BATCH_SIZE,
         ge=1,
@@ -301,7 +304,7 @@ class DataSetGenerator:
         async def _generate(prompt: str) -> tuple[bool, dict | Exception]:
             try:
                 # Use higher token limit for multi-turn conversations
-                max_tokens = 4000 if self.config.conversation_type == "xlam_multi_turn" else 2000
+                max_tokens = 4000 if self.config.conversation_type == "xlam_multi_turn" else self.config.max_tokens
 
                 conversation = await self.llm_client.generate_async(
                     prompt=prompt,

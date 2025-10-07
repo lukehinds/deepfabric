@@ -118,6 +118,9 @@ class DataEngineConfig(BaseModel):
         le=10,
         description="Maximum number of retries for failed generations",
     )
+    max_tokens: int = Field(
+        default=2000, ge=1, description="Maximum tokens to generate in a single call to the llm"
+    )
     save_as: str | None = Field(default=None, description="Where to save the generated data")
 
     # Chain of Thought parameters
