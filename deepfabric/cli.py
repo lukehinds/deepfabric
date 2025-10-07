@@ -387,7 +387,7 @@ def generate(  # noqa: PLR0913
         )
 
         if topic_only:
-            sys.exit(0)
+            return
 
         _run_generation(
             preparation=preparation,
