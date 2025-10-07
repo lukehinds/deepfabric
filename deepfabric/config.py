@@ -460,66 +460,27 @@ class DeepFabricConfig(BaseModel):
         if not self.topic_graph:
             raise ConfigurationError("missing 'topic_graph' configuration")  # noqa: TRY003
         try:
-            # Convert Pydantic model to dict and exclude save_as and llm_config
-            params = self.topic_graph.model_dump(exclude={"save_as", "llm_config"})
-
             # Get LLM config - validators ensure it always exists
             llm_config = self.topic_graph.llm_config
             assert llm_config is not None, "Validator should ensure llm_config exists"
 
-            # Handle provider and model separately if present
-            override_provider = overrides.pop("provider", None)
-            override_model = overrides.pop("model", None)
-            override_temperature = overrides.pop("temperature", None)
-            override_max_retries = overrides.pop("max_retries", None)
-            override_max_tokens = overrides.pop("max_tokens", None)
-            override_request_timeout = overrides.pop("request_timeout", None)
+            # Extract LLM-related overrides
+            llm_override_keys = {"provider", "model", "temperature", "max_retries", "max_tokens", "request_timeout"}
+            llm_overrides = {k: overrides.pop(k) for k in list(overrides.keys()) if k in llm_override_keys}
 
-            # Remove deprecated individual fields from params
-            params.pop("provider", None)
-            params.pop("model", None)
-            params.pop("temperature", None)
-            params.pop("max_retries", None)
+            # Convert Pydantic model to dict, excluding llm fields and llm_config
+            params = self.topic_graph.model_dump(
+                exclude={"save_as", "llm_config"} | llm_override_keys
+            )
 
-            # Apply remaining overrides
+            # Apply remaining overrides to params
             params.update(overrides)
 
-            # Priority: CLI overrides > llm_config (2 levels)
-            resolved_provider = override_provider or llm_config.provider
-            resolved_model = override_model or llm_config.model
-            resolved_temperature = (
-                override_temperature
-                if override_temperature is not None
-                else llm_config.temperature
-            )
-            resolved_max_retries = (
-                override_max_retries
-                if override_max_retries is not None
-                else llm_config.max_retries
-            )
-            resolved_max_tokens = (
-                override_max_tokens
-                if override_max_tokens is not None
-                else llm_config.max_tokens
-            )
-            resolved_request_timeout = (
-                override_request_timeout
-                if override_request_timeout is not None
-                else llm_config.request_timeout
-            )
-
-            # Create LLMProviderConfig instance
-            llm_config_obj = LLMProviderConfig(
-                provider=resolved_provider,
-                model=resolved_model,
-                temperature=resolved_temperature,
-                max_tokens=resolved_max_tokens,
-                max_retries=resolved_max_retries,
-                request_timeout=resolved_request_timeout,
-            )
-
-            # Return params with llm_config
-            params["llm_config"] = llm_config_obj
+            # Apply LLM overrides using model_copy (or pass through unchanged)
+            if llm_overrides:
+                params["llm_config"] = llm_config.model_copy(update=llm_overrides)
+            else:
+                params["llm_config"] = llm_config
 
         except Exception as e:
             raise ConfigurationError(f"config error: {str(e)}") from e  # noqa: TRY003
@@ -528,64 +489,27 @@ class DeepFabricConfig(BaseModel):
     def get_engine_params(self, **overrides) -> dict:
         """Get parameters for DataSetGenerator instantiation."""
         try:
-            # Convert Pydantic model to dict and exclude save_as and llm_config
-            params = self.data_engine.model_dump(exclude={"save_as", "llm_config"})
-
             # Get LLM config - validators ensure it always exists
             llm_config = self.data_engine.llm_config
             assert llm_config is not None, "Validator should ensure llm_config exists"
 
-            # Handle LLM-related overrides separately
-            override_provider = overrides.pop("provider", None)
-            override_model = overrides.pop("model", None)
-            override_temperature = overrides.pop("temperature", None)
-            override_max_retries = overrides.pop("max_retries", None)
-            override_max_tokens = overrides.pop("max_tokens", None)
-            override_request_timeout = overrides.pop("request_timeout", None)
+            # Extract LLM-related overrides
+            llm_override_keys = {"provider", "model", "temperature", "max_retries", "max_tokens", "request_timeout"}
+            llm_overrides = {k: overrides.pop(k) for k in list(overrides.keys()) if k in llm_override_keys}
 
-            # Remove deprecated individual fields from params
-            params.pop("provider", None)
-            params.pop("model", None)
-            params.pop("temperature", None)
-            params.pop("max_retries", None)
+            # Convert Pydantic model to dict, excluding llm fields and llm_config
+            params = self.data_engine.model_dump(
+                exclude={"save_as", "llm_config"} | llm_override_keys
+            )
 
-            # Apply remaining overrides
+            # Apply remaining overrides to params
             params.update(overrides)
 
-            # Priority: CLI overrides > llm_config (2 levels)
-            resolved_provider = override_provider or llm_config.provider
-            resolved_model = override_model or llm_config.model
-            resolved_temperature = (
-                override_temperature
-                if override_temperature is not None
-                else llm_config.temperature
-            )
-            resolved_max_retries = (
-                override_max_retries
-                if override_max_retries is not None
-                else llm_config.max_retries
-            )
-            resolved_max_tokens = (
-                override_max_tokens
-                if override_max_tokens is not None
-                else llm_config.max_tokens
-            )
-            resolved_request_timeout = (
-                override_request_timeout
-                if override_request_timeout is not None
-                else llm_config.request_timeout
-            )
-
-            # Create LLMProviderConfig instance from resolved parameters
-            llm_config_obj = LLMProviderConfig(
-                provider=resolved_provider,
-                model=resolved_model,
-                temperature=resolved_temperature,
-                max_tokens=resolved_max_tokens,
-                max_retries=resolved_max_retries,
-                request_timeout=resolved_request_timeout,
-            )
-            params["llm_config"] = llm_config_obj
+            # Apply LLM overrides using model_copy (or pass through unchanged)
+            if llm_overrides:
+                params["llm_config"] = llm_config.model_copy(update=llm_overrides)
+            else:
+                params["llm_config"] = llm_config
 
             # Get sys_msg from dataset config, defaulting to True
             sys_msg_value = self.dataset.creation.sys_msg
