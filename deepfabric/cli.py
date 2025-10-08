@@ -91,9 +91,8 @@ class GenerateOptions(BaseModel):
             raise ValueError(
                 "Cannot use --save-graph when mode is tree. Use --save-tree to persist tree data.",
             )
-        if self.topic_only:
-            if self.load_tree or self.load_graph:
-                raise ValueError("--topic-only cannot be used with --load-tree or --load-graph")
+        if self.topic_only and (self.load_tree or self.load_graph):
+            raise ValueError("--topic-only cannot be used with --load-tree or --load-graph")
         return self
 
 
@@ -341,7 +340,7 @@ def generate(  # noqa: PLR0913
     sys_msg: bool | None = None,
     mode: Literal["tree", "graph"] = "tree",
     debug: bool = False,
-    topic_only: bool = False
+    topic_only: bool = False,
 ) -> None:
     """Generate training data from a YAML configuration file or CLI parameters."""
     trace(
