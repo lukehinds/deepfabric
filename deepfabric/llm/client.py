@@ -83,6 +83,7 @@ def _create_gemini_compatible_schema(schema: type[BaseModel]) -> type[BaseModel]
     Returns:
         Wrapper model that generates Gemini-compatible schemas
     """
+
     # Create a new model class that overrides model_json_schema
     class GeminiCompatModel(schema):  # type: ignore[misc,valid-type]
         @classmethod

@@ -79,6 +79,7 @@ class GenerateOptions(BaseModel):
     sys_msg: bool | None = None
     mode: Literal["tree", "graph"] = Field(default="tree")
     debug: bool = False
+    topic_only: bool = False
 
     @model_validator(mode="after")
     def validate_mode_constraints(self) -> "GenerateOptions":
@@ -90,6 +91,8 @@ class GenerateOptions(BaseModel):
             raise ValueError(
                 "Cannot use --save-graph when mode is tree. Use --save-tree to persist tree data.",
             )
+        if self.topic_only and (self.load_tree or self.load_graph):
+            raise ValueError("--topic-only cannot be used with --load-tree or --load-graph")
         return self
 
 
@@ -310,6 +313,11 @@ def _run_generation(
     is_flag=True,
     help="Enable debug mode for detailed error output",
 )
+@click.option(
+    "--topic-only",
+    is_flag=True,
+    help="Only create topic assets, no dataset",
+)
 def generate(  # noqa: PLR0913
     config_file: str | None,
     dataset_system_prompt: str | None = None,
@@ -332,6 +340,7 @@ def generate(  # noqa: PLR0913
     sys_msg: bool | None = None,
     mode: Literal["tree", "graph"] = "tree",
     debug: bool = False,
+    topic_only: bool = False,
 ) -> None:
     """Generate training data from a YAML configuration file or CLI parameters."""
     trace(
@@ -362,6 +371,7 @@ def generate(  # noqa: PLR0913
             sys_msg=sys_msg,
             mode=mode,
             debug=debug,
+            topic_only=topic_only,
         )
     except PydanticValidationError as error:
         handle_error(click.get_current_context(), ConfigurationError(str(error)))
@@ -374,6 +384,9 @@ def generate(  # noqa: PLR0913
             preparation=preparation,
             options=options,
         )
+
+        if topic_only:
+            return
 
         _run_generation(
             preparation=preparation,

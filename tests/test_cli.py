@@ -508,3 +508,143 @@ def test_visualize_command(mock_from_json, cli_runner):
         # Cleanup
         if os.path.exists(temp_path):
             os.unlink(temp_path)
+
+
+@patch("deepfabric.topic_manager.create_topic_generator")
+def test_topic_only_flag_tree(mock_create_topic_generator, cli_runner, sample_config_file):
+    """Test --topic-only flag with tree mode."""
+    from deepfabric.tree import Tree  # noqa: PLC0415
+
+    # Setup mock tree
+    mock_tree_instance = Mock(spec=Tree)
+    mock_tree_instance.build_async.return_value = _async_iter(
+        [{"event": "build_complete", "total_paths": 9, "failed_generations": 0}]
+    )
+    mock_tree_instance.tree_paths = [["root", "child1"], ["root", "child2"]]
+    mock_create_topic_generator.return_value = mock_tree_instance
+
+    # Run command with --topic-only
+    result = cli_runner.invoke(cli, ["generate", sample_config_file, "--topic-only"])
+
+    # Verify command executed successfully
+    assert result.exit_code == 0
+
+    # Verify tree was built and saved
+    mock_create_topic_generator.assert_called_once()
+    mock_tree_instance.build_async.assert_called_once()
+    mock_tree_instance.save.assert_called_once_with("test_tree.jsonl")
+
+    # Verify success message about topic save
+    assert "Topic tree saved to" in result.output
+
+
+@patch("deepfabric.topic_manager.create_topic_generator")
+def test_topic_only_flag_graph(mock_create_topic_generator, cli_runner):
+    """Test --topic-only flag with graph mode."""
+    from deepfabric.graph import Graph  # noqa: PLC0415
+
+    # Setup mock graph
+    mock_graph_instance = Mock(spec=Graph)
+    mock_graph_instance.build_async.return_value = _async_iter(
+        [{"event": "build_complete", "failed_generations": 0}]
+    )
+    mock_create_topic_generator.return_value = mock_graph_instance
+
+    # Create sample graph config
+    graph_yaml = """
+dataset_system_prompt: "Test system prompt"
+topic_graph:
+  args:
+    topic_prompt: "Test root prompt"
+    topic_system_prompt: "Test system prompt"
+    degree: 3
+    depth: 2
+    temperature: 0.7
+    provider: "test"
+    model: "model"
+  save_as: "test_graph.json"
+data_engine:
+  args:
+    instructions: "Test instructions"
+    generation_system_prompt: "Test system prompt"
+    provider: "test"
+    model: "model"
+    temperature: 0.9
+    max_retries: 2
+dataset:
+  creation:
+    num_steps: 5
+    batch_size: 1
+    provider: "test"
+    model: "model"
+    sys_msg: true
+  save_as: "test_dataset.jsonl"
+"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(graph_yaml)
+        temp_config = f.name
+
+    try:
+        # Run command with --topic-only and --mode graph
+        result = cli_runner.invoke(
+            cli, ["generate", temp_config, "--mode", "graph", "--topic-only"]
+        )
+
+        # Verify command executed successfully
+        assert result.exit_code == 0
+
+        # Verify graph was built and saved
+        mock_create_topic_generator.assert_called_once()
+        mock_graph_instance.build_async.assert_called_once()
+        mock_graph_instance.save.assert_called_once_with("test_graph.json")
+
+        # Verify success message about topic save
+        assert "Topic graph saved to" in result.output
+
+    finally:
+        if os.path.exists(temp_config):
+            os.unlink(temp_config)
+
+
+def test_topic_only_with_load_tree_fails(cli_runner, sample_config_file):
+    """Test that --topic-only fails when used with --load-tree."""
+    # Create a temporary JSONL file
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
+        f.write('{"path": ["root", "child"]}\n')
+        temp_jsonl_path = f.name
+
+    try:
+        result = cli_runner.invoke(
+            cli,
+            ["generate", sample_config_file, "--topic-only", "--load-tree", temp_jsonl_path],
+        )
+
+        # Should fail validation
+        assert result.exit_code != 0
+        assert "--topic-only cannot be used with --load-tree or --load-graph" in result.output
+
+    finally:
+        if os.path.exists(temp_jsonl_path):
+            os.unlink(temp_jsonl_path)
+
+
+def test_topic_only_with_load_graph_fails(cli_runner, sample_config_file):
+    """Test that --topic-only fails when used with --load-graph."""
+    # Create a temporary JSON file
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        f.write('{"nodes": {}, "edges": []}')
+        temp_json_path = f.name
+
+    try:
+        result = cli_runner.invoke(
+            cli,
+            ["generate", sample_config_file, "--topic-only", "--load-graph", temp_json_path],
+        )
+
+        # Should fail validation
+        assert result.exit_code != 0
+        assert "--topic-only cannot be used with --load-tree or --load-graph" in result.output
+
+    finally:
+        if os.path.exists(temp_json_path):
+            os.unlink(temp_json_path)
