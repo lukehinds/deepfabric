@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -406,8 +406,6 @@ dependencies = [
     { name = "huggingface-hub" },
     { name = "kagglehub" },
     { name = "mermaid-py" },
-    { name = "mkdocstrings", extra = ["python"] },
-    { name = "mkdocstrings-python" },
     { name = "openai" },
     { name = "outlines" },
     { name = "posthog" },
@@ -443,9 +441,7 @@ requires-dist = [
     { name = "mermaid-py", specifier = ">=0.8.0" },
     { name = "mermaid-py", marker = "extra == 'dev'", specifier = ">=0.2.0" },
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.0.0" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.30.0" },
-    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.20.0" },
-    { name = "mkdocstrings-python", specifier = ">=1.18.2" },
+    { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.30.0" },
     { name = "openai", specifier = ">=1.107.2" },
     { name = "outlines", specifier = "==1.2.5" },
     { name = "posthog", specifier = ">=3.0.0" },

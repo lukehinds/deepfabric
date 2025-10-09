@@ -28,11 +28,16 @@ jobs:
       - name: Set up Python
         run: uv python install
 
+      - name: Create virtual environment
+        run: uv venv
+
       - name: Install dependencies
-        run: uv sync --extra docs
+        run: uv pip install mkdocs-material "mkdocstrings[python]>=0.30.0"
 
       - name: Build documentation
-        run: uv run mkdocs build --strict
+        run: |
+          source .venv/bin/activate
+          mkdocs build --strict
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
