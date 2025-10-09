@@ -28,17 +28,8 @@ jobs:
       - name: Set up Python
         run: uv python install
 
-      - name: Install Arrow development libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget lsb-release
-          wget -O- https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-$(lsb_release -cs).deb > /tmp/apache-arrow.deb
-          sudo apt-get install -y /tmp/apache-arrow.deb
-          sudo apt-get update
-          sudo apt-get install -y libarrow-dev
-
       - name: Install dependencies
-        run: uv sync --extra docs
+        run: uv sync -only-group docs
 
       - name: Build documentation
         run: uv run mkdocs build --strict
