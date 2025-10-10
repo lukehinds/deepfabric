@@ -1,0 +1,146 @@
+# DeepFabric Rate Limiting Configuration Example
+# Demonstrates rate limiting with provider-specific backoff strategies
+
+# Main system prompt
+dataset_system_prompt: "You are an AI assistant that provides helpful and accurate responses."
+
+# Topic Tree Configuration
+topic_tree:
+  topic_prompt: "Machine learning fundamentals and applications"
+  provider: "gemini"
+  model: "gemini-2.0-flash-exp"
+  temperature: 0.7
+  degree: 3
+  depth: 2
+  save_as: "ml_topics_tree.jsonl"
+
+# Data Engine Configuration with Rate Limiting
+data_engine:
+  instructions: "Create clear explanations with practical examples"
+
+  # LLM Settings
+  provider: "gemini"
+  model: "gemini-2.0-flash-exp"
+  temperature: 0.5
+
+  # Generation prompt
+  generation_system_prompt: "You are a machine learning instructor creating educational content with clear explanations and code examples."
+
+  # ===================================================================
+  # RATE LIMITING CONFIGURATION
+  # ===================================================================
+  # This section provides fine-grained control over retry behavior and
+  # intelligent backoff strategies for handling rate limits and transient errors.
+  #
+  # If omitted, provider-specific defaults are used automatically.
+  # ===================================================================
+
+  rate_limit:
+    # Maximum number of retry attempts before giving up
+    # Default: 5
+    max_retries: 5
+
+    # Base delay in seconds before the first retry
+    # Default: 1.0 (OpenAI/Anthropic), 2.0 (Gemini)
+    base_delay: 2.0
+
+    # Maximum delay in seconds between retries (prevents excessive wait times)
+    # Default: 60.0 (OpenAI/Anthropic), 120.0 (Gemini)
+    max_delay: 120.0
+
+    # Backoff strategy for calculating retry delays
+    # Options:
+    #   - "exponential": delay = base_delay * (exponential_base ^ attempt)
+    #   - "exponential_jitter": exponential with ±25% randomization (recommended)
+    #   - "linear": delay = base_delay * attempt
+    #   - "constant": always use base_delay
+    # Default: "exponential_jitter"
+    backoff_strategy: "exponential_jitter"
+
+    # Base multiplier for exponential backoff (used with exponential strategies)
+    # Example: base=2.0 gives delays of 2s, 4s, 8s, 16s, etc.
+    # Default: 2.0
+    exponential_base: 2.0
+
+    # Add randomization to delays to prevent thundering herd problem
+    # Adds ±25% jitter to calculated delays
+    # Default: true
+    jitter: true
+
+    # Respect retry-after headers from provider responses
+    # When true, uses server-specified wait time instead of calculated delay
+    # Default: true
+    respect_retry_after: true
+
+# Dataset Assembly Configuration
+dataset:
+  creation:
+    num_steps: 10
+    batch_size: 2
+    sys_msg: true
+
+  save_as: "ml_fundamentals_dataset.jsonl"
+
+# Optional: HuggingFace Hub Integration
+# huggingface:
+#   repository: "username/ml-fundamentals-dataset"
+#   tags:
+#     - "machine-learning"
+#     - "education"
+#     - "synthetic"
+#     - "deepfabric"
+
+# ===================================================================
+# RATE LIMITING NOTES
+# ===================================================================
+#
+# Provider-Specific Defaults:
+#
+# OpenAI:
+#   - Monitors x-ratelimit-* headers for capacity tracking
+#   - Respects retry-after headers
+#   - Default: max_retries=5, base_delay=1.0s, max_delay=60s
+#
+# Anthropic Claude:
+#   - Uses token bucket algorithm awareness
+#   - Monitors anthropic-ratelimit-* headers
+#   - Supports gradual traffic ramp-up
+#   - Default: max_retries=5, base_delay=1.0s, max_delay=60s
+#
+# Google Gemini:
+#   - Handles RPM, TPM, and RPD (requests per day) limits
+#   - Detects daily quota exhaustion and fails fast
+#   - No retry-after header, uses conservative backoff
+#   - Default: max_retries=5, base_delay=2.0s, max_delay=120s
+#
+# Ollama:
+#   - Local deployment, minimal rate limiting needed
+#   - Default: max_retries=2, base_delay=0.5s, max_delay=5s
+#
+# ===================================================================
+# INTELLIGENT FEATURES
+# ===================================================================
+#
+# 1. Fail-Fast Detection:
+#    - Daily quota exhaustion (Gemini RPD): stops retrying
+#    - Zero quota limit: indicates account setup issue
+#
+# 2. Provider-Specific Error Parsing:
+#    - OpenAI: Extracts remaining capacity from headers
+#    - Anthropic: Tracks token bucket status
+#    - Gemini: Parses QuotaFailure details with quota metrics
+#
+# 3. Exponential Backoff with Jitter:
+#    - Prevents thundering herd when multiple requests retry
+#    - Randomizes delays by ±25% to distribute load
+#
+# 4. Retry-After Header Priority:
+#    - When servers specify wait time, uses that value
+#    - Respects rate limit guidance from providers
+#
+# 5. Configurable Retry Logic:
+#    - Retries on: 429 (rate limit), 500, 502, 503, 504
+#    - Retries on: timeout, connection, network errors
+#    - Does NOT retry: 4xx errors (except 429), auth failures
+#
+# ===================================================================

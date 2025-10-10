@@ -80,7 +80,7 @@ class DataSetGeneratorConfig(BaseModel):
         default=DEFAULT_MAX_RETRIES,
         ge=1,
         le=10,
-        description="Maximum number of retries for failed requests",
+        description="Maximum number of retries for failed requests (deprecated, use rate_limit config)",
     )
     max_tokens: int = Field(
         default=2000, ge=1, description="Maximum tokens to generate in a single call to the llm"
@@ -101,6 +101,12 @@ class DataSetGeneratorConfig(BaseModel):
         default=DEFAULT_REQUEST_TIMEOUT, ge=5, le=300, description="Request timeout in seconds"
     )
     sys_msg: bool = Field(default=True, description="Whether to include system message in dataset")
+
+    # Rate limiting configuration
+    rate_limit: dict[str, int | float | str | bool] | None = Field(
+        default=None,
+        description="Rate limiting and retry configuration (uses provider defaults if not specified)",
+    )
 
     # Chain of Thought parameters
     conversation_type: Literal[
@@ -154,10 +160,11 @@ class DataSetGenerator:
         self.failed_samples = []
         self.failure_analysis = {category: [] for category in ERROR_CATEGORIES}
 
-        # Initialize LLM client
+        # Initialize LLM client with rate limiting configuration
         self.llm_client = LLMClient(
             provider=self.provider,
             model_name=self.model_name,
+            rate_limit_config=self.config.rate_limit,  # Pass rate limit config (can be None)
         )
         trace("generator_created", {"provider": self.provider})
 

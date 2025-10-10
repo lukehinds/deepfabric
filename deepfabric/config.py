@@ -116,12 +116,18 @@ class DataEngineConfig(BaseModel):
         default=DEFAULT_MAX_RETRIES,
         ge=0,
         le=10,
-        description="Maximum number of retries for failed generations",
+        description="Maximum number of retries for failed generations (deprecated, use rate_limit)",
     )
     max_tokens: int = Field(
         default=2000, ge=1, description="Maximum tokens to generate in a single call to the llm"
     )
     save_as: str | None = Field(default=None, description="Where to save the generated data")
+
+    # Rate limiting configuration
+    rate_limit: dict[str, int | float | str | bool] | None = Field(
+        default=None,
+        description="Rate limiting and retry configuration (uses provider defaults if not specified)",
+    )
 
     # Chain of Thought parameters
     conversation_type: Literal[

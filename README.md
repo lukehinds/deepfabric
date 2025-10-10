@@ -307,8 +307,7 @@ data_engine:
 
 - **Deduplication**: Automatic removal of similar samples
 - **Validation**: Schema enforcement for all outputs
-- **Retry Logic**: Automatic retry with backoff for failures
-- **Error Tracking**: Detailed logs of generation issues
+- **Rate Limiting**: Provider-aware retry with exponential backoff and jitter ([docs](./docs/rate-limiting.md))
 - **Progress Monitoring**: Real-time generation statistics
 
 ## 📖 Documentation & Resources

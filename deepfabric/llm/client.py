@@ -14,6 +14,8 @@ from pydantic import BaseModel
 
 from ..exceptions import DataSetGeneratorError
 from .errors import handle_provider_error
+from .rate_limit_config import RateLimitConfig, create_rate_limit_config
+from .retry_handler import RetryHandler, retry_with_backoff, retry_with_backoff_async
 
 
 def _raise_api_key_error(env_var: str) -> None:
@@ -201,29 +203,52 @@ def make_async_outlines_model(provider: str, model_name: str, **kwargs) -> Any |
 class LLMClient:
     """Wrapper for Outlines models with retry logic and error handling."""
 
-    def __init__(self, provider: str, model_name: str, **kwargs):
+    def __init__(
+        self,
+        provider: str,
+        model_name: str,
+        rate_limit_config: RateLimitConfig | dict | None = None,
+        **kwargs,
+    ):
         """Initialize LLM client.
 
         Args:
             provider: Provider name
             model_name: Model identifier
+            rate_limit_config: Rate limiting configuration (None uses provider defaults)
             **kwargs: Additional client configuration
         """
         self.provider = provider
         self.model_name = model_name
+
+        # Initialize rate limiting
+        if isinstance(rate_limit_config, dict):
+            self.rate_limit_config = create_rate_limit_config(provider, rate_limit_config)
+        elif rate_limit_config is None:
+            # Use provider-specific defaults
+            from .rate_limit_config import (  # noqa: PLC0415
+                get_default_rate_limit_config,
+            )
+
+            self.rate_limit_config = get_default_rate_limit_config(provider)
+        else:
+            self.rate_limit_config = rate_limit_config
+
+        self.retry_handler = RetryHandler(self.rate_limit_config, provider)
+
         self.model: Any = make_outlines_model(provider, model_name, **kwargs)
         self.async_model: Any | None = make_async_outlines_model(provider, model_name, **kwargs)
         if self.model is None:
             msg = f"Failed to create model for {provider}/{model_name}"
             raise DataSetGeneratorError(msg)
 
-    def generate(self, prompt: str, schema: Any, max_retries: int = 3, **kwargs) -> Any:
+    def generate(self, prompt: str, schema: Any, max_retries: int = 3, **kwargs) -> Any:  # noqa: ARG002
         """Generate structured output using the provided schema.
 
         Args:
             prompt: Input prompt
             schema: Pydantic model or other schema type
-            max_retries: Maximum number of retry attempts
+            max_retries: Maximum number of retry attempts (deprecated, use rate_limit_config)
             **kwargs: Additional generation parameters
 
         Returns:
@@ -231,9 +256,20 @@ class LLMClient:
 
         Raises:
             DataSetGeneratorError: If generation fails after all retries
-        """
-        last_error: Exception | None = None
 
+        Note:
+            The max_retries parameter is deprecated. Use rate_limit_config in __init__ instead.
+            If provided, it will be ignored in favor of the configured retry handler.
+        """
+        return self._generate_with_retry(prompt, schema, **kwargs)
+
+    @retry_with_backoff
+    def _generate_with_retry(self, prompt: str, schema: Any, **kwargs) -> Any:
+        """Internal method that performs actual generation with retry wrapper.
+
+        This method is decorated with retry_with_backoff to handle rate limits
+        and transient errors automatically.
+        """
         # Convert provider-specific parameters
         kwargs = self._convert_generation_params(**kwargs)
 
@@ -242,33 +278,45 @@ class LLMClient:
         if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
             generation_schema = _create_gemini_compatible_schema(schema)
 
-        for attempt in range(max_retries):
-            try:
-                # Generate JSON string with Outlines using the schema as output type
-                json_output = self.model(prompt, generation_schema, **kwargs)
+        # Generate JSON string with Outlines using the schema as output type
+        json_output = self.model(prompt, generation_schema, **kwargs)
 
-                # Parse and validate the JSON response with the ORIGINAL schema
-                # This ensures we still get proper validation
-                return schema.model_validate_json(json_output)
+        # Parse and validate the JSON response with the ORIGINAL schema
+        # This ensures we still get proper validation
+        return schema.model_validate_json(json_output)
 
-            except Exception as e:
-                last_error = e
-                if attempt == max_retries - 1:
-                    break
+    async def generate_async(self, prompt: str, schema: Any, max_retries: int = 3, **kwargs) -> Any:  # noqa: ARG002
+        """Asynchronously generate structured output using provider async clients.
 
-        if last_error is not None:
-            _raise_generation_error(max_retries, last_error)
-        msg = "Failed to generate output: no attempts were made"
-        raise DataSetGeneratorError(msg)
+        Args:
+            prompt: Input prompt
+            schema: Pydantic model or other schema type
+            max_retries: Maximum number of retry attempts (deprecated, use rate_limit_config)
+            **kwargs: Additional generation parameters
 
-    async def generate_async(self, prompt: str, schema: Any, max_retries: int = 3, **kwargs) -> Any:
-        """Asynchronously generate structured output using provider async clients."""
+        Returns:
+            Generated output matching the schema
 
+        Raises:
+            DataSetGeneratorError: If generation fails after all retries
+
+        Note:
+            The max_retries parameter is deprecated. Use rate_limit_config in __init__ instead.
+            If provided, it will be ignored in favor of the configured retry handler.
+        """
         if self.async_model is None:
             # Fallback to running the synchronous path in a worker thread
-            return await asyncio.to_thread(self.generate, prompt, schema, max_retries, **kwargs)
+            return await asyncio.to_thread(self.generate, prompt, schema, **kwargs)
 
-        last_error: Exception | None = None
+        return await self._generate_async_with_retry(prompt, schema, **kwargs)
+
+    @retry_with_backoff_async
+    async def _generate_async_with_retry(self, prompt: str, schema: Any, **kwargs) -> Any:
+        """Internal async method that performs actual generation with retry wrapper.
+
+        This method is decorated with retry_with_backoff_async to handle rate limits
+        and transient errors automatically.
+        """
         kwargs = self._convert_generation_params(**kwargs)
 
         # For Gemini, use compatible schema without additionalProperties
@@ -276,20 +324,9 @@ class LLMClient:
         if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
             generation_schema = _create_gemini_compatible_schema(schema)
 
-        for attempt in range(max_retries):
-            try:
-                json_output = await self.async_model(prompt, generation_schema, **kwargs)
-                # Validate with original schema to ensure proper validation
-                return schema.model_validate_json(json_output)
-            except Exception as e:
-                last_error = e
-                if attempt == max_retries - 1:
-                    break
-
-        if last_error is not None:
-            _raise_generation_error(max_retries, last_error)
-        msg = "Failed to generate output: no attempts were made"
-        raise DataSetGeneratorError(msg)
+        json_output = await self.async_model(prompt, generation_schema, **kwargs)
+        # Validate with original schema to ensure proper validation
+        return schema.model_validate_json(json_output)
 
     def _convert_generation_params(self, **kwargs) -> dict:
         """Convert generic parameters to provider-specific ones."""
