@@ -104,7 +104,7 @@ class RetryHandler:
         if self.config.jitter:
             # Add random jitter of ±25% to prevent thundering herd
             jitter_range = delay * 0.25
-            delay = delay + random.uniform(-jitter_range, jitter_range)  # noqa: S311
+            delay = delay + random.uniform(-jitter_range, jitter_range)  # noqa: S311 # nosec
 
         # Ensure delay is within bounds and return
         return max(self.config.base_delay, min(delay, self.config.max_delay))
