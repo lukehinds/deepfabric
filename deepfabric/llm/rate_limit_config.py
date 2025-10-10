@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 
 class BackoffStrategy(str, Enum):
@@ -73,7 +73,7 @@ class RateLimitConfig(BaseModel):
 
     @field_validator("max_delay")
     @classmethod
-    def validate_max_delay(cls, v: float, info) -> float:
+    def validate_max_delay(cls, v: float, info: "ValidationInfo") -> float:
         """Ensure max_delay is greater than base_delay."""
         if "base_delay" in info.data and v < info.data["base_delay"]:
             msg = "max_delay must be greater than or equal to base_delay"

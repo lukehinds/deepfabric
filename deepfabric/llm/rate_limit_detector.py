@@ -2,6 +2,7 @@
 
 import logging
 
+from dataclasses import dataclass, field
 from typing import Any
 
 import anthropic
@@ -10,24 +11,16 @@ import openai
 logger = logging.getLogger(__name__)
 
 
+@dataclass
 class QuotaInfo:
     """Information extracted from a rate limit error."""
 
-    def __init__(
-        self,
-        is_rate_limit: bool = False,
-        quota_type: str | None = None,
-        limit_value: int | None = None,
-        retry_after: float | None = None,
-        daily_quota_exhausted: bool = False,
-        details: dict[str, Any] | None = None,
-    ):
-        self.is_rate_limit = is_rate_limit
-        self.quota_type = quota_type
-        self.limit_value = limit_value
-        self.retry_after = retry_after
-        self.daily_quota_exhausted = daily_quota_exhausted
-        self.details = details or {}
+    is_rate_limit: bool = False
+    quota_type: str | None = None
+    limit_value: int | None = None
+    retry_after: float | None = None
+    daily_quota_exhausted: bool = False
+    details: dict[str, Any] = field(default_factory=dict)
 
     def __repr__(self) -> str:
         parts = [f"QuotaInfo(is_rate_limit={self.is_rate_limit}"]

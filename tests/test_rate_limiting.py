@@ -396,21 +396,24 @@ class TestRetryIntegration:
             mock_model = Mock(side_effect=mock_model_call)
             mock_make_model.return_value = mock_model
 
-            client = LLMClient("openai", "gpt-4", rate_limit_config=config)
+            with patch("deepfabric.llm.client.make_async_outlines_model") as mock_make_async:
+                mock_make_async.return_value = None  # No async model needed for this test
 
-            # Mock schema validation
-            from pydantic import BaseModel
+                client = LLMClient("openai", "gpt-4", rate_limit_config=config)
 
-            class TestSchema(BaseModel):
-                test: str
+                # Mock schema validation
+                from pydantic import BaseModel
 
-            # Call should succeed on second attempt
-            with patch.object(
-                TestSchema, "model_validate_json", return_value=TestSchema(test="value")
-            ):
-                result = client.generate("test prompt", TestSchema)
-                assert result.test == "value"
-                assert attempt_count[0] == 2  # Failed once, succeeded on retry
+                class TestSchema(BaseModel):
+                    test: str
+
+                # Call should succeed on second attempt
+                with patch.object(
+                    TestSchema, "model_validate_json", return_value=TestSchema(test="value")
+                ):
+                    result = client.generate("test prompt", TestSchema)
+                    assert result.test == "value"
+                    assert attempt_count[0] == 2  # Failed once, succeeded on retry
 
     def test_async_retry_succeeds_after_transient_failure(self):
         """Test that async retry succeeds after a transient failure."""

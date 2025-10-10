@@ -9,8 +9,6 @@ from collections.abc import Callable, Coroutine
 from functools import wraps
 from typing import Any, TypeVar
 
-import backoff
-
 from .rate_limit_config import BackoffStrategy, RateLimitConfig
 from .rate_limit_detector import RateLimitDetector
 
@@ -270,61 +268,3 @@ def retry_with_backoff_async(
         raise RuntimeError(msg)
 
     return wrapper
-
-
-def create_backoff_decorator(
-    retry_handler: RetryHandler,
-) -> Callable:
-    """Create a backoff decorator using the backoff library.
-
-    This is an alternative approach using the backoff library directly
-    instead of manual retry logic. It can be used for more advanced
-    scenarios.
-
-    Args:
-        retry_handler: Configured retry handler
-
-    Returns:
-        Configured backoff decorator
-    """
-    config = retry_handler.config
-
-    # Create backoff wait strategy
-    if config.backoff_strategy in (
-        BackoffStrategy.EXPONENTIAL,
-        BackoffStrategy.EXPONENTIAL_JITTER,
-    ):
-        wait_gen = backoff.expo(
-            base=config.exponential_base,
-            factor=config.base_delay,
-            max_value=config.max_delay,
-        )
-    elif config.backoff_strategy == BackoffStrategy.LINEAR:
-
-        def linear_wait():
-            attempt = 1
-            while True:
-                yield min(config.base_delay * attempt, config.max_delay)
-                attempt += 1
-
-        wait_gen = linear_wait()
-    else:  # CONSTANT
-        # backoff.constant expects an int or iterable, convert float to int
-        wait_gen = backoff.constant(interval=int(config.base_delay))
-
-    # Create the decorator
-    def backoff_wrapper(details):  # type: ignore[no-untyped-def]
-        retry_handler.on_backoff_handler(dict(details))  # type: ignore[arg-type]
-
-    def giveup_wrapper(details):  # type: ignore[no-untyped-def]
-        retry_handler.on_giveup_handler(dict(details))  # type: ignore[arg-type]
-
-    return backoff.on_exception(
-        wait_gen=wait_gen,  # type: ignore[arg-type]
-        exception=Exception,
-        max_tries=config.max_retries + 1,  # +1 because first try counts
-        giveup=lambda e: not retry_handler.should_retry(e),
-        on_backoff=backoff_wrapper,
-        on_giveup=giveup_wrapper,
-        jitter=backoff.full_jitter if config.jitter else None,
-    )
