@@ -733,11 +733,6 @@ trainer = SFTTrainer(
 trainer.train()
 ```
 
-### Complete Examples
-
-- **YAML Config**: [examples/trl_sft_config.yaml](../../examples/trl_sft_config.yaml) - Complete configuration example
-- **Jupyter Notebook**: [notebooks/trl_sft_training.ipynb](../../notebooks/trl_sft_training.ipynb) - Interactive tutorial with end-to-end training
-
 ### Type Mapping Reference
 
 | DeepFabric Type | JSON Schema Type |

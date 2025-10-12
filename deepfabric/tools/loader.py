@@ -1,15 +1,20 @@
 """Tool loading and management utilities."""
 
 import json
+import logging
 
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from pydantic import ValidationError
+
 from ..exceptions import ConfigurationError
 from ..schemas import ToolDefinition, ToolRegistry
 from .defaults import DEFAULT_TOOL_REGISTRY
+
+logger = logging.getLogger(__name__)
 
 
 def load_tools_from_file(file_path: str) -> ToolRegistry:
@@ -193,7 +198,12 @@ def convert_available_tools_to_trl(sample: dict) -> dict:
     try:
         tool_defs = [ToolDefinition.model_validate(tool) for tool in sample["available_tools"]]
         sample["tools"] = [tool.to_openai_schema() for tool in tool_defs]
-    except Exception:
-        # If conversion fails, just return the original sample
+    except (ValidationError, TypeError, KeyError) as e:
+        # If conversion fails, log and return the original sample
+        logger.warning(
+            "Failed to convert 'available_tools' to TRL format for a sample. Error: %s",
+            e,
+            exc_info=True,
+        )
         return sample
     return sample

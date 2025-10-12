@@ -37,13 +37,17 @@ Reference:
 - https://www.stephendiehl.com/posts/fine_tuning_tools/
 """
 
+import logging
+
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from ...schemas import ToolDefinition
 from ..base import BaseFormatter
 from ..models import ConversationSample
+
+logger = logging.getLogger(__name__)
 
 
 class TRLSFTToolsConfig(BaseModel):
@@ -140,9 +144,14 @@ class TRLSFTToolsFormatter(BaseFormatter):
                 if config.remove_available_tools_field:
                     formatted_sample.pop("available_tools", None)
 
-            except Exception:
+            except (ValidationError, TypeError, KeyError) as e:
                 # If tool conversion fails, log but don't fail the entire sample
                 # This allows processing of samples without proper tool definitions
+                logger.warning(
+                    "Failed to convert 'available_tools' for a sample due to: %s. Skipping tool conversion.",
+                    e,
+                    exc_info=True,
+                )
                 formatted_sample["tools"] = []
 
         # Handle system prompt
