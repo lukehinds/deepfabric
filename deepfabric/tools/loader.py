@@ -110,15 +110,15 @@ def get_available_tools(
 
     Args:
         available_tool_names: List of tool names to include (None means all)
-        custom_registry: Custom tool registry to merge with defaults
+        custom_registry: Custom tool registry (if provided, REPLACES defaults entirely)
 
     Returns:
         ToolRegistry with available tools
     """
-    # Start with defaults
+    # Use custom tools if provided (replaces defaults), otherwise use defaults
     if custom_registry is not None:
-        # Merge custom tools with defaults (custom tools override defaults)
-        registry = merge_tool_registries(DEFAULT_TOOL_REGISTRY, custom_registry)
+        # Custom tools REPLACE defaults (no merging)
+        registry = custom_registry
     else:
         registry = DEFAULT_TOOL_REGISTRY
 
