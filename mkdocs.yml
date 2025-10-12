@@ -45,12 +45,14 @@ nav:
         - Tutorials:
           - Getting Started: guide/instruction-formats/agent-tool-calling/tutorials/getting-started.md
     - Tool Configuration: guide/yaml-tool-configuration.md
+    - Rate Limiting: rate-limiting.md
   - SDK Guide:
     - Generator Pattern: guide/generator-pattern.md
   - Formatters:
     - Overview: formatters/overview.md
     - Built-in Reference: formatters/built-in-reference.md
     - Custom Formatter Guide: formatters/custom-formatter-guide.md
+    - Single Tool Call Guide: formatters/single-tool-call-guide.md
     - API Reference: formatters/api-reference.md
   - CLI Reference:
     - Overview: cli/index.md

@@ -736,8 +736,7 @@ trainer.train()
 ### Complete Examples
 
 - **YAML Config**: [examples/trl_sft_config.yaml](../../examples/trl_sft_config.yaml) - Complete configuration example
-- **Python Script**: [examples/trl_sft_training.py](../../examples/trl_sft_training.py) - End-to-end training script
-- **Jupyter Notebook**: [examples/trl_sft_training.ipynb](../../examples/trl_sft_training.ipynb) - Interactive tutorial notebook
+- **Jupyter Notebook**: [notebooks/trl_sft_training.ipynb](../../notebooks/trl_sft_training.ipynb) - Interactive tutorial with end-to-end training
 
 ### Type Mapping Reference
 
