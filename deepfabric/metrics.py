@@ -1,10 +1,3 @@
-"""
-Simple analytics for DeepFabric using PostHog.
-
-Provides a single trace() function for anonymous usage analytics.
-All analytics can be disabled by setting ANONYMIZED_TELEMETRY=False.
-"""
-
 import contextlib
 import os
 
