@@ -1,5 +1,3 @@
-"""Format command implementation for DeepFabric CLI."""
-
 import click
 import yaml
 
