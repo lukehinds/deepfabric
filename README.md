@@ -55,6 +55,7 @@ No more unruly models failing to Tool call or comply with reams of natural langu
 
 | Format | Template | Use Case | Framework Compatibility |
 |--------|----------|----------|-----------------------|
+| **TRL SFT Tools** | `builtin://trl_sft_tools` | Tool calling fine-tuning | HuggingFace TRL SFTTrainer |
 | **Alpaca** | `builtin://alpaca.py` | Instruction-following | Stanford Alpaca, LLaMA |
 | **ChatML** | `builtin://chatml.py` | Multi-turn conversations | Most chat models |
 | **Unsloth** | `builtin://unsloth.py` | Optimized fine-tuning | Unsloth notebooks |
@@ -62,7 +63,8 @@ No more unruly models failing to Tool call or comply with reams of natural langu
 | **Im Format** | `builtin://im_format.py` | Chat with delimiters | ChatML-compatible models |
 | **Tool Calling** | `builtin://tool_calling.py` | Function calling | Agent training |
 | **Single Tool Call** | `builtin://single_tool_call.py` | Individual tool calls | Single function execution |
-| **Harmony** | `builtin://harmony.py` | Reasoning with tags | (gpt-oss) |
+| **XLAM v2** | `builtin://xlam_v2` | Multi-turn tool calling | Salesforce xLAM models |
+| **Harmony** | `builtin://harmony.py` | Reasoning with tags | OpenAI gpt-oss |
 | **Custom** | `file://your_format.py` | Your requirements | Any framework |
 
 ### Custom Format

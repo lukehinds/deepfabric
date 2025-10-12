@@ -145,3 +145,55 @@ def validate_tool_definition(tool_dict: dict[str, Any]) -> ToolDefinition:
         return ToolDefinition.model_validate(tool_dict)
     except Exception as e:
         raise ConfigurationError(f"Invalid tool definition: {str(e)}") from e
+
+
+def tools_to_trl_format(tools: list[ToolDefinition] | ToolRegistry) -> list[dict[str, Any]]:
+    """Convert tool definitions to TRL/OpenAI function calling schema format.
+
+    This is a convenience function for converting either a list of ToolDefinitions
+    or a ToolRegistry to the format required by HuggingFace TRL's SFTTrainer.
+
+    Args:
+        tools: Either a list of ToolDefinition objects or a ToolRegistry
+
+    Returns:
+        List of tool schemas in OpenAI function calling format
+
+    Example:
+        >>> from deepfabric.tools.defaults import DEFAULT_TOOL_REGISTRY
+        >>> trl_tools = tools_to_trl_format(DEFAULT_TOOL_REGISTRY)
+        >>> # Use in dataset: {"messages": [...], "tools": trl_tools}
+    """
+    if isinstance(tools, ToolRegistry):
+        return tools.to_trl_format()
+    return [tool.to_openai_schema() for tool in tools]
+
+
+def convert_available_tools_to_trl(sample: dict) -> dict:
+    """Convert a sample's available_tools to TRL format with a 'tools' field.
+
+    This function takes a DeepFabric dataset sample and adds a 'tools' field
+    in TRL/OpenAI format while preserving the original sample structure.
+
+    Args:
+        sample: Dataset sample containing 'available_tools' field
+
+    Returns:
+        Updated sample with 'tools' field added in TRL format
+
+    Example:
+        >>> sample = {"messages": [...], "available_tools": [...]}
+        >>> trl_sample = convert_available_tools_to_trl(sample)
+        >>> # trl_sample now has: {"messages": [...], "tools": [...]}
+    """
+    if "available_tools" not in sample:
+        return sample
+
+    # Convert available_tools (list of dicts) to ToolDefinition objects
+    try:
+        tool_defs = [ToolDefinition.model_validate(tool) for tool in sample["available_tools"]]
+        sample["tools"] = [tool.to_openai_schema() for tool in tool_defs]
+    except Exception:
+        # If conversion fails, just return the original sample
+        return sample
+    return sample

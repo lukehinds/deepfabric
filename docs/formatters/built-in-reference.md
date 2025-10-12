@@ -580,6 +580,183 @@ config:
 
 ---
 
+## TRL SFT Tools Formatter
+
+**Template**: `builtin://trl_sft_tools`
+**Use Case**: HuggingFace TRL SFTTrainer tool/function calling fine-tuning
+
+### Description
+
+The TRL SFT Tools formatter transforms DeepFabric agent reasoning datasets into the format required by HuggingFace TRL's SFTTrainer for tool calling fine-tuning. It converts DeepFabric's internal `available_tools` field to the `tools` field in OpenAI function calling schema format, which is the standard format expected by TRL and other modern training frameworks.
+
+This formatter is specifically designed for training models with tool/function calling capabilities using supervised fine-tuning.
+
+### Configuration Options
+
+```yaml
+config:
+  include_system_prompt: true                    # Default: true
+  system_prompt_override: null                   # Default: null (uses original)
+  validate_tool_schemas: true                    # Default: true
+  remove_available_tools_field: false            # Default: false
+```
+
+### Input Formats Supported
+
+- **Agent CoT Tools**: Agent reasoning with tool usage from `agent_cot_tools` conversation type
+- **Agent CoT Hybrid**: Hybrid agent CoT with structured reasoning
+- **Agent CoT Multi-Turn**: Multi-turn agent conversations with tools
+- **XLAM Multi-Turn**: XLAM 2.0 format multi-turn tool calling
+- **Any format with messages and available_tools fields**
+
+### Output Format
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful AI assistant with access to various tools..."
+    },
+    {
+      "role": "user",
+      "content": "What's the weather in Paris?"
+    },
+    {
+      "role": "assistant",
+      "content": "Let me check the weather for you..."
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get weather information for a location",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "City name"
+            },
+            "unit": {
+              "type": "string",
+              "description": "Temperature unit"
+            }
+          },
+          "required": ["location"]
+        }
+      }
+    }
+  ]
+}
+```
+
+### Key Features
+
+1. **OpenAI Schema Conversion**: Automatically converts DeepFabric tool definitions to OpenAI function calling schema
+2. **Type Mapping**: Maps DeepFabric types (str, int, float, bool, list, dict) to JSON Schema types
+3. **Required Parameter Handling**: Properly distinguishes required vs optional parameters
+4. **Schema Validation**: Optional validation of tool schemas for correctness
+5. **System Prompt Control**: Override or preserve system prompts as needed
+
+### Example Configuration
+
+```yaml
+formatters:
+- name: "trl_sft"
+  template: "builtin://trl_sft_tools"
+  output: "trl_sft_dataset.jsonl"
+  config:
+    include_system_prompt: true
+    validate_tool_schemas: true
+    remove_available_tools_field: false
+```
+
+### Advanced Configuration
+
+**Override System Prompt for Training**:
+```yaml
+config:
+  include_system_prompt: true
+  system_prompt_override: |
+    You are a function calling AI model. You are provided with function signatures
+    within <tools></tools> XML tags. You may call one or more functions to assist
+    with the user query.
+```
+
+**Clean Output (Remove Original Tools Field)**:
+```yaml
+config:
+  remove_available_tools_field: true
+```
+
+**Disable Schema Validation (Performance)**:
+```yaml
+config:
+  validate_tool_schemas: false
+```
+
+### Usage with TRL SFTTrainer
+
+After formatting your dataset, use it directly with TRL's SFTTrainer:
+
+```python
+from datasets import load_dataset
+from trl import SFTConfig, SFTTrainer
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+# Load your formatted dataset
+dataset = load_dataset("json", data_files="trl_sft_dataset.jsonl", split="train")
+
+# Setup model and tokenizer
+model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
+
+# Configure training
+training_args = SFTConfig(
+    output_dir="./tool_calling_model",
+    num_train_epochs=3,
+    per_device_train_batch_size=2,
+    learning_rate=2e-4,
+)
+
+# Train with tool calling support
+trainer = SFTTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=dataset,
+    tokenizer=tokenizer,
+)
+
+trainer.train()
+```
+
+### Complete Examples
+
+- **YAML Config**: [examples/trl_sft_config.yaml](../../examples/trl_sft_config.yaml) - Complete configuration example
+- **Python Script**: [examples/trl_sft_training.py](../../examples/trl_sft_training.py) - End-to-end training script
+- **Jupyter Notebook**: [examples/trl_sft_training.ipynb](../../examples/trl_sft_training.ipynb) - Interactive tutorial notebook
+
+### Type Mapping Reference
+
+| DeepFabric Type | JSON Schema Type |
+|-----------------|------------------|
+| `str`           | `string`         |
+| `int`           | `integer`        |
+| `float`         | `number`         |
+| `bool`          | `boolean`        |
+| `list`          | `array`          |
+| `dict`          | `object`         |
+
+### References
+
+- [HuggingFace TRL SFTTrainer Tool Calling Docs](https://huggingface.co/docs/trl/en/sft_trainer#tool-calling-with-sft)
+- [OpenAI Function Calling Format](https://platform.openai.com/docs/guides/function-calling)
+
+---
+
 ## ChatML Formatter
 
 **Template**: `builtin://chatml.py`
@@ -664,6 +841,7 @@ formatters:
 - **Alpaca**: Single-turn instruction-response pairs
 
 ### For Tool/Function Calling
+- **TRL SFT Tools**: HuggingFace TRL SFTTrainer with OpenAI function schema (recommended for modern training workflows)
 - **Single Tool Call**: Individual tool call format with each call in its own message exchange
 - **Tool Calling**: Embedded tool calling with thinking traces and multiple tools per response
 - **Harmony**: TypeScript-style function definitions with channels for tool calls and responses

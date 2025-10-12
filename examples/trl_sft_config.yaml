@@ -1,0 +1,130 @@
+# DeepFabric Configuration for TRL SFT Tool Calling Training
+#
+# This configuration generates datasets specifically formatted for
+# HuggingFace TRL's SFTTrainer with tool/function calling support.
+#
+# Reference:
+# - https://huggingface.co/docs/trl/en/sft_trainer#tool-calling-with-sft
+# - https://www.stephendiehl.com/posts/fine_tuning_tools/
+#
+# Usage: deepfabric start trl_sft_config.yaml
+
+# System prompt for the AI assistant
+dataset_system_prompt: |
+  You are a helpful AI assistant with access to various tools and functions.
+  When a user asks a question that requires information or actions you cannot
+  directly provide, use the available tools to help answer the question.
+
+  Think step-by-step about:
+  1. What information or action is needed
+  2. Which tool(s) can provide that information
+  3. What parameters to pass to the tool
+  4. How to interpret and present the results
+
+# Topic tree generation for diverse scenarios
+topic_tree:
+  topic_prompt: "Practical scenarios and tasks that require AI assistants to use external tools and functions"
+
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.7
+
+  # Tree structure (adjust for desired dataset size)
+  depth: 3
+  degree: 3
+
+  save_as: "trl_topics.jsonl"
+
+# Data generation engine
+data_engine:
+  generation_system_prompt: |
+    Generate realistic examples of AI assistant interactions involving tool usage.
+
+    Each example should demonstrate:
+    - Clear step-by-step reasoning about tool selection
+    - Proper parameter construction with explanation
+    - Realistic tool outputs
+    - Synthesis of tool results into helpful answers
+
+    Focus on pedagogical value - examples should teach models how to reason
+    about tool usage, not just execute tools mechanically.
+
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.8
+  max_tokens: 2000
+
+  # Use agent_cot_tools for rich reasoning traces
+  conversation_type: "agent_cot_tools"
+
+  # Tool configuration
+  # Specify which tools are available (empty list = all default tools)
+  available_tools:
+    - "web_search"
+    - "calculator"
+    - "get_weather"
+    - "get_time"
+    - "python_interpreter"
+
+  max_tools_per_query: 3
+
+  # Uncomment to use custom tools from a file
+  # tool_registry_path: "examples/custom_tools.yaml"
+
+  # Or define custom tools inline
+  # custom_tools:
+  #   - name: "database_query"
+  #     description: "Query a SQL database"
+  #     parameters:
+  #       - name: "query"
+  #         type: "str"
+  #         description: "SQL query to execute"
+  #         required: true
+  #     returns: "Query results as JSON"
+  #     category: "data_operations"
+
+# Dataset configuration
+dataset:
+  save_as: "trl_sft_dataset_raw.jsonl"
+
+  creation:
+    # Adjust these based on desired dataset size
+    # num_steps * batch_size = total samples
+    num_steps: 7
+    batch_size: 3
+    sys_msg: true
+
+  # Formatters - apply TRL SFT formatter
+  formatters:
+    # Primary formatter for TRL SFTTrainer
+    - name: "trl_sft"
+      template: "builtin://trl_sft_tools"
+      output: "trl_sft_dataset.jsonl"
+      config:
+        include_system_prompt: true
+        # Optional: override system prompt for training
+        # system_prompt_override: "Custom system prompt here..."
+        validate_tool_schemas: true
+        # Keep available_tools for reference, or remove for cleaner output
+        remove_available_tools_field: false
+
+    # Optional: Also generate single tool call format for comparison
+    - name: "single_tool"
+      template: "builtin://single_tool_call"
+      output: "trl_sft_single_tool.jsonl"
+      config:
+        include_tools_in_system: true
+        include_reasoning_prefix: true
+        tool_response_as_json: true
+
+# Optional: Upload to Hugging Face Hub
+# Note: DeepFabric auto-generates dataset cards with metadata
+# huggingface:
+#   repository: "your-username/trl-tool-calling-dataset"
+#   tags:
+#     - "tool-calling"
+#     - "function-calling"
+#     - "trl"
+#     - "sft"
+#     - "reasoning"
+#     - "agents"
