@@ -9,6 +9,7 @@ from .alpaca import AlpacaFormatter
 from .chatml import ChatmlFormatter
 from .grpo import GrpoFormatter
 from .im_format import ImFormatter
+from .trl_sft_tools import TRLSFTToolsFormatter
 from .unsloth import UnslothFormatter
 from .unsloth_grpo import UnslothGrpoFormatter
 
@@ -17,6 +18,7 @@ __all__ = [
     "ChatmlFormatter",
     "GrpoFormatter",
     "ImFormatter",
+    "TRLSFTToolsFormatter",
     "UnslothFormatter",
     "UnslothGrpoFormatter",
 ]

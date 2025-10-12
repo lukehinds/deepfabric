@@ -82,6 +82,59 @@ class ToolDefinition(BaseModel):
                 params.append(f"{p.name}: {p.type} = {p.default}")
         return f"{self.name}({', '.join(params)}) → {self.returns}"
 
+    def to_openai_schema(self) -> dict[str, Any]:
+        """
+        Convert tool definition to OpenAI function calling schema format.
+
+        This format is compatible with TRL's SFTTrainer and other HuggingFace
+        training frameworks that support tool/function calling.
+
+        Returns:
+            Dictionary in OpenAI function calling schema format with:
+            - type: Always "function"
+            - function: Object containing name, description, and parameters schema
+        """
+        # Map DeepFabric types to JSON Schema types
+        type_mapping = {
+            "str": "string",
+            "int": "integer",
+            "float": "number",
+            "bool": "boolean",
+            "list": "array",
+            "dict": "object",
+        }
+
+        properties = {}
+        required = []
+
+        for param in self.parameters:
+            json_type = type_mapping.get(param.type, "string")
+            properties[param.name] = {
+                "type": json_type,
+                "description": param.description,
+            }
+
+            # Add default value if present and not required
+            if not param.required and param.default is not None:
+                properties[param.name]["default"] = param.default
+
+            # Track required parameters
+            if param.required:
+                required.append(param.name)
+
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": required,
+                },
+            },
+        }
+
 
 class ToolRegistry(BaseModel):
     """Registry of available tools."""
@@ -99,6 +152,26 @@ class ToolRegistry(BaseModel):
     def get_tool_names(self) -> list[str]:
         """Get list of all tool names."""
         return [t.name for t in self.tools]
+
+    def to_trl_format(self) -> list[dict[str, Any]]:
+        """
+        Convert all tools to TRL/OpenAI function calling schema format.
+
+        This method is specifically designed for use with HuggingFace TRL's
+        SFTTrainer and other training frameworks that require tools to be
+        provided in OpenAI function calling format.
+
+        Returns:
+            List of tool definitions in OpenAI function calling schema format.
+            Each tool includes type="function" and a function object with
+            name, description, and parameters.
+
+        Example:
+            >>> registry = ToolRegistry(tools=[...])
+            >>> trl_tools = registry.to_trl_format()
+            >>> # Use in dataset: {"messages": [...], "tools": trl_tools}
+        """
+        return [tool.to_openai_schema() for tool in self.tools]
 
 
 # Agent tool-calling schemas

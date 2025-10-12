@@ -23,6 +23,7 @@ from deepfabric.formatters.builtin.chatml import ChatmlFormatter
 from deepfabric.formatters.builtin.grpo import GrpoFormatter
 from deepfabric.formatters.builtin.harmony import HarmonyFormatter
 from deepfabric.formatters.builtin.tool_calling import ToolCallingFormatter
+from deepfabric.formatters.builtin.trl_sft_tools import TRLSFTToolsFormatter
 from deepfabric.formatters.registry import FormatterRegistry
 
 FORMATTED_LENGTH = 3
@@ -1147,3 +1148,336 @@ class TestHarmonyFormatter:
 
         # Both should have commentary channel
         assert text.count("<|channel|>commentary") >= 2  # noqa: PLR2004
+
+
+class TestTRLSFTToolsFormatter:
+    """Test the TRL SFT Tools formatter."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+
+        self.formatter = TRLSFTToolsFormatter()
+
+    def test_formatter_initialization(self):
+        """Test formatter can be initialized."""
+
+        formatter = TRLSFTToolsFormatter()
+        assert formatter is not None
+
+    def test_formatter_with_config(self):
+        """Test formatter initialization with config."""
+
+        config = {
+            "include_system_prompt": True,
+            "validate_tool_schemas": True,
+            "remove_available_tools_field": False,
+        }
+        formatter = TRLSFTToolsFormatter(config)
+        assert formatter is not None
+
+    def test_validate_sample_with_messages(self):
+        """Test validation of sample with messages."""
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi!"},
+            ]
+        }
+        assert self.formatter.validate(sample)
+
+    def test_validate_sample_without_messages(self):
+        """Test validation fails without messages."""
+        sample = {"text": "Hello"}
+        assert not self.formatter.validate(sample)
+
+    def test_validate_sample_empty_messages(self):
+        """Test validation fails with empty messages."""
+        sample = {"messages": []}
+        assert not self.formatter.validate(sample)
+
+    def test_format_sample_with_available_tools(self):
+        """Test formatting sample with available_tools."""
+        sample = {
+            "messages": [
+                {"role": "user", "content": "What's the weather?"},
+                {"role": "assistant", "content": "Let me check..."},
+            ],
+            "available_tools": [
+                {
+                    "name": "get_weather",
+                    "description": "Get weather for a location",
+                    "parameters": [
+                        {
+                            "name": "location",
+                            "type": "str",
+                            "description": "City name",
+                            "required": True,
+                        }
+                    ],
+                    "returns": "Weather information",
+                    "category": "weather",
+                }
+            ],
+        }
+
+        result = self.formatter.format([sample])
+        assert len(result) == 1
+
+        # Convert FormattedOutput to dict
+        formatted = result[0].model_dump()
+        assert "messages" in formatted
+        assert "tools" in formatted
+        assert len(formatted["tools"]) == 1
+
+        # Check tool format
+        tool = formatted["tools"][0]
+        assert tool["type"] == "function"
+        assert "function" in tool
+        assert tool["function"]["name"] == "get_weather"
+        assert tool["function"]["description"] == "Get weather for a location"
+        assert "parameters" in tool["function"]
+
+    def test_format_sample_without_tools(self):
+        """Test formatting sample without available_tools."""
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi!"},
+            ]
+        }
+
+        result = self.formatter.format([sample])
+        assert len(result) == 1
+
+        # Convert FormattedOutput to dict
+        formatted = result[0].model_dump()
+        assert "messages" in formatted
+        # No tools field should be added if not present in original
+        assert "tools" not in formatted or formatted.get("tools") == []
+
+    def test_tool_schema_conversion(self):
+        """Test proper conversion of tools to OpenAI schema."""
+        sample = {
+            "messages": [{"role": "user", "content": "Test"}],
+            "available_tools": [
+                {
+                    "name": "calculator",
+                    "description": "Perform calculations",
+                    "parameters": [
+                        {
+                            "name": "expression",
+                            "type": "str",
+                            "description": "Math expression",
+                            "required": True,
+                        },
+                        {
+                            "name": "precision",
+                            "type": "int",
+                            "description": "Decimal precision",
+                            "required": False,
+                            "default": 2,
+                        },
+                    ],
+                    "returns": "Calculation result",
+                    "category": "math",
+                }
+            ],
+        }
+
+        result = self.formatter.format([sample])
+        formatted = result[0].model_dump()
+        tool = formatted["tools"][0]
+
+        # Verify OpenAI schema structure
+        assert tool["type"] == "function"
+        assert tool["function"]["name"] == "calculator"
+        assert tool["function"]["description"] == "Perform calculations"
+
+        params = tool["function"]["parameters"]
+        assert params["type"] == "object"
+        assert "properties" in params
+        assert "required" in params
+
+        # Check parameter conversion
+        assert "expression" in params["properties"]
+        assert params["properties"]["expression"]["type"] == "string"
+        assert "expression" in params["required"]
+
+        assert "precision" in params["properties"]
+        assert params["properties"]["precision"]["type"] == "integer"
+        assert params["properties"]["precision"]["default"] == 2  # noqa: PLR2004
+        assert "precision" not in params["required"]
+
+    def test_multiple_tools_conversion(self):
+        """Test conversion of multiple tools."""
+        sample = {
+            "messages": [{"role": "user", "content": "Test"}],
+            "available_tools": [
+                {
+                    "name": "tool1",
+                    "description": "First tool",
+                    "parameters": [],
+                    "returns": "Result",
+                    "category": "general",
+                },
+                {
+                    "name": "tool2",
+                    "description": "Second tool",
+                    "parameters": [],
+                    "returns": "Result",
+                    "category": "general",
+                },
+            ],
+        }
+
+        result = self.formatter.format([sample])
+        formatted = result[0].model_dump()
+        assert len(formatted["tools"]) == 2  # noqa: PLR2004
+        assert formatted["tools"][0]["function"]["name"] == "tool1"
+        assert formatted["tools"][1]["function"]["name"] == "tool2"
+
+    def test_remove_available_tools_field(self):
+        """Test removing available_tools field from output."""
+
+        config = {"remove_available_tools_field": True}
+        formatter = TRLSFTToolsFormatter(config)
+
+        sample = {
+            "messages": [{"role": "user", "content": "Test"}],
+            "available_tools": [
+                {
+                    "name": "test_tool",
+                    "description": "Test",
+                    "parameters": [],
+                    "returns": "Result",
+                    "category": "general",
+                }
+            ],
+        }
+
+        result = formatter.format([sample])
+        formatted = result[0].model_dump()
+
+        assert "tools" in formatted
+        assert "available_tools" not in formatted
+
+    def test_system_prompt_override(self):
+        """Test overriding system prompt."""
+
+        custom_prompt = "Custom system prompt for testing"
+        config = {
+            "include_system_prompt": True,
+            "system_prompt_override": custom_prompt,
+        }
+        formatter = TRLSFTToolsFormatter(config)
+
+        sample = {
+            "messages": [
+                {"role": "system", "content": "Original prompt"},
+                {"role": "user", "content": "Test"},
+            ]
+        }
+
+        result = formatter.format([sample])
+        formatted = result[0].model_dump()
+
+        assert formatted["messages"][0]["role"] == "system"
+        assert formatted["messages"][0]["content"] == custom_prompt
+
+    def test_add_system_prompt_if_missing(self):
+        """Test adding system prompt when missing."""
+
+        custom_prompt = "New system prompt"
+        config = {
+            "include_system_prompt": True,
+            "system_prompt_override": custom_prompt,
+        }
+        formatter = TRLSFTToolsFormatter(config)
+
+        sample = {"messages": [{"role": "user", "content": "Test"}]}
+
+        result = formatter.format([sample])
+        formatted = result[0].model_dump()
+
+        assert formatted["messages"][0]["role"] == "system"
+        assert formatted["messages"][0]["content"] == custom_prompt
+        assert len(formatted["messages"]) == 2  # noqa: PLR2004
+
+    def test_type_mapping(self):
+        """Test correct type mapping from DeepFabric to JSON Schema."""
+        sample = {
+            "messages": [{"role": "user", "content": "Test"}],
+            "available_tools": [
+                {
+                    "name": "test_types",
+                    "description": "Test type mapping",
+                    "parameters": [
+                        {
+                            "name": "str_param",
+                            "type": "str",
+                            "description": "String",
+                            "required": True,
+                        },
+                        {
+                            "name": "int_param",
+                            "type": "int",
+                            "description": "Integer",
+                            "required": True,
+                        },
+                        {
+                            "name": "float_param",
+                            "type": "float",
+                            "description": "Float",
+                            "required": True,
+                        },
+                        {
+                            "name": "bool_param",
+                            "type": "bool",
+                            "description": "Boolean",
+                            "required": True,
+                        },
+                        {
+                            "name": "list_param",
+                            "type": "list",
+                            "description": "List",
+                            "required": True,
+                        },
+                        {
+                            "name": "dict_param",
+                            "type": "dict",
+                            "description": "Dict",
+                            "required": True,
+                        },
+                    ],
+                    "returns": "Result",
+                    "category": "test",
+                }
+            ],
+        }
+
+        result = self.formatter.format([sample])
+        formatted = result[0].model_dump()
+        props = formatted["tools"][0]["function"]["parameters"]["properties"]
+
+        assert props["str_param"]["type"] == "string"
+        assert props["int_param"]["type"] == "integer"
+        assert props["float_param"]["type"] == "number"
+        assert props["bool_param"]["type"] == "boolean"
+        assert props["list_param"]["type"] == "array"
+        assert props["dict_param"]["type"] == "object"
+
+    def test_load_via_registry(self):
+        """Test loading TRL formatter via registry."""
+        registry = FormatterRegistry()
+        formatter = registry.load_formatter("builtin://trl_sft_tools")
+        assert formatter is not None
+
+        assert isinstance(formatter, TRLSFTToolsFormatter)
+
+    def test_example_config(self):
+        """Test getting example configuration."""
+        config = self.formatter.get_example_config()
+        assert "include_system_prompt" in config
+        assert "system_prompt_override" in config
+        assert "validate_tool_schemas" in config
+        assert "remove_available_tools_field" in config
