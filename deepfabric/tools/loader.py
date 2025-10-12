@@ -116,11 +116,7 @@ def get_available_tools(
         ToolRegistry with available tools
     """
     # Use custom tools if provided (replaces defaults), otherwise use defaults
-    if custom_registry is not None:
-        # Custom tools REPLACE defaults (no merging)
-        registry = custom_registry
-    else:
-        registry = DEFAULT_TOOL_REGISTRY
+    registry = custom_registry if custom_registry is not None else DEFAULT_TOOL_REGISTRY
 
     # Filter by available tool names if specified
     if available_tool_names:
