@@ -373,8 +373,24 @@ If you're using DeepFabric in production or research, we'd love to hear from you
 
 ### Analytics
 
-We use fully anonymised analytics, to help us improve application performance and stability. We never send Personal identifiable information and we do not capture prompts, generated content, API keys, file names etc.
+We use privacy-respecting analytics to help us improve application performance and stability. We never send Personal identifiable information and we do not capture prompts, generated content, API keys, file names etc.
 
-We capture model names, numeric parameters (temperature, depth, degree, batch_size), timing and success/failure rates - this then helps us find optimizations or bottlenecks.
+#### What We Collect
+- **Anonymous User ID**: A stable, one-way hash based on your machine characteristics (hostname + MAC address). This helps us understand unique user counts without identifying you. Its impossible to reverse this hash to get your actual machine details and one-way only.
+- **Usage Metrics**: Model names, numeric parameters (temperature, depth, degree, batch_size), timing and success/failure rates
+- **Developer Flag**: If you set `DEEPFABRIC_DEVELOPER=True`, events are marked to help us filter developer testing from real usage
 
-You can fully disable all analytics by setting the environment variable `ANONYMIZED_TELEMETRY=False`.
+#### Privacy Guarantees
+- No usernames, emails, IP addresses, or personal information
+- User ID is cryptographically hashed and cannot be reversed and contains no Personal Identifiable Information
+- No prompts, generated datasets, or sensitive data is collected
+- All data is used solely for application improvement in regards to performance, stability, and feature usage
+
+#### Control Your Participation
+```bash
+# Disable all analytics
+export ANONYMIZED_TELEMETRY=False
+
+# Mark yourself as a developer (for filtering)
+export DEEPFABRIC_DEVELOPER=True
+```
