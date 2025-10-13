@@ -12,7 +12,8 @@ from deepfabric import DataSetGenerator
 generator = DataSetGenerator(
     instructions="Create detailed explanations with practical examples for intermediate learners.",
     generation_system_prompt="You are an expert instructor creating educational content.",
-    model_name="openai/gpt-4",
+    provider="openai",
+    model_name="gpt-4",
     temperature=0.8,
     max_retries=3,
     request_timeout=30,
@@ -23,23 +24,31 @@ generator = DataSetGenerator(
 
 ### Parameters
 
-**instructions** (str): Core guidance for content generation specifying format, complexity, target audience, and quality expectations.
+**instructions** (str, optional): Core guidance for content generation specifying format, complexity, target audience, and quality expectations. Default: empty string.
 
-**generation_system_prompt** (str): System prompt providing behavioral context for the generation model.
+**generation_system_prompt** (str, required): System prompt providing behavioral context for the generation model.
 
-**model** (str): model specification in `provider/model` format.
+**provider** (str, required): LLM provider name, e.g., `openai`, `anthropic`, `gemini`, `ollama`.
 
-**provider** (str): provider name , e.g `openai`, `anthropic`.
+**model_name** (str, required): Model name specific to the provider, e.g., `gpt-4`, `claude-3-opus`.
 
-**temperature** (float): Controls creativity and diversity in content generation. Range 0.0-2.0, typically 0.7-0.9.
+**temperature** (float, optional): Controls creativity and diversity in content generation. Range 0.0-2.0, typically 0.7-0.9. Default: 0.7.
 
-**max_retries** (int): Number of retry attempts for failed generation requests.
+**max_retries** (int, optional): Number of retry attempts for failed generation requests. Default: 3.
 
-**request_timeout** (int): Maximum seconds to wait for API responses.
+**request_timeout** (int, optional): Maximum seconds to wait for API responses. Default: 30.
 
-**default_batch_size** (int): Default number of examples to generate per API call.
+**default_batch_size** (int, optional): Default number of examples to generate per API call. Default: 5.
 
-**default_num_examples** (int): Default number of examples to generate when not specified.
+**default_num_examples** (int, optional): Default number of example demonstrations to include. Default: 3.
+
+**conversation_type** (str, optional): Type of conversation format. One of: `basic`, `cot_freetext`, `cot_structured`, `cot_hybrid`, `agent_cot_tools`, `agent_cot_hybrid`, `agent_cot_multi_turn`, `xlam_multi_turn`. Default: `basic`.
+
+**reasoning_style** (str, optional): Style of reasoning for CoT formats. One of: `mathematical`, `logical`, `general`. Default: `general`.
+
+**sys_msg** (bool, optional): Whether to include system messages in the dataset. Default: True.
+
+**rate_limit** (dict, optional): Rate limiting configuration. See [Rate Limiting Guide](../rate-limiting.md) for details.
 
 ## DataSetGenerator Class
 
@@ -52,7 +61,8 @@ from deepfabric import DataSetGenerator, Tree
 generator = DataSetGenerator(
     instructions="Create detailed educational content",
     generation_system_prompt="You are an expert instructor",
-    model_name="openai/gpt-4",
+    provider="openai",
+    model_name="gpt-4",
     temperature=0.8
 )
 
@@ -61,7 +71,6 @@ dataset = asyncio.run(generator.create_data_async(
     num_steps=100,
     batch_size=5,
     topic_model=tree,
-    model_name="anthropic/claude-3-opus",
     sys_msg=True
 ))
 ```
@@ -109,140 +118,191 @@ batch = generator.create_batch(
 
 Enables custom topic selection and incremental dataset building.
 
-#### validate_configuration()
+> **Note:** The `create_batch()` method is not currently implemented. Use `create_data_async()` or `create_data_with_events_async()` for dataset generation.
 
-Check generator configuration for common issues:
+### Conversation Types and Templates
 
-```python
-issues = generator.validate_configuration()
-if issues:
-    for issue in issues:
-        print(f"Configuration issue: {issue}")
-```
+The generator uses different conversation types to control the structure and format of generated content. Each type uses a specialized internal template optimized for that format.
 
-Returns list of configuration problems that might affect generation quality or reliability.
+#### Available Conversation Types
 
-### Template System
-
-The generator uses a flexible template system for content creation:
-
-#### Default Templates
-
-Built-in templates handle common use cases:
+Configure the conversation type during initialization:
 
 ```python
-# Instructional content
-generator.set_template("instruction", """
-Create a clear explanation of {topic} suitable for {audience_level}.
-Include practical examples and key concepts.
-""")
+from deepfabric import DataSetGenerator
 
-# Conversational format
-generator.set_template("conversation", """
-Generate a natural conversation about {topic} that demonstrates
-helpful, informative dialogue.
-""")
-```
+# Basic conversational format (default)
+generator = DataSetGenerator(
+    instructions="Create educational content",
+    generation_system_prompt="You are an expert instructor",
+    provider="openai",
+    model_name="gpt-4",
+    conversation_type="basic"  # Default
+)
 
-#### Custom Templates
-
-Define domain-specific templates:
-
-```python
-custom_template = """
-Create a {content_type} about {topic} that includes:
-1. Clear definition
-2. Practical code example
-3. Common pitfalls to avoid
-4. Best practices
-
-Target audience: {audience}
-Complexity level: {complexity}
-"""
-
-generator.set_custom_template(custom_template)
-```
-
-#### Template Variables
-
-Templates support variable substitution:
-
-- **{topic}**: Current topic being processed
-- **{context}**: Additional context from topic hierarchy
-- **{examples}**: Related examples from the domain
-- **{audience}**: Target audience specification
-- **{complexity}**: Desired complexity level
-
-### Quality Control
-
-Multiple quality control mechanisms ensure consistent output:
-
-#### Content Filtering
-
-Apply filters to generated content:
-
-```python
-def quality_filter(content, topic, metadata):
-    # Check content quality criteria
-    if len(content) < 100:
-        return False, "Content too short"
-    if "inappropriate" in content.lower():
-        return False, "Inappropriate content detected"
-    return True, "Acceptable"
-
-generator.add_content_filter(quality_filter)
-```
-
-#### Retry Strategies
-
-Configure retry behavior for failed generations:
-
-```python
-generator.set_retry_strategy(
-    max_retries=5,
-    backoff_multiplier=2.0,
-    max_backoff_seconds=60,
-    retry_on_errors=["timeout", "rate_limit", "json_parse_error"]
+# Chain of Thought formats
+generator = DataSetGenerator(
+    instructions="Create reasoning examples",
+    generation_system_prompt="You are a reasoning expert",
+    provider="openai",
+    model_name="gpt-4",
+    conversation_type="cot_freetext",  # Free-text reasoning
+    reasoning_style="mathematical"  # Optional: mathematical, logical, general
 )
 ```
 
-#### Statistical Monitoring
+**Supported conversation types:**
+- **basic**: Standard conversational format
+- **cot_freetext**: Chain of Thought with free-text reasoning
+- **cot_structured**: Chain of Thought with structured reasoning steps
+- **cot_hybrid**: Hybrid format combining structured and free-text reasoning
+- **agent_cot_tools**: Agent interactions with tool calling
+- **agent_cot_hybrid**: Agent with hybrid reasoning and tools
+- **agent_cot_multi_turn**: Multi-turn agent conversations
+- **xlam_multi_turn**: XLAM format multi-turn conversations
 
-Monitor generation statistics in real-time:
+#### Reasoning Styles
+
+For Chain of Thought conversation types, specify the reasoning style:
 
 ```python
-generator.enable_monitoring(verbose=True)
-dataset = asyncio.run(generator.create_data_async(...)
+generator = DataSetGenerator(
+    instructions="Create math problem solutions",
+    generation_system_prompt="You are a math tutor",
+    provider="openai",
+    model_name="gpt-4",
+    conversation_type="cot_structured",
+    reasoning_style="mathematical"  # mathematical, logical, or general
+)
+```
 
-stats = generator.get_generation_stats()
-print(f"Success rate: {stats.success_rate:.2%}")
-print(f"Average retry count: {stats.avg_retries:.1f}")
-print(f"Error breakdown: {stats.error_categories}")
+#### Customizing Content Generation
+
+While you cannot set custom templates directly, you can control generation through configuration parameters:
+
+**1. Instructions Parameter:**
+
+Provide detailed guidance for content structure and style:
+
+```python
+generator = DataSetGenerator(
+    instructions="""
+    Create detailed explanations with:
+    - Clear definitions
+    - Practical code examples
+    - Common pitfalls to avoid
+    - Best practices for production use
+    Target audience: intermediate developers
+    """,
+    generation_system_prompt="You are a senior software engineer",
+    provider="openai",
+    model_name="gpt-4"
+)
+```
+
+**2. Generation System Prompt:**
+
+Define the persona and behavior of the content generator:
+
+```python
+generator = DataSetGenerator(
+    instructions="Create tutorials",
+    generation_system_prompt="""
+    You are an expert educator specializing in data science.
+    Create comprehensive tutorials that balance theory and practice.
+    Use clear examples and explain complex concepts in simple terms.
+    """,
+    provider="openai",
+    model_name="gpt-4"
+)
+```
+
+**3. Example Data for Few-Shot Learning:**
+
+Provide examples to guide the generation style:
+
+```python
+from deepfabric import Dataset
+
+example_dataset = Dataset()
+example_dataset.load("examples.jsonl")
+
+generator = DataSetGenerator(
+    instructions="Follow the style of the provided examples",
+    generation_system_prompt="You are an expert instructor",
+    provider="openai",
+    model_name="gpt-4",
+    example_data=example_dataset
+)
+```
+
+### Quality Control and Monitoring
+
+The generator includes built-in quality control and monitoring mechanisms:
+
+#### Retry Configuration
+
+Configure retry behavior during initialization:
+
+```python
+generator = DataSetGenerator(
+    instructions="Create educational content",
+    generation_system_prompt="You are an expert instructor",
+    provider="openai",
+    model_name="gpt-4",
+    max_retries=5,  # Number of retry attempts
+    request_timeout=60  # Timeout in seconds
+)
+```
+
+#### Rate Limiting Configuration
+
+Control API rate limits and retry behavior:
+
+```python
+generator = DataSetGenerator(
+    instructions="Create educational content",
+    generation_system_prompt="You are an expert instructor",
+    provider="openai",
+    model_name="gpt-4",
+    rate_limit={
+        "max_requests_per_minute": 50,
+        "max_tokens_per_minute": 100000,
+        "max_retries": 5,
+        "initial_retry_delay": 1.0,
+        "max_retry_delay": 60.0
+    }
+)
+```
+
+See the [Rate Limiting Guide](../rate-limiting.md) for detailed configuration options.
+
+#### Monitoring Failed Samples
+
+Access failed samples and analyze failures:
+
+```python
+# Generate dataset
+dataset = asyncio.run(generator.create_data_async(
+    num_steps=100,
+    batch_size=5,
+    topic_model=tree
+))
+
+# Check for failures
+if generator.failed_samples:
+    print(f"Failed samples: {len(generator.failed_samples)}")
+
+    # Get detailed failure analysis
+    summary = generator.summarize_failures()
+    print(f"Total failures: {summary['total_failures']}")
+    print(f"Failure types: {summary['failure_types']}")
+
+    # Print detailed summary
+    generator.print_failure_summary()
 ```
 
 ### Advanced Usage
-
-#### Topic Sampling Strategies
-
-Control how topics are selected from the topic model:
-
-```python
-# Sequential sampling (default)
-dataset = asyncio.run(generator.create_data_async(topic_model=tree, sampling_strategy="sequential")
-
-# Random sampling with replacement
-dataset = asyncio.run(generator.create_data_async(topic_model=tree, sampling_strategy="random")
-
-# Balanced sampling across tree branches
-dataset = asyncio.run(generator.create_data_async(topic_model=tree, sampling_strategy="balanced")
-
-# Custom sampling function
-def custom_sampler(topic_model, count):
-    # Implement domain-specific sampling logic
-    return selected_topics
-
-dataset = asyncio.run(generator.create_data_async(topic_model=tree, topic_sampler=custom_sampler)
-```
 
 #### Multi-Provider Generation
 
@@ -252,46 +312,88 @@ Use different models for different types of content:
 # High-quality generator for complex topics
 complex_generator = DataSetGenerator(
     instructions="Create advanced technical content",
-    model_name="anthropic/claude-3-opus",
+    generation_system_prompt="You are an expert technical writer",
+    provider="anthropic",
+    model_name="claude-3-opus",
     temperature=0.7
-)
-complex_topics = tree.get_topics_at_depth(3)
-complex_dataset = asyncio.run(complex_generator.create_data_async(
-    topics=complex_topics
 )
 
 # Faster generator for simple topics
 simple_generator = DataSetGenerator(
     instructions="Create basic explanations",
-    model_name="openai/gpt-3.5-turbo",
+    generation_system_prompt="You are a teacher for beginners",
+    provider="openai",
+    model_name="gpt-3.5-turbo",
     temperature=0.8
 )
-simple_topics = tree.get_topics_at_depth(1)
-simple_dataset = simple_asyncio.run(generator.create_data_async(
-    topics=simple_topics
-)
+
+# Generate with different generators
+complex_dataset = asyncio.run(complex_generator.create_data_async(
+    num_steps=50,
+    batch_size=5,
+    topic_model=tree
+))
+
+simple_dataset = asyncio.run(simple_generator.create_data_async(
+    num_steps=100,
+    batch_size=10,
+    topic_model=tree
+))
 ```
 
-#### Incremental Generation
+#### Progress Monitoring with Events
 
-Build datasets incrementally with progress tracking:
+Track generation progress in real-time:
 
 ```python
-dataset = Dataset()
-total_steps = 1000
-batch_size = 10
-
-for i in range(0, total_steps, batch_size):
-    batch = generator.create_batch(
-        topics=topic_model.sample_topics(batch_size),
-        batch_size=batch_size
+async def generate_with_progress():
+    generator = DataSetGenerator(
+        instructions="Create educational content",
+        generation_system_prompt="You are an expert instructor",
+        provider="openai",
+        model_name="gpt-4"
     )
-    dataset.extend(batch)
-    
-    # Save progress periodically
-    if i % 100 == 0:
-        dataset.save(f"checkpoint_{i}.jsonl")
-        print(f"Progress: {i}/{total_steps} examples")
+
+    async for event in generator.create_data_with_events_async(
+        num_steps=100,
+        batch_size=5,
+        topic_model=tree
+    ):
+        if isinstance(event, dict):
+            # Handle progress events
+            if event["event"] == "generation_start":
+                print(f"Starting generation: {event['total_samples']} samples")
+            elif event["event"] == "step_complete":
+                print(f"Step {event['step']}: {event['samples_generated']} samples")
+                if event["failed_in_step"] > 0:
+                    print(f"  Failures in step: {event['failed_in_step']}")
+            elif event["event"] == "generation_complete":
+                print(f"Complete: {event['total_samples']} generated, {event['failed_samples']} failed")
+        else:
+            # Final dataset
+            dataset = event
+            return dataset
+
+dataset = asyncio.run(generate_with_progress())
+```
+
+#### Saving Datasets
+
+Save generated datasets to disk:
+
+```python
+# Generate dataset
+dataset = asyncio.run(generator.create_data_async(
+    num_steps=100,
+    batch_size=5,
+    topic_model=tree
+))
+
+# Save to file
+generator.save_dataset("training_data.jsonl")
+
+# Or use the dataset directly
+dataset.save("training_data.jsonl")
 ```
 
 ### Error Handling
@@ -299,39 +401,58 @@ for i in range(0, total_steps, batch_size):
 Comprehensive error handling for robust operation:
 
 ```python
-from deepfabric import DataSetGeneratorError, ModelError, ValidationError
+from deepfabric import DataSetGeneratorError
 
 try:
     generator = DataSetGenerator(
         instructions="Create educational content",
-        model_name="openai/gpt-4"
+        generation_system_prompt="You are an expert instructor",
+        provider="openai",
+        model_name="gpt-4"
     )
-    dataset = asyncio.run(generator.create_data_async(topic_model=tree, num_steps=100)
-except ModelError as e:
-    print(f"Model API issue: {e}")
-    # Implement fallback strategy
-except ValidationError as e:
-    print(f"Generated content validation failed: {e}")
+    dataset = asyncio.run(generator.create_data_async(
+        topic_model=tree,
+        num_steps=100,
+        batch_size=5
+    ))
 except DataSetGeneratorError as e:
-    print(f"Generation process error: {e}")
+    print(f"Generation error: {e}")
+    # Handle configuration or API errors
+except Exception as e:
+    print(f"Unexpected error: {e}")
 ```
 
 ### Performance Optimization
 
-Optimize generation performance through parameter tuning:
+Optimize generation performance through configuration parameters:
 
 ```python
 # Optimize for throughput
-generator.optimize_for_throughput(
-    large_batch_sizes=True,
-    parallel_requests=True,
-    aggressive_timeouts=False
+generator = DataSetGenerator(
+    instructions="Create educational content",
+    generation_system_prompt="You are an expert instructor",
+    provider="openai",
+    model_name="gpt-4",
+    temperature=0.8,
+    default_batch_size=10,  # Larger batches
+    request_timeout=60,     # Longer timeout
+    max_retries=3           # Fewer retries
 )
 
 # Optimize for reliability
-generator.optimize_for_reliability(
-    conservative_batch_sizes=True,
-    extended_timeouts=True,
-    maximum_retries=True
+generator = DataSetGenerator(
+    instructions="Create educational content",
+    generation_system_prompt="You are an expert instructor",
+    provider="openai",
+    model_name="gpt-4",
+    temperature=0.7,
+    default_batch_size=3,   # Smaller batches
+    request_timeout=120,    # Extended timeout
+    max_retries=5,          # More retries
+    rate_limit={
+        "max_retries": 10,
+        "initial_retry_delay": 2.0,
+        "max_retry_delay": 120.0
+    }
 )
 ```
