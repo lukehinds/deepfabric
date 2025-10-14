@@ -16,7 +16,7 @@ from .exceptions import ConfigurationError
 from .format_command import format_cli
 from .generator import DataSetGenerator
 from .graph import Graph
-from .metrics import trace
+from .metrics import set_trace_debug, trace
 from .topic_manager import load_or_build_topic_model, save_topic_model
 from .topic_model import TopicModel
 from .tui import get_tui
@@ -343,6 +343,7 @@ def generate(  # noqa: PLR0913
     topic_only: bool = False,
 ) -> None:
     """Generate training data from a YAML configuration file or CLI parameters."""
+    set_trace_debug(debug)
     trace(
         "cli_generate",
         {"mode": mode, "has_config": config_file is not None, "provider": provider, "model": model},
