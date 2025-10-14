@@ -9,7 +9,7 @@ dependencies = [
     "huggingface-hub==0.35.3",
     "datasets==4.2.0",
     "kagglehub>=0.3.0",
-    "outlines==1.2.5",
+    "outlines==1.2.7",
     "openai>=1.107.2",
     "anthropic>=0.67.0",
     "PyYAML>=6.0.1",
