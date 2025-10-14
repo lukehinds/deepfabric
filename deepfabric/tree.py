@@ -148,7 +148,13 @@ class Tree(TopicModel):
         )
 
         trace(
-            "tree_created", {"provider": self.provider, "degree": self.degree, "depth": self.depth}
+            "tree_created",
+            {
+                "provider": self.provider,
+                "model_name": self.model_name,
+                "degree": self.degree,
+                "depth": self.depth,
+            },
         )
 
         # Derived attributes
@@ -197,6 +203,8 @@ class Tree(TopicModel):
             trace(
                 "tree_built",
                 {
+                    "provider": self.provider,
+                    "model_name": self.model_name,
                     "total_paths": len(self.tree_paths),
                     "failed_generations": len(self.failed_generations),
                     "success": len(self.tree_paths) > 0,

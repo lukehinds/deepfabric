@@ -150,8 +150,8 @@ class DataSetGenerator:
         """Initialize DataSetGenerator with parameters."""
         try:
             self.config = DataSetGeneratorConfig.model_validate(kwargs)
-        except Exception as e:
-            raise DataSetGeneratorError(f"Invalid generator configuration: {str(e)}") from e  # noqa: TRY003
+        except Exception as e:  # noqa: TRY003
+            raise DataSetGeneratorError(f"Invalid generator configuration: {str(e)}") from e
 
         # Initialize from config
         self.provider = self.config.provider
@@ -166,7 +166,14 @@ class DataSetGenerator:
             model_name=self.model_name,
             rate_limit_config=self.config.rate_limit,  # Pass rate limit config (can be None)
         )
-        trace("generator_created", {"provider": self.provider})
+        trace(
+            "generator_created",
+            {
+                "provider": self.provider,
+                "model_name": self.model_name,
+                "conversation_type": self.config.conversation_type,
+            },
+        )
 
         # Store dataset system prompt for dataset inclusion (with fallback)
         self.dataset_system_prompt = (
@@ -211,7 +218,7 @@ class DataSetGenerator:
                 custom_registry=custom_registry,
             )
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             raise DataSetGeneratorError(f"Failed to initialize tool registry: {str(e)}") from e
 
     def _validate_create_data_params(
@@ -414,18 +421,18 @@ class DataSetGenerator:
         }
 
         # Add example failures for each category
-        for category, failures in self.failure_analysis.items():
+        for _category, failures in self.failure_analysis.items():
             if failures:
                 # Get up to 3 examples for each category
                 examples = failures[:3]
-                summary["failure_examples"][category] = [
+                summary["failure_examples"].append(
                     (
                         str(ex)[:200] + "..."
                         if len(str(ex)) > 200  # noqa: PLR2004
-                        else str(ex)  # noqa: PLR2004
-                    )  # noqa: PLR2004
+                        else str(ex)
+                    )
                     for ex in examples
-                ]
+                )
         return summary
 
     def create_data(
@@ -532,6 +539,9 @@ class DataSetGenerator:
             trace(
                 "dataset_created",
                 {
+                    "provider": self.provider,
+                    "model_name": self.model_name,
+                    "conversation_type": self.config.conversation_type,
                     "samples_count": len(final_result.samples),
                     "failed_samples": len(self.failed_samples),
                     "success": len(final_result.samples) > 0,
@@ -725,7 +735,9 @@ class DataSetGenerator:
                 print(f"\n{failure_type.replace('_', ' ').title()}: {count}")
                 if failure_type in summary["failure_examples"]:
                     print("Example failures:")
-                    for i, example in enumerate(summary["failure_examples"][failure_type], 1):
+                    for i, example in enumerate(
+                        summary["failure_examples"].get(failure_type, []), 1
+                    ):
                         print(f"  {i}. {example}")
         print("\n=============================")
 

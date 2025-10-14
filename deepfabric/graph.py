@@ -126,7 +126,13 @@ class Graph(TopicModel):
         )
 
         trace(
-            "graph_created", {"provider": self.provider, "degree": self.degree, "depth": self.depth}
+            "graph_created",
+            {
+                "provider": self.provider,
+                "model_name": self.model_name,
+                "degree": self.degree,
+                "depth": self.depth,
+            },
         )
 
         self.root: Node = Node(self.config.topic_prompt, 0)
@@ -259,6 +265,8 @@ class Graph(TopicModel):
             trace(
                 "graph_built",
                 {
+                    "provider": self.provider,
+                    "model_name": self.model_name,
                     "nodes_count": len(self.nodes),
                     "failed_generations": len(self.failed_generations),
                     "success": len(self.nodes) > 1,
