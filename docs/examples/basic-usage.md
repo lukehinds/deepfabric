@@ -19,14 +19,14 @@ topic_tree:
   depth: 2
   temperature: 0.7
   provider: "openai"
-  model: "gpt-3.5-turbo"
+  model: "gpt-4-turbo"
   save_as: "programming_topics.jsonl"
 
 data_engine:
   instructions: "Create a clear explanation with a simple code example that a beginner could understand and follow."
   generation_system_prompt: "You are a programming instructor creating educational content for beginners."
   provider: "openai"
-  model: "gpt-3.5-turbo"
+  model: "gpt-4-turbo"
   temperature: 0.8
   max_retries: 3
 
@@ -35,7 +35,7 @@ dataset:
     num_steps: 25
     batch_size: 3
     provider: "openai"
-    model: "gpt-3.5-turbo"
+    model: "gpt-4-turbo"
     sys_msg: true
   save_as: "programming_examples.jsonl"
 ```
@@ -180,14 +180,14 @@ topic_tree:
   depth: 1
   temperature: 0.5
   provider: "openai"
-  model: "gpt-3.5-turbo"
+  model: "gpt-4-turbo"
   save_as: "test_topics.jsonl"
 
 data_engine:
   instructions: "Create a simple example for testing purposes."
   generation_system_prompt: "You are creating test examples for development."
   provider: "openai"
-  model: "gpt-3.5-turbo"
+  model: "gpt-4-turbo"
   temperature: 0.5
   max_retries: 2
 
@@ -196,7 +196,7 @@ dataset:
     num_steps: 5
     batch_size: 1
     provider: "openai"
-    model: "gpt-3.5-turbo"
+    model: "gpt-4-turbo"
     sys_msg: false
   save_as: "test_dataset.jsonl"
 ```

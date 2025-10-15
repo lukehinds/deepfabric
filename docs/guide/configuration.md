@@ -135,11 +135,11 @@ DeepFabric supports any multiple providers through consistent configuration patt
 ```yaml
 topic_tree:
   provider: "openai"
-  model: "gpt-3.5-turbo"    # Fast, cost-effective for topic generation
+  model: "gpt-4-turbo"    # Fast, cost-effective for topic generation
 
 data_engine:
   provider: "anthropic"
-  model: "claude-3-opus"    # High-quality for content generation
+  model: "claude-sonnet-4-5"    # High-quality for content generation
 ```
 
 Provider authentication occurs through environment variables following the pattern `{PROVIDER}_API_KEY`. For example, OpenAI requires `OPENAI_API_KEY` while Anthropic requires `ANTHROPIC_API_KEY`.

@@ -91,7 +91,7 @@ deepfabric validate config.yaml
 Provider Validation:
    OpenAI API key detected (OPENAI_API_KEY)
    Model gpt-4 is available
-  ⚠️  Model gpt-4 has higher costs than gpt-3.5-turbo
+  ⚠️  Model gpt-4 has higher costs than gpt-4-turbo
 ```
 
 ## Development Workflow Integration

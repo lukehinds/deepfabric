@@ -17,7 +17,7 @@ topic_tree:
   depth: 2
   temperature: 0.7
   provider: "openai"
-  model: "gpt-3.5-turbo"
+  model: "gpt-4-turbo"
   save_as: "python_basics_topics.jsonl"
 
 data_engine:
@@ -80,7 +80,7 @@ data_engine:
   instructions: "Create detailed explanations with mathematical foundations, practical examples, and real-world applications suitable for undergraduate and graduate students."
   generation_system_prompt: "You are creating a comprehensive machine learning curriculum with theoretical foundations and practical applications."
   provider: "anthropic"
-  model: "claude-3-opus"
+  model: "claude-sonnet-4-5"
   temperature: 0.8
   max_retries: 3
 
@@ -158,7 +158,7 @@ data_engine:
   instructions: "Create realistic, professional customer service interactions demonstrating empathy, problem-solving skills, and industry-specific knowledge. Include complex scenarios, difficult customers, and exemplary resolution techniques."
   generation_system_prompt: "You are creating professional customer support training data that demonstrates excellence in customer service across various industries and scenarios."
   provider: "anthropic"
-  model: "claude-3-opus"
+  model: "claude-sonnet-4-5"
   temperature: 0.8
   max_retries: 5
   request_timeout: 60
@@ -319,7 +319,7 @@ topic_graph:
   depth: 3
   temperature: 0.8
   provider: "anthropic"
-  model: "claude-3-opus"
+  model: "claude-sonnet-4-5"
   save_as: "nlp_research_graph.json"
 
 data_engine:

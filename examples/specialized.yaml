@@ -11,7 +11,7 @@ topic_tree:
   topic_prompt: "Clinical diagnosis and patient care protocols"
 
   provider: "anthropic"
-  model: "claude-3-opus"
+  model: "claude-sonnet-4-5"
   temperature: 0.5                      # Conservative for medical accuracy
 
   degree: 4
@@ -75,7 +75,7 @@ dataset:
 
     # High-quality provider for final dataset assembly
     provider: "anthropic"
-    model: "claude-3-opus"
+    model: "claude-sonnet-4-5"
     sys_msg: true                       # Include system prompts for training context
 
   save_as: "clinical_communication_dataset.jsonl"

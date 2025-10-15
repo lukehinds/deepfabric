@@ -64,7 +64,7 @@ tree_args = config.get_tree_args(
     degree=5,
     temperature=0.9,
     provider="anthropic",
-    model="claude-3-opus"
+    model="claude-sonnet-4-5"
 )
 ```
 
@@ -228,8 +228,8 @@ from deepfabric.config import construct_model_string
 model_string = construct_model_string("openai", "gpt-4")
 # Returns: "openai/gpt-4"
 
-model_string = construct_model_string("anthropic", "claude-3-opus")
-# Returns: "anthropic/claude-3-opus"
+model_string = construct_model_string("anthropic", "claude-sonnet-4-5")
+# Returns: "anthropic/claude-sonnet-4-5"
 ```
 
 #### get_provider_config(provider: str)
@@ -311,7 +311,7 @@ generator = create_generator_with_overrides(
     "base_config.yaml",
     temperature=0.8,
     provider="anthropic",
-    model="claude-3-opus"
+    model="claude-sonnet-4-5"
 )
 
 # Multi-environment configuration

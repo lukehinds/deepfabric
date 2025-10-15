@@ -110,7 +110,7 @@ def example_multiple_providers():
         },
         "anthropic_config": {
             "provider": "anthropic",
-            "model": "claude-3-opus",
+            "model": "claude-sonnet-4-5",
             "use_case": "Complex reasoning tasks"
         },
         "ollama_config": {
@@ -143,7 +143,7 @@ def example_multiple_providers():
         "data_engine": {
             "instructions": "Create detailed explanations with code examples",
             "provider": "anthropic",  # High quality for content
-            "model_name": "claude-3-opus",
+            "model_name": "claude-sonnet-4-5",
             "temperature": 0.3,
         },
         "dataset": {
