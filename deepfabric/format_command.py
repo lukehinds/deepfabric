@@ -39,7 +39,11 @@ def format_command(
         # Lazy import to avoid overhead when not needed
         try:
             from datasets import load_dataset  # type: ignore  # noqa: PLC0415
-        except Exception as e:  # pragma: no cover - import path
+            from datasets.exceptions import (  # type: ignore  # noqa: PLC0415
+                DatasetNotFoundError,
+                UnexpectedSplitsError,
+            )
+        except ImportError as e:  # pragma: no cover - import path
             raise RuntimeError(
                 "The 'datasets' library is required to load from --repo. Please install it."
             ) from e
@@ -48,10 +52,12 @@ def format_command(
         tui.info(f"Loading dataset from Hugging Face repo '{repo}' (split: {hf_split})...")
         try:
             hf_ds = load_dataset(str(repo), split=hf_split)
-        except Exception as e:
-            raise RuntimeError(
-                f"Failed to load dataset from Hugging Face repo '{repo}' with split '{hf_split}': {e}"
-            ) from e
+        except (DatasetNotFoundError, UnexpectedSplitsError) as e:
+            msg = (
+                "Failed to load dataset from Hugging Face repo "
+                f"'{repo}' with split '{hf_split}': {e}"
+            )
+            raise RuntimeError(msg) from e
 
         # Convert to DeepFabric Dataset from list of dicts
         samples = list(hf_ds)

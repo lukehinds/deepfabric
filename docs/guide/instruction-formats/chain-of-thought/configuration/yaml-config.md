@@ -234,7 +234,7 @@ topic_prompt: "Advanced physics problems requiring multi-step problem solving"
 - **Required**: Yes
 - **Description**: LLM provider and model for topic generation
 - **Options**:
-  - `openai`: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`, `gpt-4-turbo`
+  - `openai`: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`
   - `anthropic`: `claude-sonnet-4-5`, `claude-3-sonnet`, `claude-3-haiku`
   - `gemini`: `gemini-pro`, `gemini-2.5-flash-lite`
   - `ollama`: `mistral:latest`, `llama3:latest`, etc.
