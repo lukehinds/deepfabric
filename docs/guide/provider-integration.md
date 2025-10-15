@@ -51,7 +51,7 @@ model: "gpt-4"
 
 # Anthropic Claude
 provider: "anthropic" 
-model: "claude-3-opus"
+model: "claude-sonnet-4-5"
 
 # Local Ollama
 provider: "ollama"
@@ -72,12 +72,12 @@ DeepFabric supports using different providers for different components, enabling
 # Fast, cost-effective topic generation
 topic_tree:
   provider: "openai"
-  model: "gpt-3.5-turbo"
+  model: "gpt-4-turbo"
 
 # High-quality dataset generation
 data_engine:
   provider: "anthropic"
-  model: "claude-3-opus"
+  model: "claude-sonnet-4-5"
 
 # Different model for final dataset creation
 dataset:

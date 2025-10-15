@@ -1,6 +1,8 @@
 # Advanced Workflows
 
-Advanced DeepFabric workflows demonstrate sophisticated patterns for complex dataset generation scenarios, including multi-stage processing, quality control pipelines, and large-scale production deployments. These examples showcase techniques that go beyond basic configuration to leverage the full capabilities of the system.
+Advanced DeepFabric workflows demonstrate patterns for complex dataset generation scenarios, including multi-stage processing,
+quality control pipelines, and large-scale production deployments. These examples showcase techniques that go beyond basic
+configuration to leverage the full capabilities of the system.
 
 ## Multi-Provider Pipeline
 
@@ -18,7 +20,7 @@ topic_tree:
   depth: 3
   temperature: 0.7
   provider: "openai"
-  model: "gpt-3.5-turbo"
+  model: "gpt-4-turbo"
   save_as: "engineering_topics.jsonl"
 
 # High-quality content generation
@@ -26,7 +28,7 @@ data_engine:
   instructions: "Create detailed, practical explanations with real-world examples and code samples suitable for senior developers."
   generation_system_prompt: "You are creating comprehensive educational content for software engineering professionals."
   provider: "anthropic"
-  model: "claude-3-opus"
+  model: "claude-sonnet-4-5"
   temperature: 0.8
   max_retries: 5
 
@@ -36,12 +38,12 @@ dataset:
     num_steps: 500
     batch_size: 8
     provider: "openai"
-    model: "gpt-4"
+    model: "gpt-5"
     sys_msg: true
   save_as: "engineering_dataset.jsonl"
 ```
 
-This approach optimizes cost and quality by using GPT-3.5-turbo for broad topic exploration, Claude-3-Opus for detailed content generation, and GPT-4 for final dataset creation.
+This approach optimizes cost and quality by using GPT-3.5-turbo for broad topic exploration, claude-sonnet-4-5 for detailed content generation, and GPT-5 for final dataset creation.
 
 ## Topic Graph with Visualization
 
@@ -58,7 +60,7 @@ topic_graph:
   depth: 4
   temperature: 0.8
   provider: "anthropic"
-  model: "claude-3-opus"
+  model: "claude-sonnet-4-5"
   save_as: "ml_research_graph.json"
 
 data_engine:
@@ -125,7 +127,7 @@ data_engine:
   instructions: "Create technically accurate documentation with working code examples, best practices, and common pitfalls. Include version-specific information and real-world usage patterns."
   generation_system_prompt: "You are creating high-quality technical documentation with emphasis on accuracy, clarity, and practical utility."
   provider: "anthropic"
-  model: "claude-3-opus"
+  model: "claude-sonnet-4-5"
   temperature: 0.7
   max_retries: 5
   request_timeout: 60  # Extended timeout for quality
@@ -221,136 +223,79 @@ huggingface:
     - "training-data"
 ```
 
-Production deployment script with monitoring and resource management:
+## Dataset Transformation Pipeline
 
-```python
-# production_deployment.py
-import asyncio
-import time
-import logging
-from deepfabric import DeepFabricConfig, DataSetGenerator, Tree
+Download existing datasets from Hugging Face Hub, transform them with multiple formatters, validate, and republish. This workflow is ideal for dataset curation and format standardization:
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+```bash
+#!/bin/bash
+# dataset-transformation-pipeline.sh
 
-def deploy_large_scale_generation(config_path, checkpoint_interval=500):
-    """Deploy large-scale generation with checkpointing and monitoring."""
-    
-    config = DeepFabricConfig.from_yaml(config_path)
-    
-    # Load or create topic tree
-    tree = Tree(**config.get_tree_args())
+set -e  # Exit on error
 
-    async def _build_tree() -> None:
-        async for _ in tree.build_async():
-            pass
+SOURCE_REPO="community/agent-reasoning-dataset"
+TARGET_REPO="your-org/curated-reasoning-dataset"
+TEMP_DIR="./pipeline_temp"
 
-    asyncio.run(_build_tree())
-    tree.save("production_topics.jsonl")
+echo "=== Dataset Transformation Pipeline ==="
+echo "Source: $SOURCE_REPO"
+echo "Target: $TARGET_REPO"
 
-    # Create generator with production settings
-    generator = DataSetGenerator(**config.get_engine_args())
-    
-    # Large-scale generation with checkpointing
-    dataset_config = config.get_dataset_config()
-    total_steps = dataset_config["creation"]["num_steps"]
-    batch_size = dataset_config["creation"]["batch_size"]
-    
-    completed = 0
-    start_time = time.time()
-    
-    while completed < total_steps:
-        remaining = min(checkpoint_interval, total_steps - completed)
-        
-        logger.info(f"Generating batch {completed}-{completed + remaining}")
-        
-        batch_dataset = generator.create_data(
-            num_steps=remaining,
-            batch_size=batch_size,
-            topic_model=tree
-        )
-        
-        # Save checkpoint
-        checkpoint_file = f"checkpoint_{completed}_{completed + remaining}.jsonl"
-        batch_dataset.save(checkpoint_file)
-        
-        completed += remaining
-        elapsed = time.time() - start_time
-        rate = completed / elapsed
-        
-        logger.info(f"Progress: {completed}/{total_steps} ({completed/total_steps:.1%})")
-        logger.info(f"Rate: {rate:.1f} examples/second")
-        logger.info(f"ETA: {(total_steps - completed) / rate / 60:.1f} minutes")
+# Create temporary working directory
+mkdir -p $TEMP_DIR
+cd $TEMP_DIR
 
-if __name__ == "__main__":
-    deploy_large_scale_generation("production-scale-dataset.yaml")
+# Stage 1: Download and format from Hub
+echo ""
+echo "Stage 1: Downloading and formatting from Hub..."
+deepfabric format --repo $SOURCE_REPO --formatter trl -o stage1_trl.jsonl
+
+# Stage 2: Apply secondary formatting for different training frameworks
+echo ""
+echo "Stage 2: Creating multiple format variants..."
+deepfabric format stage1_trl.jsonl -f harmony -o stage2_harmony.jsonl
+deepfabric format stage1_trl.jsonl -f unsloth -o stage2_unsloth.jsonl
+deepfabric format stage1_trl.jsonl -f chatml -o stage2_chatml.jsonl
+
+# Stage 3: Validate all outputs
+echo ""
+echo "Stage 3: Validating transformed datasets..."
+python ../validate_formats.py stage1_trl.jsonl stage2_harmony.jsonl stage2_unsloth.jsonl stage2_chatml.jsonl
+
+# Stage 4: Quality assessment
+echo ""
+echo "Stage 4: Running quality assessment..."
+python ../assess_quality.py stage2_*.jsonl
+
+# Stage 5: Upload curated versions
+echo ""
+echo "Stage 5: Uploading curated datasets..."
+
+deepfabric upload stage1_trl.jsonl \
+  --repo ${TARGET_REPO}-trl \
+  --tags curated trl agent-tools training
+
+deepfabric upload stage2_harmony.jsonl \
+  --repo ${TARGET_REPO}-harmony \
+  --tags curated harmony gpt-oss training
+
+deepfabric upload stage2_unsloth.jsonl \
+  --repo ${TARGET_REPO}-unsloth \
+  --tags curated unsloth training
+
+deepfabric upload stage2_chatml.jsonl \
+  --repo ${TARGET_REPO}-chatml \
+  --tags curated chatml training
+
+echo ""
+echo "=== Pipeline Complete ==="
+echo "Curated datasets available at:"
+echo "  - https://huggingface.co/datasets/${TARGET_REPO}-trl"
+echo "  - https://huggingface.co/datasets/${TARGET_REPO}-harmony"
+echo "  - https://huggingface.co/datasets/${TARGET_REPO}-unsloth"
+echo "  - https://huggingface.co/datasets/${TARGET_REPO}-chatml"
+
+# Cleanup
+cd ..
+rm -rf $TEMP_DIR
 ```
-
-## Domain-Specific Validation
-
-Custom validation pipeline for specialized domains:
-
-```python
-# domain_validator.py
-import json
-import re
-from typing import List, Dict, Tuple
-
-def validate_code_examples(dataset_path: str) -> Dict[str, int]:
-    """Validate code examples in generated dataset."""
-    
-    validation_results = {
-        "total_examples": 0,
-        "valid_code_blocks": 0,
-        "syntax_errors": 0,
-        "missing_explanations": 0,
-        "quality_score": 0
-    }
-    
-    with open(dataset_path, 'r') as f:
-        for line in f:
-            example = json.loads(line)
-            validation_results["total_examples"] += 1
-            
-            # Extract code blocks
-            code_blocks = re.findall(r'```[\w]*\n(.*?)\n```', 
-                                   example["messages"][-1]["content"], 
-                                   re.DOTALL)
-            
-            if code_blocks:
-                validation_results["valid_code_blocks"] += 1
-                
-                # Basic syntax validation (simplified)
-                for code in code_blocks:
-                    try:
-                        compile(code, '<string>', 'exec')
-                    except SyntaxError:
-                        validation_results["syntax_errors"] += 1
-            
-            # Check for explanations
-            content = example["messages"][-1]["content"]
-            if len(content) > 200 and any(word in content.lower() 
-                                        for word in ["because", "this", "when", "why"]):
-                validation_results["quality_score"] += 1
-    
-    # Calculate quality metrics
-    if validation_results["total_examples"] > 0:
-        quality_rate = validation_results["quality_score"] / validation_results["total_examples"]
-        validation_results["overall_quality"] = quality_rate
-    
-    return validation_results
-
-def main():
-    results = validate_code_examples("webdev_documentation.jsonl")
-    print(f"Dataset Quality Report:")
-    print(f"Total Examples: {results['total_examples']}")
-    print(f"Code Block Coverage: {results['valid_code_blocks']}/{results['total_examples']}")
-    print(f"Syntax Error Rate: {results['syntax_errors']}/{results['valid_code_blocks']}")
-    print(f"Overall Quality Score: {results['overall_quality']:.2%}")
-
-if __name__ == "__main__":
-    main()
-```
-
-These advanced workflows demonstrate production-ready patterns for sophisticated dataset generation scenarios, including resource optimization, quality control, and comprehensive validation pipelines.

@@ -234,8 +234,8 @@ topic_prompt: "Advanced physics problems requiring multi-step problem solving"
 - **Required**: Yes
 - **Description**: LLM provider and model for topic generation
 - **Options**:
-  - `openai`: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`, `gpt-3.5-turbo`
-  - `anthropic`: `claude-3-opus`, `claude-3-sonnet`, `claude-3-haiku`
+  - `openai`: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`
+  - `anthropic`: `claude-sonnet-4-5`, `claude-3-sonnet`, `claude-3-haiku`
   - `gemini`: `gemini-pro`, `gemini-2.5-flash-lite`
   - `ollama`: `mistral:latest`, `llama3:latest`, etc.
 
@@ -383,7 +383,7 @@ huggingface:
 #### For Topic Generation
 - **Simple domains**: `gpt-4o-mini`, `claude-3-haiku`
 - **Complex domains**: `gpt-4o`, `claude-3-sonnet`
-- **Interdisciplinary**: `gpt-4o`, `claude-3-opus`
+- **Interdisciplinary**: `gpt-4o`, `claude-sonnet-4-5`
 
 #### For Data Generation
 - **Free-text CoT**: `gpt-4o-mini` sufficient

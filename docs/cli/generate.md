@@ -21,7 +21,7 @@ Override specific configuration parameters without modifying the configuration f
 ```bash
 deepfabric generate config.yaml \
   --provider anthropic \
-  --model claude-3-opus \
+  --model claude-sonnet-4-5 \
   --temperature 0.8 \
   --num-steps 100 \
   --batch-size 5
@@ -118,7 +118,7 @@ deepfabric generate research-dataset.yaml \
   --save-tree research_topics.jsonl \
   --dataset-save-as research_examples.jsonl \
   --provider anthropic \
-  --model claude-3-opus \
+  --model claude-sonnet-4-5 \
   --degree 4 \
   --depth 3 \
   --num-steps 200 \

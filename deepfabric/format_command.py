@@ -6,7 +6,10 @@ from .tui import get_tui
 
 
 def format_command(
-    input_file: str,
+    input_file: str | None = None,
+    *,
+    repo: str | None = None,
+    split: str | None = None,
     config_file: str | None = None,
     formatter: str | None = None,
     output: str | None = None,
@@ -16,16 +19,51 @@ def format_command(
 
     Args:
         input_file: Path to the input JSONL dataset file
+        repo: Optional Hugging Face dataset repo id (e.g., "org/dataset-name")
+        split: Optional split to load from the Hugging Face dataset (default: train)
         config_file: Optional YAML config file with formatter settings
         formatter: Optional formatter name (e.g., 'im_format')
         output: Optional output file path
     """
     tui = get_tui()
 
-    # Load the existing dataset
-    tui.info(f"Loading dataset from {input_file}...")
-    dataset = Dataset.from_jsonl(input_file)
-    tui.success(f"Loaded {len(dataset)} samples")
+    if (input_file is None and repo is None) or (input_file and repo):
+        raise ValueError("Specify exactly one of INPUT_FILE or --repo")
+
+    # Load the existing dataset from local file or Hugging Face repo
+    if input_file:
+        tui.info(f"Loading dataset from {input_file}...")
+        dataset = Dataset.from_jsonl(input_file)
+        tui.success(f"Loaded {len(dataset)} samples")
+    else:
+        # Lazy import to avoid overhead when not needed
+        try:
+            from datasets import load_dataset  # type: ignore  # noqa: PLC0415
+            from datasets.exceptions import (  # type: ignore  # noqa: PLC0415
+                DatasetNotFoundError,
+                UnexpectedSplitsError,
+            )
+        except ImportError as e:  # pragma: no cover - import path
+            raise RuntimeError(
+                "The 'datasets' library is required to load from --repo. Please install it."
+            ) from e
+
+        hf_split = split or "train"
+        tui.info(f"Loading dataset from Hugging Face repo '{repo}' (split: {hf_split})...")
+        try:
+            # Bandit nosec, as no digest is set.
+            hf_ds = load_dataset(str(repo), split=hf_split) #  nosec
+        except (DatasetNotFoundError, UnexpectedSplitsError) as e:
+            msg = (
+                "Failed to load dataset from Hugging Face repo "
+                f"'{repo}' with split '{hf_split}': {e}"
+            )
+            raise RuntimeError(msg) from e
+
+        # Convert to DeepFabric Dataset from list of dicts
+        samples = list(hf_ds)
+        dataset = Dataset.from_list(samples)
+        tui.success(f"Loaded {len(dataset)} samples from {repo}:{hf_split}")
 
     # Determine formatter configuration
     formatter_configs = []
@@ -42,7 +80,11 @@ def format_command(
             raise ValueError("No formatters found in config file")
     elif formatter:
         # Use specified formatter with default settings
-        output_file = output or f"{input_file.rsplit('.', 1)[0]}_{formatter}.jsonl"
+        if input_file:
+            output_file = output or f"{input_file.rsplit('.', 1)[0]}_{formatter}.jsonl"
+        else:
+            # When loading from --repo, default to a simple formatted.jsonl unless specified
+            output_file = output or "formatted.jsonl"
 
         # Default configs for common formatters
         default_configs = {
@@ -79,13 +121,21 @@ def format_command(
                 "reasoning_level": "high",
                 "include_metadata": True,
             },
+            # TRL SFT Tools formatter defaults
+            "trl_sft_tools": {},
+            "trl": {},  # alias
             "xlam_v2": {},
         }
+
+        # Map aliases to actual builtin module names
+        template_name = formatter
+        if formatter == "trl":
+            template_name = "trl_sft_tools"
 
         formatter_configs = [
             {
                 "name": formatter,
-                "template": f"builtin://{formatter}.py",
+                "template": f"builtin://{template_name}.py",
                 "output": output_file,
                 "config": default_configs.get(formatter, {}),
             }
@@ -109,7 +159,15 @@ def format_command(
 
 
 @click.command(name="format")
-@click.argument("input_file", type=click.Path(exists=True))
+@click.argument("input_file", type=click.Path(exists=True), required=False)
+@click.option(
+    "--repo",
+    help="Hugging Face dataset repo id (e.g., 'org/dataset-name')",
+)
+@click.option(
+    "--split",
+    help="Split to load from Hugging Face dataset (default: train)",
+)
 @click.option(
     "--config-file",
     "-c",
@@ -119,7 +177,19 @@ def format_command(
 @click.option(
     "--formatter",
     "-f",
-    type=click.Choice(["im_format", "unsloth", "alpaca", "chatml", "grpo", "harmony", "xlam_v2"]),
+    type=click.Choice(
+        [
+            "im_format",
+            "unsloth",
+            "alpaca",
+            "chatml",
+            "grpo",
+            "harmony",
+            "trl",
+            "trl_sft_tools",
+            "xlam_v2",
+        ]
+    ),
     help="Formatter to apply",
 )
 @click.option(
@@ -129,11 +199,24 @@ def format_command(
 )
 @click.pass_context
 def format_cli(
-    ctx, input_file: str, config_file: str | None, formatter: str | None, output: str | None
+    ctx,
+    input_file: str | None,
+    repo: str | None,
+    split: str | None,
+    config_file: str | None,
+    formatter: str | None,
+    output: str | None,
 ) -> None:
     """Apply formatters to an existing dataset."""
     try:
-        format_command(input_file, config_file, formatter, output)
+        format_command(
+            input_file,
+            repo=repo,
+            split=split,
+            config_file=config_file,
+            formatter=formatter,
+            output=output,
+        )
     except FileNotFoundError as e:
         ctx.fail(f"Input file not found: {e}")
     except Exception as e:

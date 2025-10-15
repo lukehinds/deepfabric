@@ -37,7 +37,7 @@ dataset:
     num_steps: 100        # Total examples to generate
     batch_size: 5         # Examples per API call
     provider: "anthropic" # Can differ from data_engine
-    model: "claude-3-opus"
+    model: "claude-sonnet-4-5"
     sys_msg: true         # Include system messages
   save_as: "training_dataset.jsonl"
 ```

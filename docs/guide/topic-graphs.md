@@ -23,7 +23,7 @@ topic_graph:
   depth: 3      # Maximum distance from root
   temperature: 0.8    # Higher creativity for connections
   provider: "anthropic"
-  model: "claude-3-opus"
+  model: "claude-sonnet-4-5"
   save_as: "ai_research_graph.json"
 ```
 

@@ -85,7 +85,7 @@ OpenAI does not support your schema: Invalid schema for response_format 'default
 data_engine:
   provider: "openai"
   model: "gpt-4o-mini"     # ✅ Supports structured output
-  # model: "gpt-3.5-turbo"  # ⚠️  Limited schema support
+  # model: "gpt-4-turbo"  # ⚠️  Limited schema support
 
   conversation_type: "cot_hybrid"  # Complex schema
 ```
@@ -147,7 +147,7 @@ openai.api_key = "your-key-here"
 
 try:
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
+        model="gpt-4-turbo",
         messages=[{"role": "user", "content": "Hello"}],
         max_tokens=10
     )
@@ -427,7 +427,7 @@ generator = DataSetGenerator(
 # Use faster models for development/testing
 data_engine:
   model: "gpt-4o-mini"       # Faster than gpt-4o
-  # model: "gpt-3.5-turbo"   # Even faster for simple tasks
+  # model: "gpt-4-turbo"   # Even faster for simple tasks
 ```
 
 #### 2. Reduce complexity

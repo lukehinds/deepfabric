@@ -21,7 +21,7 @@ from deepfabric import Graph
 
 graph = Graph(
     topic_prompt="Artificial intelligence research areas",
-    model_name="anthropic/claude-3-opus",
+    model_name="anthropic/claude-sonnet-4-5",
     topic_system_prompt="You are mapping interconnected research concepts.",
     degree=4,        # Connections per node
     depth=3,         # Maximum distance from root
@@ -56,7 +56,7 @@ from deepfabric import Graph
 # Create and build a graph
 graph = Graph(
     topic_prompt="Artificial intelligence research areas",
-    model_name="anthropic/claude-3-opus",
+    model_name="anthropic/claude-sonnet-4-5",
     degree=4,
     depth=3,
     temperature=0.8
@@ -157,7 +157,7 @@ Reconstructs graph from previously saved JSON files:
 ```python
 graph = Graph(
     topic_prompt="Default prompt",
-    model_name="anthropic/claude-3-opus"
+    model_name="anthropic/claude-sonnet-4-5"
 )
 graph.load("existing_graph.json")
 ```
@@ -170,7 +170,7 @@ Class method for loading graphs with specific configuration:
 graph = Graph.from_json(
     "saved_graph.json",
     topic_prompt="Research areas",
-    model_name="anthropic/claude-3-opus"
+    model_name="anthropic/claude-sonnet-4-5"
 )
 ```
 
@@ -211,7 +211,7 @@ Control graph construction through individual phases:
 ```python
 graph = Graph(
     topic_prompt="Complex domain",
-    model_name="anthropic/claude-3-opus",
+    model_name="anthropic/claude-sonnet-4-5",
     degree=4,
     depth=3
 )
@@ -274,7 +274,7 @@ Graphs integrate seamlessly with dataset generation:
 # Generate dataset from graph
 generator = DataSetGenerator(
     instructions="Create interconnected explanations",
-    model_name="anthropic/claude-3-opus",
+    model_name="anthropic/claude-sonnet-4-5",
     temperature=0.7
 )
 dataset = generator.create_data(

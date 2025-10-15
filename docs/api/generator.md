@@ -30,7 +30,7 @@ generator = DataSetGenerator(
 
 **provider** (str, required): LLM provider name, e.g., `openai`, `anthropic`, `gemini`, `ollama`.
 
-**model_name** (str, required): Model name specific to the provider, e.g., `gpt-4`, `claude-3-opus`.
+**model_name** (str, required): Model name specific to the provider, e.g., `gpt-4`, `claude-sonnet-4-5`.
 
 **temperature** (float, optional): Controls creativity and diversity in content generation. Range 0.0-2.0, typically 0.7-0.9. Default: 0.7.
 
@@ -112,7 +112,7 @@ Generate a single batch of examples for fine-grained control:
 batch = generator.create_batch(
     topics=selected_topics,
     batch_size=3,
-    model_name="openai/gpt-3.5-turbo"
+    model_name="openai/gpt-4-turbo"
 )
 ```
 
@@ -314,7 +314,7 @@ complex_generator = DataSetGenerator(
     instructions="Create advanced technical content",
     generation_system_prompt="You are an expert technical writer",
     provider="anthropic",
-    model_name="claude-3-opus",
+    model_name="claude-sonnet-4-5",
     temperature=0.7
 )
 
@@ -323,7 +323,7 @@ simple_generator = DataSetGenerator(
     instructions="Create basic explanations",
     generation_system_prompt="You are a teacher for beginners",
     provider="openai",
-    model_name="gpt-3.5-turbo",
+    model_name="gpt-4-turbo",
     temperature=0.8
 )
 
