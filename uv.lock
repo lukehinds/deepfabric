@@ -397,7 +397,7 @@ wheels = [
 
 [[package]]
 name = "deepfabric"
-version = "2.11.0"
+version = "2.11.1"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
@@ -444,7 +444,7 @@ requires-dist = [
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.0.0" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.30.0" },
     { name = "openai", specifier = ">=1.107.2" },
-    { name = "outlines", specifier = "==1.2.5" },
+    { name = "outlines", specifier = "==1.2.7" },
     { name = "posthog", specifier = ">=3.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
@@ -1283,7 +1283,7 @@ wheels = [
 
 [[package]]
 name = "outlines"
-version = "1.2.5"
+version = "1.2.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cloudpickle" },
@@ -1297,9 +1297,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b5/2a/dc8a08972e87974e0adae13910ee9b2f5298b1ad6756f335c844bd143979/outlines-1.2.5.tar.gz", hash = "sha256:24a2ef40dffd6529bf5f913f30a8997802a9c49903339421b1712f03c05aa788", size = 2825333, upload-time = "2025-09-15T20:08:46.519Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e5/72/70cbde9680d810fa140486512adccedfc7369fe993a963150835699900a7/outlines-1.2.7.tar.gz", hash = "sha256:1b588e7a6c789deae29dc212037089f4fc9f954b1d7d23f223d5451db45bb5b7", size = 2833655, upload-time = "2025-10-14T16:27:27.577Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/6d/31ad4cb24590a36fab776e413f67a56f4c97109bac1db4d3e9aed54fe834/outlines-1.2.5-py3-none-any.whl", hash = "sha256:60bd9dfaa4b7c5895a67695f0966bc06c6f0b8d98cda8fef2fb76ad5bc1bdef8", size = 93854, upload-time = "2025-09-15T20:08:44.775Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/c4/e9e0f12c04b2c12132b806ba8a1aefb382f162804182e03548af2ac78860/outlines-1.2.7-py3-none-any.whl", hash = "sha256:5d1cb695cb14213e64e632b742090880094877440bc292c5fd4ebb4a912d8c02", size = 98114, upload-time = "2025-10-14T16:27:26.396Z" },
 ]
 
 [[package]]

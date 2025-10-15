@@ -445,3 +445,164 @@ huggingface:
 ```
 
 The Hugging Face integration provides a complete pathway from synthetic data generation to community sharing, enabling researchers and practitioners to contribute high-quality synthetic datasets to the broader machine learning ecosystem.
+
+## Downloading and Reformatting Hub Datasets
+
+DeepFabric can download datasets directly from Hugging Face Hub and transform them into different training formats without requiring local files. This bidirectional workflow enables dataset curation, format conversion, and preparation for specific training frameworks.
+
+### Basic Download and Format
+
+Download a dataset from the Hub and apply a formatter:
+
+```bash
+# Download and format to TRL SFT Tools format
+deepfabric format --repo lukehinds/smol-test-sample --formatter trl
+
+# Download and format to ChatML
+deepfabric format --repo username/conversation-dataset --formatter im_format
+
+# Download and format to GRPO for reasoning training
+deepfabric format --repo org/math-problems --formatter grpo -o grpo_math.jsonl
+```
+
+### Multi-Format Conversion Workflow
+
+Convert a single Hub dataset to multiple training formats:
+
+```bash
+#!/bin/bash
+# multi-format-conversion.sh
+
+REPO="community/agent-tool-dataset"
+BASE_NAME="agent_training"
+
+echo "Downloading and converting dataset: $REPO"
+
+# Format for TRL SFTTrainer
+deepfabric format --repo $REPO --formatter trl -o "${BASE_NAME}_trl.jsonl"
+
+# Format for Unsloth training
+deepfabric format --repo $REPO --formatter unsloth -o "${BASE_NAME}_unsloth.jsonl"
+
+# Format for Harmony (gpt-oss)
+deepfabric format --repo $REPO --formatter harmony -o "${BASE_NAME}_harmony.jsonl"
+
+# Format for single tool call training
+deepfabric format --repo $REPO --formatter chatml -o "${BASE_NAME}_chatml.jsonl"
+
+echo "Conversion complete. Created 4 formatted versions."
+```
+
+### Dataset Curation Pipeline
+
+Download, format, validate, and re-upload a curated version:
+
+```yaml
+# curation-config.yaml
+# Configuration for post-format processing if needed
+dataset:
+  formatters:
+    - name: "trl_curated"
+      template: "builtin://trl_sft_tools"
+      output: "curated_trl.jsonl"
+      config:
+        include_system_prompt: true
+        system_prompt_override: |
+          You are a function calling AI model. You are provided with function
+          signatures within <tools></tools> XML tags. You may call one or more
+          functions to assist with the user query.
+        validate_tool_schemas: true
+        remove_available_tools_field: true
+```
+
+Complete curation workflow:
+
+```bash
+#!/bin/bash
+# dataset-curation.sh
+
+SOURCE_REPO="community/raw-agent-dataset"
+TARGET_REPO="your-org/curated-agent-dataset"
+
+echo "=== Dataset Curation Pipeline ==="
+
+# Step 1: Download and format from Hub
+echo "Step 1: Downloading and formatting dataset..."
+deepfabric format --repo $SOURCE_REPO --formatter trl -o stage1_formatted.jsonl
+
+# Step 2: Apply custom formatting with config (if needed for advanced options)
+echo "Step 2: Applying advanced formatting options..."
+deepfabric format stage1_formatted.jsonl -c curation-config.yaml
+
+# Step 3: Validate the curated dataset
+echo "Step 3: Validating curated dataset..."
+python validate_curated.py curated_trl.jsonl
+
+# Step 4: Upload curated version to your organization
+echo "Step 4: Uploading curated dataset..."
+deepfabric upload curated_trl.jsonl \
+  --repo $TARGET_REPO \
+  --tags curated agent-tools trl-format
+
+echo "=== Curation complete ==="
+echo "Source: https://huggingface.co/datasets/$SOURCE_REPO"
+echo "Curated: https://huggingface.co/datasets/$TARGET_REPO"
+```
+
+### Split-Specific Processing
+
+Process different dataset splits with different formatters:
+
+```bash
+# Process training split for TRL
+deepfabric format --repo org/dataset --split train --formatter trl -o train_trl.jsonl
+
+# Process validation split for evaluation (different format)
+deepfabric format --repo org/dataset --split validation --formatter chatml -o val_chatml.jsonl
+
+# Process test split
+deepfabric format --repo org/dataset --split test --formatter chatml -o test_chatml.jsonl
+```
+
+### Real-World Example: Reformatting for Fine-Tuning
+
+Convert a public agent dataset for TRL SFTTrainer fine-tuning:
+
+```bash
+#!/bin/bash
+# prepare-for-finetuning.sh
+
+echo "Preparing dataset for fine-tuning with TRL SFTTrainer"
+
+# Download and format from Hub
+deepfabric format \
+  --repo lukehinds/smol-test-sample \
+  --formatter trl \
+  --split train \
+  -o training_data.jsonl
+
+# Verify the format
+python - <<'PY'
+from datasets import load_dataset
+import json
+
+# Load and inspect
+with open("training_data.jsonl", "r") as f:
+    first_example = json.loads(f.readline())
+
+print("Example structure:")
+print(json.dumps(first_example, indent=2))
+
+# Verify required fields
+assert "messages" in first_example, "Missing 'messages' field"
+assert "tools" in first_example, "Missing 'tools' field"
+
+print("\n✓ Format validated for TRL SFTTrainer")
+print(f"✓ Sample has {len(first_example['tools'])} tools available")
+PY
+
+echo "Dataset ready for training!"
+echo "Next: Use with TRL SFTTrainer"
+```
+
+This bidirectional integration enables a complete ecosystem workflow: generate datasets with DeepFabric → upload to Hub → share with community → download and reformat for specific use cases → iterate and improve.

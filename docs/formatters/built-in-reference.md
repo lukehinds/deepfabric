@@ -698,6 +698,26 @@ config:
   validate_tool_schemas: false
 ```
 
+### Quick Start with HuggingFace Hub
+
+Download and format datasets directly from the HuggingFace Hub:
+
+```bash
+# Download from Hub and format to TRL SFT Tools format
+deepfabric format --repo lukehinds/smol-test-sample --formatter trl
+
+# Specify a different split (default is 'train')
+deepfabric format --repo username/dataset-name --formatter trl --split validation
+
+# Custom output path
+deepfabric format --repo org/agent-dataset --formatter trl -o trl_formatted.jsonl
+```
+
+This workflow is ideal for:
+- Converting existing agent/tool datasets to TRL format
+- Reformatting community datasets for your training pipeline
+- Experimenting with different formatters on public datasets
+
 ### Usage with TRL SFTTrainer
 
 After formatting your dataset, use it directly with TRL's SFTTrainer:

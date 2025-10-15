@@ -5,18 +5,27 @@ The `format` command allows you to apply formatters to existing datasets without
 ## Usage
 
 ```bash
+# From a local JSONL file
 deepfabric format INPUT_FILE [OPTIONS]
+
+# Or directly from a Hugging Face dataset repo
+deepfabric format --repo ORG/DATASET [OPTIONS]
 ```
 
 ## Arguments
 
 - `INPUT_FILE` - Path to the input JSONL dataset file to format
+  - Alternatively, use `--repo ORG/DATASET` to load from the Hugging Face Hub
 
 ## Options
 
 - `-c, --config-file PATH` - YAML config file containing formatter settings
-- `-f, --formatter [im_format|unsloth|alpaca|chatml|grpo]` - Quick formatter selection with default settings
-- `-o, --output TEXT` - Output file path (default: `input_file_formatter.jsonl`)
+- `-f, --formatter [im_format|unsloth|alpaca|chatml|grpo|harmony|trl|xlam_v2]` - Quick formatter selection with default settings
+- `-o, --output TEXT` - Output file path
+  - Local file input: defaults to `input_file_formatter.jsonl`
+  - `--repo` input: defaults to `formatted.jsonl`
+- `--repo TEXT` - Hugging Face dataset repo id (e.g., `org/dataset-name`)
+- `--split TEXT` - Dataset split to load when using `--repo` (default: `train`)
 - `--help` - Show help message
 
 ## Examples
@@ -153,9 +162,22 @@ The command expects a JSONL file where each line is a JSON object. Supported for
 }
 ```
 
-### Working with HuggingFace Datasets
+### Working with Hugging Face Datasets
 
-The format command works seamlessly with datasets downloaded from HuggingFace Hub. Many HF datasets come in compatible formats:
+You can now format datasets directly from the Hugging Face Hub using `--repo`, or continue using local JSONL files. Many HF datasets come in compatible formats:
+
+**Format directly from a Hub repo:**
+```bash
+# Pull from Hub, format to Harmony, write to formatted.jsonl
+deepfabric format --repo "org/dataset-name" --format harmony
+
+# Load with datasets library
+python - <<'PY'
+from datasets import load_dataset
+ds = load_dataset("json", data_files="formatted.jsonl")
+print(ds)
+PY
+```
 
 **For datasets with `messages` field (e.g., chat datasets):**
 ```bash
@@ -185,7 +207,7 @@ deepfabric format alpaca_dataset.jsonl -f im_format
 - ShareGPT format (`conversations`)
 - Q&A format (`question`, `answer` or `response`)
 
-**Example conversion workflow:**
+**Example conversion workflow (local):**
 ```bash
 # 1. Download from HuggingFace
 huggingface-cli download tatsu-lab/alpaca --repo-type dataset
@@ -218,3 +240,14 @@ deepfabric format dataset_raw.jsonl -f grpo -o dataset_grpo.jsonl
 ```
 
 This allows you to prepare the same dataset for different training frameworks without regenerating the data.
+### TRL SFT Tools
+
+Use `-f trl` to convert agent/tool datasets to the Hugging Face TRL SFT tool-calling format. This maps to the built-in `trl_sft_tools` formatter.
+
+```bash
+# Format from a local file
+deepfabric format dataset.jsonl -f trl -o trl_sft_tools.jsonl
+
+# Or format directly from a Hub repo
+deepfabric format --repo org/dataset -f trl -o trl_sft_tools.jsonl
+```

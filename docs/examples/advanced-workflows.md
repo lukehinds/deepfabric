@@ -353,4 +353,298 @@ if __name__ == "__main__":
     main()
 ```
 
+## Dataset Transformation Pipeline
+
+Download existing datasets from Hugging Face Hub, transform them with multiple formatters, validate, and republish. This workflow is ideal for dataset curation and format standardization:
+
+```bash
+#!/bin/bash
+# dataset-transformation-pipeline.sh
+
+set -e  # Exit on error
+
+SOURCE_REPO="community/agent-reasoning-dataset"
+TARGET_REPO="your-org/curated-reasoning-dataset"
+TEMP_DIR="./pipeline_temp"
+
+echo "=== Dataset Transformation Pipeline ==="
+echo "Source: $SOURCE_REPO"
+echo "Target: $TARGET_REPO"
+
+# Create temporary working directory
+mkdir -p $TEMP_DIR
+cd $TEMP_DIR
+
+# Stage 1: Download and format from Hub
+echo ""
+echo "Stage 1: Downloading and formatting from Hub..."
+deepfabric format --repo $SOURCE_REPO --formatter trl -o stage1_trl.jsonl
+
+# Stage 2: Apply secondary formatting for different training frameworks
+echo ""
+echo "Stage 2: Creating multiple format variants..."
+deepfabric format stage1_trl.jsonl -f harmony -o stage2_harmony.jsonl
+deepfabric format stage1_trl.jsonl -f unsloth -o stage2_unsloth.jsonl
+deepfabric format stage1_trl.jsonl -f chatml -o stage2_chatml.jsonl
+
+# Stage 3: Validate all outputs
+echo ""
+echo "Stage 3: Validating transformed datasets..."
+python ../validate_formats.py stage1_trl.jsonl stage2_harmony.jsonl stage2_unsloth.jsonl stage2_chatml.jsonl
+
+# Stage 4: Quality assessment
+echo ""
+echo "Stage 4: Running quality assessment..."
+python ../assess_quality.py stage2_*.jsonl
+
+# Stage 5: Upload curated versions
+echo ""
+echo "Stage 5: Uploading curated datasets..."
+
+deepfabric upload stage1_trl.jsonl \
+  --repo ${TARGET_REPO}-trl \
+  --tags curated trl agent-tools training
+
+deepfabric upload stage2_harmony.jsonl \
+  --repo ${TARGET_REPO}-harmony \
+  --tags curated harmony gpt-oss training
+
+deepfabric upload stage2_unsloth.jsonl \
+  --repo ${TARGET_REPO}-unsloth \
+  --tags curated unsloth training
+
+deepfabric upload stage2_chatml.jsonl \
+  --repo ${TARGET_REPO}-chatml \
+  --tags curated chatml training
+
+echo ""
+echo "=== Pipeline Complete ==="
+echo "Curated datasets available at:"
+echo "  - https://huggingface.co/datasets/${TARGET_REPO}-trl"
+echo "  - https://huggingface.co/datasets/${TARGET_REPO}-harmony"
+echo "  - https://huggingface.co/datasets/${TARGET_REPO}-unsloth"
+echo "  - https://huggingface.co/datasets/${TARGET_REPO}-chatml"
+
+# Cleanup
+cd ..
+rm -rf $TEMP_DIR
+```
+
+Validation script for the pipeline:
+
+```python
+# validate_formats.py
+import sys
+import json
+from typing import List, Dict
+
+def validate_trl_format(data: Dict) -> bool:
+    """Validate TRL SFT Tools format."""
+    required_fields = ["messages", "tools"]
+    return all(field in data for field in required_fields)
+
+def validate_harmony_format(data: Dict) -> bool:
+    """Validate Harmony format."""
+    if "messages" not in data:
+        return False
+    # Check for role hierarchy
+    valid_roles = {"system", "developer", "user", "assistant", "tool"}
+    return all(msg.get("role") in valid_roles for msg in data["messages"])
+
+def validate_unsloth_format(data: Dict) -> bool:
+    """Validate Unsloth format."""
+    return "conversations" in data
+
+def validate_chatml_format(data: Dict) -> bool:
+    """Validate ChatML format."""
+    return "messages" in data or "text" in data
+
+VALIDATORS = {
+    "trl": validate_trl_format,
+    "harmony": validate_harmony_format,
+    "unsloth": validate_unsloth_format,
+    "chatml": validate_chatml_format,
+}
+
+def validate_file(filepath: str) -> Dict[str, any]:
+    """Validate a formatted dataset file."""
+
+    # Detect format from filename
+    format_type = None
+    for fmt in VALIDATORS:
+        if fmt in filepath:
+            format_type = fmt
+            break
+
+    if not format_type:
+        return {
+            "file": filepath,
+            "valid": False,
+            "error": "Could not detect format from filename"
+        }
+
+    validator = VALIDATORS[format_type]
+    total = 0
+    valid = 0
+    errors = []
+
+    with open(filepath, 'r') as f:
+        for line_num, line in enumerate(f, 1):
+            total += 1
+            try:
+                data = json.loads(line)
+                if validator(data):
+                    valid += 1
+                else:
+                    errors.append(f"Line {line_num}: Invalid format")
+            except json.JSONDecodeError as e:
+                errors.append(f"Line {line_num}: JSON decode error - {e}")
+
+            # Limit error collection
+            if len(errors) >= 5:
+                errors.append("... (additional errors truncated)")
+                break
+
+    return {
+        "file": filepath,
+        "format": format_type,
+        "total": total,
+        "valid": valid,
+        "invalid": total - valid,
+        "success_rate": valid / total if total > 0 else 0,
+        "errors": errors[:5]  # First 5 errors
+    }
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python validate_formats.py <file1> [file2] ...")
+        sys.exit(1)
+
+    print("=== Format Validation Report ===\n")
+
+    all_valid = True
+    results = []
+
+    for filepath in sys.argv[1:]:
+        result = validate_file(filepath)
+        results.append(result)
+
+        print(f"File: {result['file']}")
+        print(f"Format: {result.get('format', 'unknown')}")
+        print(f"Total entries: {result.get('total', 0)}")
+        print(f"Valid entries: {result.get('valid', 0)}")
+        print(f"Success rate: {result.get('success_rate', 0):.1%}")
+
+        if result.get('errors'):
+            print("Errors:")
+            for error in result['errors']:
+                print(f"  - {error}")
+
+        print()
+
+        if result.get('success_rate', 0) < 0.95:  # 95% threshold
+            all_valid = False
+
+    print("=== Summary ===")
+    if all_valid:
+        print("✓ All files passed validation")
+        sys.exit(0)
+    else:
+        print("✗ Some files failed validation")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+```
+
+Quality assessment script:
+
+```python
+# assess_quality.py
+import sys
+import json
+from collections import Counter
+from typing import Dict, List
+
+def assess_dataset_quality(filepath: str) -> Dict:
+    """Assess quality metrics for a dataset."""
+
+    metrics = {
+        "total_examples": 0,
+        "avg_message_length": 0,
+        "role_distribution": Counter(),
+        "has_tools": 0,
+        "avg_tools_per_example": 0,
+        "quality_score": 0
+    }
+
+    total_message_length = 0
+    total_tools = 0
+
+    with open(filepath, 'r') as f:
+        for line in f:
+            data = json.loads(line)
+            metrics["total_examples"] += 1
+
+            # Analyze messages
+            if "messages" in data:
+                for msg in data["messages"]:
+                    metrics["role_distribution"][msg.get("role", "unknown")] += 1
+                    total_message_length += len(msg.get("content", ""))
+            elif "conversations" in data:
+                for conv in data["conversations"]:
+                    metrics["role_distribution"][conv.get("role", "unknown")] += 1
+                    total_message_length += len(conv.get("content", ""))
+
+            # Analyze tools
+            if "tools" in data:
+                metrics["has_tools"] += 1
+                total_tools += len(data["tools"])
+
+    # Calculate averages
+    if metrics["total_examples"] > 0:
+        metrics["avg_message_length"] = total_message_length / metrics["total_examples"]
+        metrics["avg_tools_per_example"] = total_tools / metrics["total_examples"]
+
+        # Simple quality score (adjust as needed)
+        score = 0
+        if metrics["avg_message_length"] > 50:
+            score += 0.3
+        if metrics["has_tools"] > 0:
+            score += 0.4
+        if len(metrics["role_distribution"]) >= 2:
+            score += 0.3
+        metrics["quality_score"] = score
+
+    return metrics
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: python assess_quality.py <file1> [file2] ...")
+        sys.exit(1)
+
+    print("=== Quality Assessment Report ===\n")
+
+    for filepath in sys.argv[1:]:
+        metrics = assess_dataset_quality(filepath)
+
+        print(f"File: {filepath}")
+        print(f"Total examples: {metrics['total_examples']}")
+        print(f"Avg message length: {metrics['avg_message_length']:.0f} chars")
+        print(f"Role distribution: {dict(metrics['role_distribution'])}")
+        print(f"Examples with tools: {metrics['has_tools']} ({metrics['has_tools']/metrics['total_examples']*100:.1f}%)")
+        print(f"Avg tools per example: {metrics['avg_tools_per_example']:.1f}")
+        print(f"Quality score: {metrics['quality_score']:.1%}")
+        print()
+
+    print("✓ Quality assessment complete")
+
+if __name__ == "__main__":
+    main()
+```
+
+This pipeline demonstrates a complete workflow for downloading, transforming, validating, and republishing datasets in multiple formats suitable for different training frameworks.
+
+---
+
 These advanced workflows demonstrate production-ready patterns for sophisticated dataset generation scenarios, including resource optimization, quality control, and comprehensive validation pipelines.
