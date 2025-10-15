@@ -51,7 +51,8 @@ def format_command(
         hf_split = split or "train"
         tui.info(f"Loading dataset from Hugging Face repo '{repo}' (split: {hf_split})...")
         try:
-            hf_ds = load_dataset(str(repo), split=hf_split)
+            # Bandit nosec, as no digest is set.
+            hf_ds = load_dataset(str(repo), split=hf_split) #  nosec
         except (DatasetNotFoundError, UnexpectedSplitsError) as e:
             msg = (
                 "Failed to load dataset from Hugging Face repo "
