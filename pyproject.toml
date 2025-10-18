@@ -4,7 +4,7 @@ version = "2.12.0"
 description = "Large Scale Topic based Synthetic Data Generation"
 authors = [{name = "Luke Hinds", email = "luke@rdrocket.com"}]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "huggingface-hub==0.35.3",
     "datasets==4.2.0",
@@ -83,7 +83,7 @@ markers = [
 ]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
