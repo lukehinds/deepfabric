@@ -193,11 +193,59 @@ class OllamaRateLimitConfig(RateLimitConfig):
     )
 
 
+class TransformersRateLimitConfig(RateLimitConfig):
+    """HuggingFace Transformers-specific rate limit configuration.
+
+    Local inference with Transformers doesn't face API rate limits, but
+    may encounter hardware-related failures (CUDA OOM, generation errors).
+    This config uses minimal retries focused on recoverable errors.
+    """
+
+    max_retries: int = Field(
+        default=2,
+        ge=0,
+        le=5,
+        description="Minimal retries for local model inference",
+    )
+    base_delay: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=10.0,
+        description="Base delay for local inference retry",
+    )
+    max_delay: float = Field(
+        default=10.0,
+        ge=1.0,
+        le=60.0,
+        description="Max delay for local inference retry",
+    )
+    backoff_strategy: BackoffStrategy = Field(
+        default=BackoffStrategy.LINEAR,
+        description="Linear backoff for hardware issues",
+    )
+    jitter: bool = Field(
+        default=False,
+        description="No jitter needed for local inference",
+    )
+    respect_retry_after: bool = Field(
+        default=False,
+        description="No retry-after headers from local models",
+    )
+    retry_on_status_codes: set[int] = Field(
+        default_factory=set,
+        description="No HTTP status codes for local inference",
+    )
+    retry_on_exceptions: list[str] = Field(
+        default_factory=lambda: ["cuda", "out of memory", "generation"],
+        description="Exception keywords specific to local model inference",
+    )
+
+
 def get_default_rate_limit_config(provider: str) -> RateLimitConfig:
     """Get the default rate limit configuration for a provider.
 
     Args:
-        provider: Provider name (openai, anthropic, gemini, ollama)
+        provider: Provider name (openai, anthropic, gemini, ollama, transformers)
 
     Returns:
         Provider-specific rate limit configuration with sensible defaults
@@ -207,6 +255,7 @@ def get_default_rate_limit_config(provider: str) -> RateLimitConfig:
         "anthropic": AnthropicRateLimitConfig(),
         "gemini": GeminiRateLimitConfig(),
         "ollama": OllamaRateLimitConfig(),
+        "transformers": TransformersRateLimitConfig(),
     }
     return configs.get(provider, RateLimitConfig())
 
@@ -218,7 +267,7 @@ def create_rate_limit_config(
     """Create a rate limit configuration from a dictionary.
 
     Args:
-        provider: Provider name (openai, anthropic, gemini, ollama)
+        provider: Provider name (openai, anthropic, gemini, ollama, transformers)
         config_dict: Configuration parameters as dictionary
 
     Returns:
@@ -235,6 +284,7 @@ def create_rate_limit_config(
         "anthropic": AnthropicRateLimitConfig,
         "gemini": GeminiRateLimitConfig,
         "ollama": OllamaRateLimitConfig,
+        "transformers": TransformersRateLimitConfig,
     }
 
     config_class = config_classes.get(provider, RateLimitConfig)
