@@ -26,6 +26,7 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.10.0",
+    "pytest-asyncio>=0.21.0",
     "requests-mock>=1.11.0",
     "ruff>=0.1.0",
     "bandit>=1.7.10",
@@ -34,6 +35,23 @@ dev = [
 docs = [
     "mkdocs-material>=9.0.0",
     "mkdocstrings[python]>=0.30.0",
+]
+# Training dependencies with quantization support (Linux/Windows with CUDA)
+training = [
+    "transformers>=4.45.0",
+    "accelerate>=0.34.0",
+    "trl>=0.11.0",
+    "peft>=0.13.0",
+    "bitsandbytes>=0.43.0",
+    "torch>=2.0.0",
+]
+# Training dependencies for macOS (without bitsandbytes)
+training-macos = [
+    "transformers>=4.45.0",
+    "accelerate>=0.34.0",
+    "trl>=0.11.0",
+    "peft>=0.13.0",
+    "torch>=2.0.0",
 ]
 
 [project.scripts]
@@ -53,6 +71,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+asyncio_mode = "auto"
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::UserWarning",

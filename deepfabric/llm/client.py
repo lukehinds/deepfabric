@@ -156,6 +156,41 @@ def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
             )
             return outlines.from_openai(client, model_name)
 
+        if provider == "transformers":
+            # Use local HuggingFace Transformers model
+            from .transformers_provider import TransformersProvider  # noqa: PLC0415
+
+            # Create the provider and keep it alive
+            transformers_provider = TransformersProvider(model_name, **kwargs)
+            outlines_model = transformers_provider.get_outlines_model()
+
+            # Create a callable wrapper that uses the Transformers.generate method
+            # This makes the transformers provider work like the API providers
+            def transformers_callable(prompt: str, schema: type[BaseModel], **gen_kwargs):
+                # Import generator module to create logits processor
+                from outlines import generator  # noqa: PLC0415
+
+                # Create JSON schema string from Pydantic model
+                json_schema_str = schema.model_json_schema()
+                # Get JSON string representation
+                import json  # noqa: PLC0415
+
+                json_schema_json = json.dumps(json_schema_str)
+
+                # Convert to logits processor for transformers
+                logits_processor = generator.get_json_schema_logits_processor(
+                    None,  # backend_name (None for auto-detect)
+                    outlines_model,
+                    json_schema_json,
+                )
+                # Generate using the model's generate method
+                return outlines_model.generate(prompt, output_type=logits_processor, **gen_kwargs)
+
+            # Attach the provider to the callable to keep it alive
+            transformers_callable._provider = transformers_provider  # type: ignore[attr-defined]
+
+            return transformers_callable
+
         _raise_unsupported_provider_error(provider)
 
     except DataSetGeneratorError:
@@ -324,7 +359,12 @@ class LLMClient:
         if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
             generation_schema = _create_gemini_compatible_schema(schema)
 
-        json_output = await self.async_model(prompt, generation_schema, **kwargs)
+        # Ensure async_model is available; fallback to synchronous generation in a thread if not.
+        model = self.async_model
+        if model is None:
+            return await asyncio.to_thread(self.generate, prompt, schema, **kwargs)
+
+        json_output = await model(prompt, generation_schema, **kwargs)
         # Validate with original schema to ensure proper validation
         return schema.model_validate_json(json_output)
 
@@ -333,6 +373,10 @@ class LLMClient:
         # Convert max_tokens to max_output_tokens for Gemini
         if self.provider == "gemini" and "max_tokens" in kwargs:
             kwargs["max_output_tokens"] = kwargs.pop("max_tokens")
+
+        # Convert max_tokens to max_new_tokens for Transformers
+        if self.provider == "transformers" and "max_tokens" in kwargs:
+            kwargs["max_new_tokens"] = kwargs.pop("max_tokens")
 
         return kwargs
 
