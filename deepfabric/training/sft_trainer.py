@@ -189,9 +189,9 @@ class DeepFabricSFTTrainer:
 
             # Handle precision
             if self.config.bf16:
-                model_kwargs["torch_dtype"] = torch.bfloat16
+                model_kwargs["dtype"] = torch.bfloat16
             elif self.config.fp16:
-                model_kwargs["torch_dtype"] = torch.float16
+                model_kwargs["dtype"] = torch.float16
 
             # Load model
             logger.info("Loading model: %s", self.config.model_name)

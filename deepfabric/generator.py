@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 class DataSetGeneratorConfig(BaseModel):
     """Configuration for the data engine."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(arbitrary_types_allowed=True, protected_namespaces=())
 
     instructions: str = Field(default="", description="Additional instructions for data generation")
     generation_system_prompt: str = Field(

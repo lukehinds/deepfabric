@@ -22,7 +22,7 @@ class TestTransformersConfig:
 
         assert config.model_id == "test-model"
         assert config.device is None
-        assert config.torch_dtype == "auto"
+        assert config.dtype == "auto"
         assert config.load_in_8bit is False
         assert config.load_in_4bit is False
         assert config.trust_remote_code is False
@@ -34,23 +34,23 @@ class TestTransformersConfig:
         config = TransformersConfig(
             model_id="test-model",
             device="cuda",
-            torch_dtype="bfloat16",
+            dtype="bfloat16",
             load_in_4bit=True,
             trust_remote_code=True,
             max_length=4096,
         )
 
         assert config.device == "cuda"
-        assert config.torch_dtype == "bfloat16"
+        assert config.dtype == "bfloat16"
         assert config.load_in_4bit is True
         assert config.trust_remote_code is True
 
-    def test_invalid_torch_dtype(self):
-        """Test that invalid torch_dtype raises validation error."""
+    def test_invalid_dtype(self):
+        """Test that invalid dtype raises validation error."""
         with pytest.raises(Exception):  # Pydantic validation error  # noqa: B017
-            TransformersConfig(model_id="test-model", torch_dtype=cast(Any, "invalid"))
+            TransformersConfig(model_id="test-model", dtype=cast(Any, "invalid"))
         with pytest.raises(Exception):  # Pydantic validation error  # noqa: B017
-            TransformersConfig(model_id="test-model", torch_dtype=cast(Any, "invalid"))
+            TransformersConfig(model_id="test-model", dtype=cast(Any, "invalid"))
 
     def test_model_kwargs(self):
         """Test model_kwargs are stored correctly."""
@@ -239,9 +239,9 @@ class TestMakeTransformersModel:
         mock_provider_cls.return_value = mock_provider
 
         make_transformers_model(
-            "test-model", device="cuda", torch_dtype="bfloat16", load_in_4bit=True
+            "test-model", device="cuda", dtype="bfloat16", load_in_4bit=True
         )
 
         mock_provider_cls.assert_called_once_with(
-            "test-model", device="cuda", torch_dtype="bfloat16", load_in_4bit=True
+            "test-model", device="cuda", dtype="bfloat16", load_in_4bit=True
         )

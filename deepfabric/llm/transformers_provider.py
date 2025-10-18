@@ -31,7 +31,7 @@ class TransformersConfig(BaseModel):
         description="Device map for model layers (auto, balanced, sequential, or custom dict)",
     )
 
-    torch_dtype: Literal["auto", "float16", "bfloat16", "float32"] | None = Field(
+    dtype: Literal["auto", "float16", "bfloat16", "float32"] | None = Field(
         default="auto",
         description="Torch dtype for model weights",
     )
@@ -102,7 +102,7 @@ class TransformersProvider:
             provider="transformers",
             model_name="meta-llama/Llama-3.1-8B-Instruct",
             device="cuda",
-            torch_dtype="bfloat16"
+            dtype="bfloat16"
         )
         ```
     """
@@ -186,15 +186,15 @@ class TransformersProvider:
             }
 
             # Handle dtype
-            if self.config.torch_dtype:
-                if self.config.torch_dtype == "auto":
-                    model_kwargs["torch_dtype"] = "auto"
-                elif self.config.torch_dtype == "float16":
-                    model_kwargs["torch_dtype"] = torch.float16
-                elif self.config.torch_dtype == "bfloat16":
-                    model_kwargs["torch_dtype"] = torch.bfloat16
-                elif self.config.torch_dtype == "float32":
-                    model_kwargs["torch_dtype"] = torch.float32
+            if self.config.dtype:
+                if self.config.dtype == "auto":
+                    model_kwargs["dtype"] = "auto"
+                elif self.config.dtype == "float16":
+                    model_kwargs["dtype"] = torch.float16
+                elif self.config.dtype == "bfloat16":
+                    model_kwargs["dtype"] = torch.bfloat16
+                elif self.config.dtype == "float32":
+                    model_kwargs["dtype"] = torch.float32
 
             # Handle device placement
             if self.config.device_map:
@@ -335,7 +335,7 @@ class TransformersProvider:
         return (
             f"TransformersProvider(model_id={self.model_id}, "
             f"device={self.config.device or 'auto'}, "
-            f"dtype={self.config.torch_dtype})"
+            f"dtype={self.config.dtype})"
         )
 
 
@@ -356,7 +356,7 @@ def make_transformers_model(model_name: str, **kwargs) -> Any:
         model = make_transformers_model(
             "meta-llama/Llama-3.1-8B-Instruct",
             device="cuda",
-            torch_dtype="bfloat16"
+            dtype="bfloat16"
         )
         ```
     """

@@ -38,7 +38,7 @@ async def main():
         provider="transformers",
         model_name=MODEL_NAME,
         device="cuda",  # Change to "cpu" if no GPU available
-        torch_dtype="bfloat16",  # Use bfloat16 for efficiency
+        dtype="bfloat16",  # Use bfloat16 for efficiency
         depth=2,  # Shallow tree for quick demo
         degree=5,  # 5 subtopics per node
     )
@@ -57,7 +57,7 @@ async def main():
         provider="transformers",
         model_name=MODEL_NAME,
         device="cuda",
-        torch_dtype="bfloat16",
+        dtype="bfloat16",
         conversation_type="basic",  # Simple Q&A format
         temperature=0.7,
     )

@@ -30,13 +30,13 @@ class TestDeepFabricPipeline:
             model_name="meta-llama/Llama-3.1-8B-Instruct",
             provider="transformers",
             device="cuda",
-            torch_dtype="bfloat16",
+            dtype="bfloat16",
         )
 
         assert pipeline.model_name == "meta-llama/Llama-3.1-8B-Instruct"
         assert pipeline.provider == "transformers"
         assert pipeline.provider_kwargs["device"] == "cuda"
-        assert pipeline.provider_kwargs["torch_dtype"] == "bfloat16"
+        assert pipeline.provider_kwargs["dtype"] == "bfloat16"
 
     @pytest.mark.asyncio
     @patch("deepfabric.pipeline.Tree")

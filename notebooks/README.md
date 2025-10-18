@@ -337,7 +337,7 @@ pipeline = DeepFabricPipeline(
     model_name=MODEL_NAME,
     provider="transformers",
     device="cuda",  # Will use device_map="auto" internally
-    torch_dtype="bfloat16",
+    dtype="bfloat16",
 )
 ```
 

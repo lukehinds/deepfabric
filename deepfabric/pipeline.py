@@ -37,7 +37,7 @@ class DeepFabricPipeline:
             model_name="meta-llama/Llama-3.1-8B-Instruct",
             provider="transformers",
             device="cuda",
-            torch_dtype="bfloat16"
+            dtype="bfloat16"
         )
 
         # Generate dataset
@@ -78,7 +78,7 @@ class DeepFabricPipeline:
             model_name: Model identifier (HuggingFace or API model)
             provider: Provider name (openai, anthropic, gemini, ollama, transformers)
             **provider_kwargs: Additional provider-specific configuration
-                (e.g., device, torch_dtype for transformers)
+                (e.g., device, dtype for transformers)
 
         Raises:
             DeepFabricError: If initialization fails

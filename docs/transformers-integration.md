@@ -46,7 +46,7 @@ tree = Tree(
     provider="transformers",
     model_name="meta-llama/Llama-3.1-8B-Instruct",
     device="cuda",
-    torch_dtype="bfloat16",
+    dtype="bfloat16",
     depth=3,
     degree=10
 )
@@ -60,7 +60,7 @@ generator = DataSetGenerator(
     provider="transformers",
     model_name="meta-llama/Llama-3.1-8B-Instruct",
     device="cuda",
-    torch_dtype="bfloat16",
+    dtype="bfloat16",
     conversation_type="cot_structured",
     temperature=0.7
 )
@@ -172,7 +172,7 @@ pipeline = DeepFabricPipeline(
     model_name="meta-llama/Llama-3.1-8B-Instruct",
     provider="transformers",
     device="cuda",
-    torch_dtype="bfloat16"
+    dtype="bfloat16"
 )
 
 # Step 1: Generate dataset
@@ -224,7 +224,7 @@ generator = DataSetGenerator(
     provider="transformers",
     model_name="meta-llama/Llama-3.1-70B-Instruct",
     device="cuda",
-    torch_dtype="bfloat16",
+    dtype="bfloat16",
     load_in_4bit=True,  # Use quantization for large model
     conversation_type="cot_hybrid"
 )
@@ -245,7 +245,7 @@ dataset = asyncio.run(generator.create_data_async(
 | `model_id` | str | required | HuggingFace model ID or local path |
 | `device` | str | None | Device (cuda, cpu, auto) |
 | `device_map` | str/dict | None | Device mapping strategy |
-| `torch_dtype` | str | "auto" | Model precision (float16, bfloat16, float32) |
+| `dtype` | str | "auto" | Model precision (float16, bfloat16, float32) |
 | `load_in_8bit` | bool | False | Enable 8-bit quantization |
 | `load_in_4bit` | bool | False | Enable 4-bit quantization |
 | `trust_remote_code` | bool | False | Allow custom model code |
@@ -280,10 +280,10 @@ dataset = asyncio.run(generator.create_data_async(
 
 ```python
 # Full precision (requires ~32GB VRAM)
-device="cuda", torch_dtype="float32"
+device="cuda", dtype="float32"
 
 # BF16 (requires ~16GB VRAM) - Recommended
-device="cuda", torch_dtype="bfloat16"
+device="cuda", dtype="bfloat16"
 
 # 8-bit quantization (requires ~8GB VRAM)
 device="cuda", load_in_8bit=True

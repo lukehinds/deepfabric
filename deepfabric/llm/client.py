@@ -375,8 +375,13 @@ class LLMClient:
             kwargs["max_output_tokens"] = kwargs.pop("max_tokens")
 
         # Convert max_tokens to max_new_tokens for Transformers
-        if self.provider == "transformers" and "max_tokens" in kwargs:
-            kwargs["max_new_tokens"] = kwargs.pop("max_tokens")
+        if self.provider == "transformers":
+            if "max_tokens" in kwargs:
+                kwargs["max_new_tokens"] = kwargs.pop("max_tokens")
+
+            # Enable sampling if temperature is specified
+            if "temperature" in kwargs and kwargs["temperature"] > 0:
+                kwargs["do_sample"] = True
 
         return kwargs
 
