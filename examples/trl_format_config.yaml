@@ -1,0 +1,10 @@
+dataset:
+dataset:
+  formatters:
+    - name: "trl_sft_tools"
+      template: "builtin://trl_sft_tools"
+      output: "agent_tool_calling_final_trl_sft_tools.jsonl"
+      config:
+        include_system_prompt: true
+        validate_tool_schemas: true
+        remove_available_tools_field: true

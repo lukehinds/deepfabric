@@ -24,12 +24,12 @@ topic_tree:
   topic_prompt: "Real-world scenarios requiring tool usage for task completion"
 
   # Model configuration
-  provider: "gemini"
-  model: "gemini-2.5-flash-lite"
+  provider: "openai"
+  model: "gpt-4o"
   temperature: 0.7
 
   # Tree structure parameters
-  depth: 3
+  depth: 4
   degree: 3
 
   # Save the generated tree
@@ -52,12 +52,9 @@ data_engine:
     Make examples pedagogically valuable for training reasoning skills.
 
   # Model for generating the actual training data
-  provider: "gemini"
-  model: "gemini-2.5-flash-lite"
+  provider: "openai"
+  model: "gpt-4o"
   temperature: 0.8
-
-  # Number of samples to generate
-  num_samples: 50
 
   # Use the agent_cot_hybrid schema for detailed step-by-step reasoning with tools
   conversation_type: "agent_cot_hybrid"
@@ -70,7 +67,7 @@ data_engine:
   # tool_registry_path: "examples/custom_tools.yaml"
 
   # Save the generated data
-  save_as: "agent_tool_calling_raw.jsonl"
+  save_as: "agent_tool_calling.jsonl"
 
 # Dataset configuration
 dataset:
@@ -79,8 +76,8 @@ dataset:
 
   creation:
     # Dataset creation parameters
-    num_steps: 2
-    batch_size: 1
+    num_steps: 20
+    batch_size: 4
     sys_msg: true
 
   # Apply the tool-calling formatter to convert to embedded execution format
