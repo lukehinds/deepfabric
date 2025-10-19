@@ -216,9 +216,15 @@ class TRLSFTToolsFormatter(BaseFormatter):
         # Parse tool input
         if isinstance(tool_input, str):
             try:
-                tool_args = json.loads(tool_input.replace("'", '"'))
-            except (json.JSONDecodeError, AttributeError):
-                tool_args = {"input": tool_input}
+                # First try parsing as standard JSON
+                tool_args = json.loads(tool_input)
+            except json.JSONDecodeError:
+                try:
+                    # Fallback: try replacing single quotes with double quotes
+                    tool_args = json.loads(tool_input.replace("'", '"'))
+                except json.JSONDecodeError:
+                    # Final fallback: wrap in a simple structure
+                    tool_args = {"input": tool_input}
         else:
             tool_args = tool_input
 
