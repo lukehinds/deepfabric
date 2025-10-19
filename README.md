@@ -126,7 +126,7 @@ deepfabric generate \
   --model gpt-4o \
   --depth 3 \
   --degree 3 \
-  --num-steps 9 \
+  --num-steps 27 \
   --batch-size 1 \
   --topic-prompt "This history Quantum physics" \
   --generation-system-prompt "You are an expert on academic history, with a specialism in the sciences" \
@@ -135,8 +135,11 @@ deepfabric generate \
 
 Deepfabric will automatically:
 - Generate a hierarchical topic tree (3 levels deep, 3 branches per level)
-- Create 9 diverse Q&A pairs across the generated topics
+- Create 27 diverse Q&A pairs across the generated topics
 - Save your dataset to `dataset.jsonl`
+
+> [!NOTE]  
+> Want to generate faster? Increase batch size! For example, if you set `--batch-size 3` and `--num-steps 9` deepfabric will generate 3 entries at a time, while ensuring rate limits of OpenAI are monitored (we use backoff, jitter etc). 
 
 ### 3. Use Your Dataset
 
