@@ -37,6 +37,7 @@ Reference:
 - https://www.stephendiehl.com/posts/fine_tuning_tools/
 """
 
+import json
 import logging
 
 from typing import Any
@@ -94,15 +95,18 @@ class TRLSFTToolsFormatter(BaseFormatter):
 
     def validate(self, sample: dict) -> bool:
         """Validate that sample has required fields for TRL format."""
-        # Must have messages
-        if "messages" not in sample or not isinstance(sample["messages"], list):
-            return False
+        # Accept either messages format OR agent_cot_tools format
 
-        # Must have at least one message
-        # Return whether there is at least one message
-        # Should have available_tools for tool calling
-        # (though we'll still process samples without it)
-        return len(sample["messages"]) != 0
+        # Check for messages format
+        if "messages" in sample and isinstance(sample["messages"], list):
+            return len(sample["messages"]) > 0
+
+        # Check for agent_cot_tools format (question + tool_used + answer/final_answer)
+        if "question" in sample and "tool_used" in sample:
+            has_answer = "answer" in sample or "final_answer" in sample
+            return has_answer
+
+        return False
 
     def _format_single_sample(self, sample: dict) -> dict | None:
         """
@@ -123,6 +127,10 @@ class TRLSFTToolsFormatter(BaseFormatter):
             if isinstance(self._config_model, TRLSFTToolsConfig)
             else TRLSFTToolsConfig()
         )
+
+        # Convert agent_cot_tools format to messages format if needed
+        if "messages" not in sample:
+            sample = self._convert_agent_to_messages(sample, config)
 
         # Start with a copy of the sample
         formatted_sample = sample.copy()
@@ -171,6 +179,83 @@ class TRLSFTToolsFormatter(BaseFormatter):
                 )
 
         return formatted_sample
+
+    def _convert_agent_to_messages(
+        self, sample: dict, config: TRLSFTToolsConfig
+    ) -> dict:
+        """
+        Convert agent_cot_tools format to messages format.
+
+        Args:
+            sample: Sample in agent_cot_tools format
+            config: Formatter configuration
+
+        Returns:
+            Sample with messages field
+        """
+        messages = []
+
+        # Add system message if configured
+        if config.include_system_prompt:
+            system_content = config.system_prompt_override or (
+                "You are a helpful AI assistant with access to various tools and functions. "
+                "When a user asks a question that requires information or actions you cannot "
+                "directly provide, use the available tools to help answer the question."
+            )
+            messages.append({"role": "system", "content": system_content})
+
+        # Add user question
+        question = sample.get("question", "")
+        messages.append({"role": "user", "content": question})
+
+        # Extract tool usage information
+        tool_used = sample.get("tool_used", "")
+        tool_input = sample.get("tool_input", "{}")
+        tool_output = sample.get("tool_output", "")
+        answer = sample.get("answer") or sample.get("final_answer", "")
+
+        # Parse tool input
+        if isinstance(tool_input, str):
+            try:
+                tool_args = json.loads(tool_input.replace("'", '"'))
+            except (json.JSONDecodeError, AttributeError):
+                tool_args = {"input": tool_input}
+        else:
+            tool_args = tool_input
+
+        # Add assistant message with tool call
+        # Using OpenAI-compatible function calling format
+        tool_call = {
+            "id": "call_1",  # Placeholder ID
+            "type": "function",
+            "function": {"name": tool_used, "arguments": json.dumps(tool_args)},
+        }
+
+        messages.append(
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [tool_call],
+            }
+        )
+
+        # Add tool response message
+        messages.append(
+            {
+                "role": "tool",
+                "content": str(tool_output),
+                "tool_call_id": "call_1",
+            }
+        )
+
+        # Add final assistant answer
+        messages.append({"role": "assistant", "content": answer})
+
+        # Return sample with messages and preserve available_tools
+        return {
+            "messages": messages,
+            "available_tools": sample.get("available_tools", []),
+        }
 
     def _validate_tool_schemas(self, tools: list[dict]) -> None:
         """
