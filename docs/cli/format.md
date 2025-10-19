@@ -20,7 +20,7 @@ deepfabric format --repo ORG/DATASET [OPTIONS]
 ## Options
 
 - `-c, --config-file PATH` - YAML config file containing formatter settings
-- `-f, --formatter [im_format|unsloth|alpaca|chatml|grpo|harmony|trl|xlam_v2]` - Quick formatter selection with default settings
+- `-f, --formatter [conversations|alpaca|chatml|grpo|harmony|trl|xlam_v2]` - Quick formatter selection with default settings
 - `-o, --output TEXT` - Output file path
   - Local file input: defaults to `input_file_formatter.jsonl`
   - `--repo` input: defaults to `formatted.jsonl`
@@ -32,13 +32,13 @@ deepfabric format --repo ORG/DATASET [OPTIONS]
 
 ### Using a specific formatter
 
-Apply the `im_format` formatter with default settings:
+Apply the `chatml` formatter with default settings:
 
 ```bash
-deepfabric format dataset.jsonl -f im_format
+deepfabric format dataset.jsonl -f chatml
 ```
 
-This creates `dataset_im_format.jsonl` with the formatted output.
+This creates `dataset_chatml.jsonl` with the formatted output.
 
 ### Using a custom output path
 
@@ -59,43 +59,16 @@ Example `formatter_config.yaml`:
 ```yaml
 dataset:
   formatters:
-    - name: "im_format_training"
-      template: "builtin://im_format.py"
+    - name: "chatml_training"
+      template: "builtin://chatml.py"
       output: "formatted_output.jsonl"
       config:
-        include_system: true
-        system_message: "You are a helpful assistant."
-        roles_map:
-          user: "user"
-          assistant: "assistant"
-          system: "system"
+        output_format: "text"
+        start_token: "<|im_start|>"
+        end_token: "<|im_end|>"
 ```
 
 ## Supported Formatters
-
-### im_format
-
-Formats conversations using `<|im_start|>` and `<|im_end|>` delimiters, compatible with ChatML and similar formats.
-
-**Default configuration:**
-```yaml
-include_system: true
-system_message: "You are a helpful assistant."
-roles_map:
-  user: "user"
-  assistant: "assistant"
-  system: "system"
-```
-
-**Output example:**
-```
-<|im_start|>system
-You are a helpful assistant.<|im_end|>
-<|im_start|>user
-What is Python?<|im_end|>
-<|im_start|>assistant
-Python is a high-level programming language.<|im_end|>
-```
 
 ### alpaca
 
@@ -192,13 +165,13 @@ ds['train'].to_json('orca_math.jsonl')
 "
 
 # Apply formatter
-deepfabric format orca_math.jsonl -f im_format
+deepfabric format orca_math.jsonl -f chatml
 ```
 
 **For datasets with instruction format (e.g., Alpaca-style):**
 ```bash
 # Many HF datasets use instruction/input/output format
-deepfabric format alpaca_dataset.jsonl -f im_format
+deepfabric format alpaca_dataset.jsonl -f chatml
 ```
 
 **Common HuggingFace dataset formats supported:**
@@ -216,7 +189,7 @@ huggingface-cli download tatsu-lab/alpaca --repo-type dataset
 python convert_hf_to_jsonl.py
 
 # 3. Apply multiple formatters
-deepfabric format alpaca.jsonl -f im_format -o alpaca_chatml.jsonl
+deepfabric format alpaca.jsonl -f chatml -o alpaca_chatml.jsonl
 deepfabric format alpaca.jsonl -f grpo -o alpaca_grpo.jsonl
 ```
 
@@ -230,7 +203,7 @@ deepfabric generate config.yaml
 2. Apply different formatters to the same dataset:
 ```bash
 # For ChatML training
-deepfabric format dataset_raw.jsonl -f im_format -o dataset_chatml.jsonl
+deepfabric format dataset_raw.jsonl -f chatml -o dataset_chatml.jsonl
 
 # For Alpaca training
 deepfabric format dataset_raw.jsonl -f alpaca -o dataset_alpaca.jsonl

@@ -60,7 +60,13 @@ class ToolParameter(BaseModel):
     )
     description: str = Field(description="What this parameter does")
     required: bool = Field(default=True, description="Whether this parameter is required")
-    default: Any = Field(default=None, description="Default value if not provided")
+    default: str | None = Field(
+        default=None,
+        description=(
+            "Default value if not provided. Stored as string for HuggingFace Datasets compatibility "
+            "(Arrow/Parquet requires consistent types). Actual type is preserved in 'type' field."
+        ),
+    )
 
 
 class ToolDefinition(BaseModel):
@@ -115,8 +121,18 @@ class ToolDefinition(BaseModel):
             }
 
             # Add default value if present and not required
+            # Convert string default back to proper type for JSON Schema
             if not param.required and param.default is not None:
-                properties[param.name]["default"] = param.default
+                default_value = param.default
+                # Convert string representation back to typed value
+                if param.type == "int":
+                    default_value = int(param.default)
+                elif param.type == "float":
+                    default_value = float(param.default)
+                elif param.type == "bool":
+                    default_value = param.default.lower() in ("true", "1", "yes")
+                # str, list, dict remain as-is (already strings or JSON-parseable)
+                properties[param.name]["default"] = default_value
 
             # Track required parameters
             if param.required:

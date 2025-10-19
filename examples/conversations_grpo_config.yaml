@@ -1,10 +1,10 @@
 # ============================================================================
-# UNSLOTH GRPO CONFIG FOR QWEN3 REASONING
+# CONVERSATIONS GRPO CONFIG FOR REASONING TRAINING
 # ============================================================================
-# Purpose: Generate reasoning datasets for Unsloth Qwen3 GRPO training
+# Purpose: Generate reasoning datasets in conversations format with GRPO tags
 # Output format: Conversations with <think></think> reasoning tags
-# Use case: Direct integration with Qwen3-GRPO.ipynb notebook
-# Notebook: https://colab.research.google.com/github/unslothai/notebooks/blob/main/nb/Qwen3_(4B)-GRPO.ipynb
+# Use case: GRPO training with Unsloth, Axolotl, and other frameworks
+# Compatible with: Qwen3-GRPO.ipynb and similar reasoning training notebooks
 # ============================================================================
 
 dataset_system_prompt: |
@@ -43,11 +43,11 @@ dataset:
     sys_msg: false  # System message handled by formatter
   save_as: "reasoning_dataset_raw.jsonl"
 
-  # Formatter for Unsloth GRPO training
+  # Formatter for conversations GRPO training
   formatters:
-    - name: "unsloth_grpo_reasoning"
-      template: "builtin://unsloth_grpo.py"
-      output: "reasoning_dataset_unsloth_grpo.jsonl"
+    - name: "conversations_grpo_reasoning"
+      template: "builtin://conversations_grpo.py"
+      output: "reasoning_dataset_conversations_grpo.jsonl"
       config:
         reasoning_start_tag: "<think>"
         reasoning_end_tag: "</think>"
@@ -66,6 +66,6 @@ huggingface:
     - "chain-of-thought"
     - "grpo"
     - "qwen3"
-    - "unsloth"
+    - "conversations"
     - "synthetic"
   license: "apache-2.0"

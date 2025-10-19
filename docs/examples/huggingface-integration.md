@@ -459,7 +459,7 @@ Download a dataset from the Hub and apply a formatter:
 deepfabric format --repo lukehinds/smol-test-sample --formatter trl
 
 # Download and format to ChatML
-deepfabric format --repo username/conversation-dataset --formatter im_format
+deepfabric format --repo username/conversation-dataset --formatter chatml
 
 # Download and format to GRPO for reasoning training
 deepfabric format --repo org/math-problems --formatter grpo -o grpo_math.jsonl
@@ -481,8 +481,8 @@ echo "Downloading and converting dataset: $REPO"
 # Format for TRL SFTTrainer
 deepfabric format --repo $REPO --formatter trl -o "${BASE_NAME}_trl.jsonl"
 
-# Format for Unsloth training
-deepfabric format --repo $REPO --formatter unsloth -o "${BASE_NAME}_unsloth.jsonl"
+# Format for conversations training (Unsloth, Axolotl, etc.)
+deepfabric format --repo $REPO --formatter conversations -o "${BASE_NAME}_conversations.jsonl"
 
 # Format for Harmony (gpt-oss)
 deepfabric format --repo $REPO --formatter harmony -o "${BASE_NAME}_harmony.jsonl"

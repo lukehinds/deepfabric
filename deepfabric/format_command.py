@@ -22,7 +22,7 @@ def format_command(
         repo: Optional Hugging Face dataset repo id (e.g., "org/dataset-name")
         split: Optional split to load from the Hugging Face dataset (default: train)
         config_file: Optional YAML config file with formatter settings
-        formatter: Optional formatter name (e.g., 'im_format')
+        formatter: Optional formatter name (e.g., 'chatml')
         output: Optional output file path
     """
     tui = get_tui()
@@ -88,12 +88,7 @@ def format_command(
 
         # Default configs for common formatters
         default_configs = {
-            "im_format": {
-                "include_system": True,
-                "system_message": "You are a helpful assistant.",
-                "roles_map": {"user": "user", "assistant": "assistant", "system": "system"},
-            },
-            "unsloth": {
+            "conversations": {
                 "include_system": False,
                 "system_message": None,
                 "roles_map": {"user": "user", "assistant": "assistant", "system": "system"},
@@ -179,8 +174,7 @@ def format_command(
     "-f",
     type=click.Choice(
         [
-            "im_format",
-            "unsloth",
+            "conversations",
             "alpaca",
             "chatml",
             "grpo",

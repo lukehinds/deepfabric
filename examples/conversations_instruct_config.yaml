@@ -1,9 +1,9 @@
 # ============================================================================
-# UNSLOTH TRAINING CONFIG
+# CONVERSATIONS FORMAT CONFIG
 # ============================================================================
-# Purpose: Generate datasets formatted for Unsloth training notebooks
+# Purpose: Generate datasets in standard conversations format
 # Output format: {"conversations": [{"role": "user", "content": "..."}, ...]}
-# Use case: Direct integration with Unsloth Qwen/Llama fine-tuning notebooks
+# Use case: Compatible with Unsloth, Axolotl, HuggingFace TRL, and other frameworks
 # ============================================================================
 
 dataset_system_prompt: |
@@ -37,16 +37,16 @@ dataset:
   creation:
     num_steps: 27  # Number of generation steps
     batch_size: 1
-    sys_msg: false  # System messages handled by Unsloth
+    sys_msg: false  # System messages handled by framework chat templates
   save_as: "programming_dataset_raw.jsonl"
 
-  # Formatter configuration for Unsloth
+  # Formatter configuration for conversations format
   formatters:
-    - name: "unsloth_conversations"
-      template: "builtin://unsloth.py"
-      output: "programming_dataset_unsloth.jsonl"
+    - name: "conversations_format"
+      template: "builtin://conversations.py"
+      output: "programming_dataset_conversations.jsonl"
       config:
-        include_system: false  # Unsloth applies system messages via chat templates
+        include_system: false  # Frameworks apply system messages via chat templates
         roles_map:
           user: "user"
           assistant: "assistant"
@@ -54,14 +54,13 @@ dataset:
 
 # HuggingFace Hub upload configuration
 huggingface:
-  repository: "your-username/programming-unsloth-dataset"
+  repository: "your-username/programming-conversations-dataset"
   private: false  # Set to true for private repository
   tags:
     - "programming"
     - "education"
     - "question-answering"
     - "synthetic"
-    - "unsloth"
     - "conversations"
   license: "apache-2.0"
   # Note: Dataset cards (README.md) must be created manually on HuggingFace Hub

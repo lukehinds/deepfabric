@@ -1,8 +1,9 @@
 """
-Formatter for the <|im_start|>/<|im_end|> conversation format.
+Conversations formatter for generic training frameworks.
 
-This formatter converts DeepFabric datasets to the format used by models
-that expect conversation delimiters with <|im_start|> and <|im_end|> tokens.
+This formatter converts DeepFabric datasets to the standard conversations format
+using role/content pairs. Compatible with Unsloth, Axolotl, HuggingFace TRL, and
+other frameworks that use the conversations field structure.
 """
 
 from pydantic import BaseModel, Field
@@ -11,14 +12,14 @@ from ..base import BaseFormatter
 from ..utils import extract_messages
 
 
-class ImFormatConfig(BaseModel):
-    """Configuration for the <|im_start|>/<|im_end|> formatter."""
+class ConversationsConfig(BaseModel):
+    """Configuration for the conversations formatter."""
 
     include_system: bool = Field(
-        default=False, description="Whether to include system messages in the output"
+        default=False, description="Whether to include system messages in conversations"
     )
     system_message: str | None = Field(
-        default=None, description="Optional system message to prepend to conversations"
+        default=None, description="Optional system message to add to conversations"
     )
     roles_map: dict = Field(
         default={"user": "user", "assistant": "assistant", "system": "system"},
@@ -26,32 +27,33 @@ class ImFormatConfig(BaseModel):
     )
 
 
-class ImFormatter(BaseFormatter):
+class ConversationsFormatter(BaseFormatter):
     """
-    Formats conversations using <|im_start|> and <|im_end|> delimiters.
+    Formats datasets to standard conversations format.
 
-    This formatter is compatible with models that use the ChatML format
-    or similar conversation formats with explicit role markers.
+    This formatter outputs datasets with a 'conversations' field containing
+    role/content pairs. Compatible with multiple training frameworks including
+    Unsloth, Axolotl, and HuggingFace TRL.
     """
 
     def get_config_model(self):
         """Return the configuration model for this formatter."""
-        return ImFormatConfig
+        return ConversationsConfig
 
     def _format_single_sample(self, sample: dict) -> dict | None:
         """
-        Format a single sample to <|im_start|>/<|im_end|> format.
+        Format a single sample to conversations format.
 
         Args:
             sample: Sample to format
 
         Returns:
-            Formatted sample with text key
+            Formatted sample with conversations key
         """
-        config: ImFormatConfig = (
+        config: ConversationsConfig = (
             self._config_model
-            if isinstance(self._config_model, ImFormatConfig)
-            else ImFormatConfig(**self.config)
+            if isinstance(self._config_model, ConversationsConfig)
+            else ConversationsConfig(**self.config)
         )
 
         try:
@@ -62,13 +64,15 @@ class ImFormatter(BaseFormatter):
         if not messages:
             return None
 
-        formatted_parts = []
+        conversations = []
 
         # Add system message if configured
         if config.include_system and config.system_message:
-            formatted_parts.append(f"<|im_start|>system\n{config.system_message}<|im_end|>")
+            conversations.append(
+                {"role": config.roles_map.get("system", "system"), "content": config.system_message}
+            )
 
-        # Format each message
+        # Add conversation messages
         for message in messages:
             role = message.get("role", "user")
             content = message.get("content", "")
@@ -80,9 +84,9 @@ class ImFormatter(BaseFormatter):
             if mapped_role == "system" and not config.include_system:
                 continue
 
-            formatted_parts.append(f"<|im_start|>{mapped_role}\n{content}<|im_end|>")
+            conversations.append({"role": mapped_role, "content": content})
 
-        return {"text": "\n".join(formatted_parts)}
+        return {"conversations": conversations}
 
     def validate(self, entry: dict) -> bool:
         """
@@ -103,8 +107,8 @@ class ImFormatter(BaseFormatter):
     def get_description(self) -> str:
         """Get formatter description."""
         return (
-            "Formats conversations using <|im_start|> and <|im_end|> delimiters. "
-            "Compatible with ChatML and similar formats that use explicit role markers."
+            "Formats datasets for Unsloth training framework. "
+            "Outputs conversations with role/content pairs compatible with Unsloth's chat templates."
         )
 
     def get_supported_formats(self) -> list[str]:

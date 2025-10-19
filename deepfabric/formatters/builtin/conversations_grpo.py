@@ -1,8 +1,9 @@
 """
-Formatter for Unsloth GRPO training with reasoning.
+Formatter for GRPO training with conversations format and reasoning.
 
-This formatter combines Unsloth's conversations format with GRPO-style
+This formatter combines the standard conversations format with GRPO-style
 reasoning tags for training models with chain-of-thought capabilities.
+Compatible with Unsloth, Axolotl, and other frameworks supporting conversations format.
 """
 
 from pydantic import BaseModel, Field
@@ -11,8 +12,8 @@ from ..base import BaseFormatter
 from ..utils import extract_data
 
 
-class UnslothGrpoConfig(BaseModel):
-    """Configuration for the Unsloth GRPO formatter."""
+class ConversationsGrpoConfig(BaseModel):
+    """Configuration for the Conversations GRPO formatter."""
 
     reasoning_start_tag: str = Field(
         default="<think>", description="Tag to mark start of reasoning"
@@ -27,21 +28,22 @@ class UnslothGrpoConfig(BaseModel):
     )
 
 
-class UnslothGrpoFormatter(BaseFormatter):
+class ConversationsGrpoFormatter(BaseFormatter):
     """
-    Formats datasets for Unsloth GRPO training with reasoning.
+    Formats datasets for GRPO training with conversations format and reasoning.
 
     This formatter outputs conversations format with embedded reasoning tags,
     suitable for training models that show their thinking process.
+    Compatible with Unsloth, Axolotl, and other frameworks.
     """
 
     def get_config_model(self):
         """Return the configuration model for this formatter."""
-        return UnslothGrpoConfig
+        return ConversationsGrpoConfig
 
     def _format_single_sample(self, sample: dict) -> dict | None:
         """
-        Format a single sample to Unsloth GRPO conversations format.
+        Format a single sample to conversations GRPO format.
 
         Args:
             sample: Sample to format
@@ -49,10 +51,10 @@ class UnslothGrpoFormatter(BaseFormatter):
         Returns:
             Formatted sample with conversations key
         """
-        config: UnslothGrpoConfig = (
+        config: ConversationsGrpoConfig = (
             self._config_model
-            if isinstance(self._config_model, UnslothGrpoConfig)
-            else UnslothGrpoConfig(**self.config)
+            if isinstance(self._config_model, ConversationsGrpoConfig)
+            else ConversationsGrpoConfig(**self.config)
         )
 
         data = extract_data(sample)
@@ -209,8 +211,9 @@ class UnslothGrpoFormatter(BaseFormatter):
     def get_description(self) -> str:
         """Get formatter description."""
         return (
-            "Formats datasets for Unsloth GRPO training with reasoning. "
-            "Outputs conversations format with embedded reasoning tags for chain-of-thought training."
+            "Formats datasets for GRPO training with conversations format and reasoning. "
+            "Outputs conversations format with embedded reasoning tags for chain-of-thought training. "
+            "Compatible with Unsloth, Axolotl, and other frameworks."
         )
 
     def get_supported_formats(self) -> list[str]:

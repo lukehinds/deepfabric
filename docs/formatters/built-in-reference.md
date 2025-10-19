@@ -2,74 +2,14 @@
 
 DeepFabric includes several built-in formatters for popular training frameworks and methodologies. This document provides comprehensive reference for all built-in formatters.
 
-## Im Format Formatter
+## Conversations Formatter
 
-**Template**: `builtin://im_format.py`
-**Use Case**: ChatML-compatible training with `<|im_start|>` and `<|im_end|>` delimiters
-
-### Description
-
-The Im Format formatter transforms datasets into the format used by models that expect conversation delimiters with `<|im_start|>` and `<|im_end|>` tokens. This format is widely used for chat models and is compatible with ChatML and similar conversation formats.
-
-### Configuration Options
-
-```yaml
-config:
-  include_system: true                       # Default: false
-  system_message: "Custom system message"    # Default: None
-  roles_map:                                # Default: shown below
-    user: "user"
-    assistant: "assistant"
-    system: "system"
-```
-
-### Input Formats Supported
-
-- **Messages**: Chat format with role/content pairs
-- **Q&A**: Question and answer fields
-- **Instruction**: Instruction/input/output format
-- **Direct**: User/assistant fields
-- **Generic**: Any format with extractable conversation patterns
-
-### Output Format
-
-```text
-<|im_start|>system
-You are a helpful assistant.<|im_end|>
-<|im_start|>user
-What is Python?<|im_end|>
-<|im_start|>assistant
-Python is a high-level, interpreted programming language known for its simplicity and readability.<|im_end|>
-```
-
-### Example Configuration
-
-```yaml
-formatters:
-- name: "chatml_training"
-  template: "builtin://im_format.py"
-  config:
-    include_system: true
-    system_message: |
-      You are an expert programming assistant.
-      Provide clear, accurate, and practical answers.
-    roles_map:
-      user: "user"
-      assistant: "assistant"
-      system: "system"
-  output: "chatml_dataset.jsonl"
-```
-
----
-
-## Unsloth Formatter
-
-**Template**: `builtin://unsloth.py`
-**Use Case**: Training with Unsloth framework using conversations format
+**Template**: `builtin://conversations.py`
+**Use Case**: Generic conversations format for multiple training frameworks
 
 ### Description
 
-The Unsloth formatter transforms datasets into the conversations format expected by Unsloth training notebooks. This enables seamless integration with Unsloth's training pipeline and chat templates.
+The Conversations formatter transforms datasets into the standard conversations format with role/content pairs. This format is compatible with multiple training frameworks including Unsloth, Axolotl, and HuggingFace TRL, making it a versatile choice for conversational AI training.
 
 ### Configuration Options
 
@@ -106,27 +46,39 @@ config:
 
 ```yaml
 formatters:
-- name: "unsloth_training"
-  template: "builtin://unsloth.py"
+- name: "conversations_training"
+  template: "builtin://conversations.py"
   config:
-    include_system: false  # Unsloth applies system messages via chat templates
+    include_system: false  # Most frameworks apply system messages via chat templates
     roles_map:
       user: "user"
       assistant: "assistant"
-  output: "unsloth_dataset.jsonl"
+  output: "conversations_dataset.jsonl"
 ```
 
-### Integration with Unsloth Notebooks
+### Framework Compatibility
 
-After formatting with this formatter and uploading to HuggingFace Hub, use directly in Unsloth notebooks:
-
+**Unsloth:**
 ```python
-# Replace the default dataset
 dataset = load_dataset("your-username/your-dataset", split="train")
-
-# The rest of the notebook works unchanged
 dataset = standardize_data_formats(dataset)
 dataset = dataset.map(formatting_prompts_func, batched=True)
+```
+
+**Axolotl:**
+```yaml
+datasets:
+  - path: your-username/your-dataset
+    type: conversation
+```
+
+**HuggingFace TRL:**
+```python
+from trl import SFTTrainer
+trainer = SFTTrainer(
+    dataset=dataset,
+    dataset_text_field="conversations"
+)
 ```
 
 ---
@@ -845,13 +797,13 @@ formatters:
 - **Alpaca**: Standard instruction-following format
 - **ChatML**: When you need conversation context and role clarity
 - **Harmony**: For gpt-oss models with developer instructions and role hierarchy
-- **Unsloth**: When using Unsloth training notebooks with conversations format
+- **Conversations**: For Unsloth, Axolotl, or HF TRL training with conversations format
 
 ### For Chat and Dialogue
 - **Harmony**: Advanced format with channels, tool support, and role hierarchy for gpt-oss models
 - **ChatML**: Structured conversations with multiple turns
-- **Im Format**: ChatML-compatible format with `<|im_start|>/<|im_end|>` delimiters
-- **Unsloth**: Conversations format for Unsloth framework integration
+- **ChatML**: ChatML-compatible format with `<|im_start|>/<|im_end|>` delimiters
+- **Conversations**: Standard conversations format for multiple frameworks
 - **Alpaca**: Single-turn instruction-response pairs
 
 ### For Tool/Function Calling
