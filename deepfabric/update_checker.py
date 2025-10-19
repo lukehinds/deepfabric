@@ -5,7 +5,7 @@ import os
 import urllib.error
 import urllib.request
 
-from typing import Any
+from typing import TypedDict
 
 from packaging.version import Version, parse
 
@@ -13,6 +13,18 @@ from .metrics import trace
 from .tui import get_tui
 
 logger = logging.getLogger(__name__)
+
+
+class PyPIPackageInfo(TypedDict, total=False):
+    """PyPI package info section."""
+
+    version: str
+
+
+class PyPIResponse(TypedDict, total=False):
+    """PyPI JSON API response structure."""
+
+    info: PyPIPackageInfo
 
 # PyPI API endpoint for deepfabric package
 PYPI_API_URL = "https://pypi.org/pypi/deepfabric/json"
@@ -54,10 +66,10 @@ def _fetch_latest_version_from_pypi() -> str | None:
         str | None: Latest version string or None if fetch fails
     """
     try:
-        with urllib.request.urlopen(  # noqa: S310
+        with urllib.request.urlopen(  # noqa: S310 # nosec
             PYPI_API_URL, timeout=REQUEST_TIMEOUT
         ) as response:
-            data: dict[str, Any] = json.loads(response.read().decode("utf-8"))
+            data: PyPIResponse = json.loads(response.read().decode("utf-8"))
             latest_version = data.get("info", {}).get("version")
             if latest_version:
                 logger.debug("Fetched latest version from PyPI: %s", latest_version)
