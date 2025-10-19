@@ -103,8 +103,7 @@ class TRLSFTToolsFormatter(BaseFormatter):
 
         # Check for agent_cot_tools format (question + tool_used + answer/final_answer)
         if "question" in sample and "tool_used" in sample:
-            has_answer = "answer" in sample or "final_answer" in sample
-            return has_answer
+            return "answer" in sample or "final_answer" in sample
 
         return False
 
