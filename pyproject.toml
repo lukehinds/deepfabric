@@ -19,6 +19,7 @@ dependencies = [
     "rich>=13.0.0",
     "google-genai>=1.36.0",
     "posthog>=3.0.0",
+    "packaging>=25.0",
 ]
 
 [project.optional-dependencies]
