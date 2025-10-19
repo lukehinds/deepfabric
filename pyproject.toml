@@ -1,6 +1,6 @@
 [project]
 name = "deepfabric"
-version = "2.12.0"
+version = "2.14.0"
 description = "Large Scale Topic based Synthetic Data Generation"
 authors = [{name = "Luke Hinds", email = "luke@rdrocket.com"}]
 readme = "README.md"
@@ -19,6 +19,7 @@ dependencies = [
     "rich>=13.0.0",
     "google-genai>=1.36.0",
     "posthog>=3.0.0",
+    "packaging>=25.0",
 ]
 
 [project.optional-dependencies]

@@ -1,3 +1,4 @@
+import contextlib
 import os
 import sys
 
@@ -20,6 +21,7 @@ from .metrics import set_trace_debug, trace
 from .topic_manager import load_or_build_topic_model, save_topic_model
 from .topic_model import TopicModel
 from .tui import get_tui
+from .update_checker import check_for_updates
 from .validation import show_validation_success, validate_path_requirements
 
 OverrideValue = str | int | float | bool | None
@@ -45,7 +47,9 @@ def handle_error(ctx: click.Context, error: Exception) -> NoReturn:
 @click.version_option()
 def cli():
     """DeepFabric CLI - Generate synthetic training data for language models."""
-    pass
+    # Check for updates on CLI startup (silently fail if any issues occur)
+    with contextlib.suppress(Exception):
+        check_for_updates()
 
 
 class GenerateOptions(BaseModel):
