@@ -801,7 +801,6 @@ formatters:
 
 ### For Chat and Dialogue
 - **Harmony**: Advanced format with channels, tool support, and role hierarchy for gpt-oss models
-- **ChatML**: Structured conversations with multiple turns
 - **ChatML**: ChatML-compatible format with `<|im_start|>/<|im_end|>` delimiters
 - **Conversations**: Standard conversations format for multiple frameworks
 - **Alpaca**: Single-turn instruction-response pairs

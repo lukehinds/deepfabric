@@ -26,6 +26,7 @@ class PyPIResponse(TypedDict, total=False):
 
     info: PyPIPackageInfo
 
+
 # PyPI API endpoint for deepfabric package
 PYPI_API_URL = "https://pypi.org/pypi/deepfabric/json"
 

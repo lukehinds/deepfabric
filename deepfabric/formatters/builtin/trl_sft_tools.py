@@ -179,9 +179,7 @@ class TRLSFTToolsFormatter(BaseFormatter):
 
         return formatted_sample
 
-    def _convert_agent_to_messages(
-        self, sample: dict, config: TRLSFTToolsConfig
-    ) -> dict:
+    def _convert_agent_to_messages(self, sample: dict, config: TRLSFTToolsConfig) -> dict:
         """
         Convert agent_cot_tools format to messages format.
 

@@ -107,8 +107,8 @@ class ConversationsFormatter(BaseFormatter):
     def get_description(self) -> str:
         """Get formatter description."""
         return (
-            "Formats datasets for Unsloth training framework. "
-            "Outputs conversations with role/content pairs compatible with Unsloth's chat templates."
+            "Formats datasets to the standard conversations format with role/content pairs. "
+            "Compatible with Unsloth, Axolotl, HuggingFace TRL, and other frameworks that use the conversations field structure."
         )
 
     def get_supported_formats(self) -> list[str]:

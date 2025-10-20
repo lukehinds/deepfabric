@@ -2,6 +2,7 @@ import json
 import logging
 import re
 
+from contextlib import suppress
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal
 
@@ -131,7 +132,10 @@ class ToolDefinition(BaseModel):
                     default_value = float(param.default)
                 elif param.type == "bool":
                     default_value = param.default.lower() in ("true", "1", "yes")
-                # str, list, dict remain as-is (already strings or JSON-parseable)
+                elif param.type in ("list", "dict"):
+                    with suppress(json.JSONDecodeError, TypeError):
+                        default_value = json.loads(param.default)
+                # str remains as-is
                 properties[param.name]["default"] = default_value
 
             # Track required parameters
