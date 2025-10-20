@@ -8,7 +8,7 @@
     <p align="center">
         <img src="images/logo-light.png" alt="DeepFabric Logo" width="500"/>
     </p>
-  <h3>Generate High-Quality Synthetic Datasets at Scale</h3>
+  <h3>Training Model Behavior for Agentic Systems</h3>
 
   <!-- CTA Buttons -->
   <p>
@@ -44,17 +44,45 @@
 
 
 
-DeepFabric transforms the process of creating synthetic datasets for language model training, evaluation, and research. Built around the concept of topic-driven data generation, it provides both hierarchical topic trees and experimental graph-based topic modeling to create diverse, contextually rich training examples.
+DeepFabric enables training language models to be capable agents through structured synthetic datasets. By combining reasoning traces with tool calling patterns, DeepFabric creates training data that teaches models both intelligent decision-making and precise execution—at any model parameter scale.
 
-The library serves researchers, engineers, and practitioners who need high-quality synthetic data for model distillation, agent evaluation, or statistical research. Whether you're generating conversational datasets, creating domain-specific training examples, building evaluation benchmarks, or training agents for systematic tool usage, DeepFabric provides the tools to scale your data generation process while maintaining quality and diversity.
+Built around topic-driven generation, DeepFabric uses hierarchical topic trees and experimental graph-based modeling to ensure comprehensive coverage of agent capabilities. The library serves researchers, engineers, and practitioners building Agents, distilling large model behaviors into efficient SLMs, or creating specialized tool-calling systems. Whether you're training for multi-step workflows, generating reasoning datasets, or building domain-specific agent systems, DeepFabric provides the structured, high-quality training data that transforms models into reliable agents.
 
 ## Core Capabilities
 
-DeepFabric operates through a three-stage pipeline that transforms a simple prompt into a comprehensive dataset. The process begins with topic generation, where the system creates either a hierarchical tree structure or a more complex graph representation of your domain. These topics then feed into the dataset generation engine, which produces contextually appropriate training examples including traditional conversations, Chain of Thought reasoning, and advanced agent tool-calling scenarios. Finally, the system packages everything into standard formats ready for immediate use.
+DeepFabric operates through a three-stage agent training pipeline that transforms a simple prompt into comprehensive, model-ready datasets:
 
-The topic modeling approach sets DeepFabric apart from simple prompt-based generation. Rather than creating isolated examples, the system builds a conceptual map of your domain and generates examples that explore different aspects systematically. This ensures broader coverage and more consistent quality across your dataset.
+**1. Topic Generation**: Creates either hierarchical tree structures or graph representations of your agent's knowledge domain. This systematic approach ensures comprehensive coverage of agent capabilities—from basic tool operations to complex multi-step reasoning tasks.
 
-**Agent Tool-Calling Capabilities**: DeepFabric includes specialized formats for training models in systematic tool usage, capturing not just what tools to use but why they're selected and how parameters are constructed. This enables creation of datasets for training more effective function-calling models and agents that work seamlessly with Model Context Protocol (MCP) servers.
+**2. Dataset Generation**: Produces training examples that combine structured reasoning with tool calling patterns. Rather than isolated question-answer pairs, the engine generates examples showing decision-making processes, tool selection logic, and parameter construction reasoning. Templates support Chain of Thought variants, multi-turn tool calling (XLAM v2), and MCP-compatible function invocations.
+
+**3. Format Engine**: Packages datasets into framework-specific formats (TRL, Unsloth, Axolotl, etc.) with a single generation pass. This "generate once, train everywhere" approach enables rapid experimentation across different SLM architectures without data regeneration.
+
+The topic modeling foundation sets DeepFabric apart from simple prompt-based generation. Rather than creating isolated examples, the system builds a conceptual map of your agent's domain and generates examples that systematically explore different capabilities. This ensures broader skill coverage and more consistent quality—essential for training reliable agents.
+
+## The Agent Training Paradigm
+
+Training smaller language models to be effective agents requires more than simple instruction-response pairs. DeepFabric's approach centers on three interconnected elements:
+
+**Structured Reasoning Traces**: Chain of Thought templates teach models to break down complex tasks into logical steps, making agent decision-making transparent and auditable. By combining free-text reasoning with structured formats, agents learn both intuitive and analytical problem-solving approaches.
+
+**Tool Calling Patterns**: Specialized formats like TRL SFT Tools and XLAM v2 capture the full lifecycle of tool usage—from identifying the need for a tool, to selecting the appropriate function, to constructing valid parameters. This teaches agents not just to execute tools, but to understand *when* and *why* specific tools are needed.
+
+**Format Flexibility**: DeepFabric's formatter system enables a "generate once, train everywhere" workflow. A single dataset can be exported to TRL, Unsloth, Axolotl, or custom training frameworks, allowing you to experiment with different model architectures and training approaches without regenerating data. This flexibility is particularly valuable when training SLMs across different parameter scales (0.5B to 14B+) to find the optimal balance of capability and efficiency.
+
+This paradigm shift—from simple supervised learning to structured agentic training—enables SLMs to rival larger models on specific tasks while maintaining the advantages of local deployment, cost efficiency, and specialized behavior.
+
+## Production-Ready Training Integration
+
+DeepFabric datasets integrate directly into modern training frameworks without preprocessing or conversion pipelines:
+
+**Supervised Fine-Tuning**: The `builtin://trl_sft_tools` formatter produces datasets that drop directly into HuggingFace TRL's `SFTTrainer`. Tool-calling examples include complete function schemas, parameter construction reasoning, and multi-turn interactions—everything needed for training capable function-calling agents.
+
+**Reinforcement Learning from Process Supervision**: The `builtin://grpo` formatter generates datasets structured for GRPO training, where each reasoning step can be individually verified and optimized. This enables training models that not only produce correct answers but show transparent, auditable reasoning processes—critical for agent reliability and debugging.
+
+**Framework Flexibility**: DeepFabric's formatter architecture decouples data generation from training framework specifics. Generate your dataset once, then export to TRL, Unsloth, Axolotl, or implement custom formatters for specialized training approaches. This "generate once, train everywhere" workflow enables rapid experimentation across model architectures and parameter scales without regenerating expensive training data.
+
+The result is a streamlined pipeline from topic specification to trained agent: define your domain, generate structured examples with reasoning and tool patterns, and begin training within minutes—not hours or days of data engineering.
 
 ## Topic Trees and Graphs
 
@@ -73,9 +101,17 @@ For those preferring configuration-driven workflows, DeepFabric's YAML format pr
 
 ## Integration Ecosystem
 
-DeepFabric integrates seamlessly with the modern machine learning ecosystem, including OpenAI, Anthropic, local Ollama instances, and cloud-based solutions. Generated datasets export directly to Hugging Face Hub with automatic dataset cards and metadata.
+DeepFabric integrates seamlessly across the agent training ecosystem:
 
-The modular CLI design supports complex workflows through commands like `deepfabric validate` for configuration checking, `deepfabric visualize` for topic graph exploration, and `deepfabric upload` for streamlined dataset publishing.
+**Training Frameworks**: Formatters support HuggingFace TRL (SFTTrainer, tool calling), Unsloth, Axolotl, and custom frameworks. This enables rapid experimentation with different model architectures and training approaches without regenerating datasets.
+
+**MCP Compatibility**: Generated datasets are designed for training agents that integrate with Model Context Protocol servers, ensuring your models work seamlessly with standardized tool interfaces.
+
+**LLM Providers**: Generation leverages OpenAI, Anthropic, Google Gemini, local Ollama instances, and cloud-based solutions (Together, Groq) to create high-quality training data at scale.
+
+**Publishing & Sharing**: Datasets export directly to Hugging Face Hub with automatic dataset cards and metadata, enabling reproducible research and community collaboration.
+
+The modular CLI design supports complex agent training workflows through commands like `deepfabric validate` for configuration checking, `deepfabric visualize` for topic graph exploration, and `deepfabric upload` for streamlined dataset publishing.
 
 ## Next Steps
 
