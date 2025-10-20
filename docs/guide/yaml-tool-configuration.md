@@ -169,7 +169,7 @@ engine = DataSetGenerator(
 
 DeepFabric automatically validates YAML tool definitions. Invalid configurations will produce helpful error messages:
 
-```
+```bash
 ConfigurationError: Invalid tool definition: Field 'name' is required
 ConfigurationError: Parameter type 'string' not supported. Use 'str'
 ```

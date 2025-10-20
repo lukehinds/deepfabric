@@ -30,7 +30,7 @@ The validation process examines multiple aspects of your configuration:
 
 Successful validation produces a summary of your configuration:
 
-```
+```bash
  Configuration is valid
 
 Configuration Summary:
@@ -49,7 +49,7 @@ The summary provides an overview of key parameters, while warnings highlight pot
 
 Configuration problems are reported with clear categorization and guidance:
 
-```
+```bash
 ❌ Configuration validation failed:
   - data_engine section is required
   - Invalid provider 'invalid_provider' in topic_tree
@@ -66,7 +66,7 @@ Beyond basic validation, the command provides insights into your configuration c
 deepfabric validate config.yaml
 ```
 
-```
+```bash
 Configuration Analysis:
   Estimated generation time: 15-25 minutes
   Estimated API costs: $2.50-4.00 (OpenAI GPT-4)
@@ -87,7 +87,7 @@ For OpenAI configurations, it verifies model name formats and availability. For 
 deepfabric validate config.yaml
 ```
 
-```
+```bash
 Provider Validation:
    OpenAI API key detected (OPENAI_API_KEY)
    Model gpt-4 is available
