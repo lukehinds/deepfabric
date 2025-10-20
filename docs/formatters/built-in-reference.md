@@ -91,7 +91,7 @@ trainer = SFTTrainer(
 **Template**: `builtin://grpo.py`
 **Use Case**: Mathematical reasoning model training with GRPO (Generalized Reward-based Policy Optimization)
 
-### Description of GRPO Formatter
+### Description
 
 The GRPO formatter transforms datasets for mathematical reasoning training, wrapping reasoning processes in configurable tags and ensuring numerical answers are extractable for reward functions.
 
