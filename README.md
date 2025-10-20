@@ -66,7 +66,6 @@ trainer.train()
 Or if your dataset is already in a different template style, simply re-format on the fly direct within your training notebook.
 
 ```python
-```python
 from trl import SFTTrainer
 from datasets import load_dataset
 
