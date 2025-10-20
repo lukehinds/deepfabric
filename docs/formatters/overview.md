@@ -9,13 +9,12 @@ The DeepFabric formatter system provides a pluggable post-processing pipeline fo
 Formatters are post-processing modules that transform DeepFabric's internal dataset format into specialized formats required by different training frameworks and methodologies:
 
 - **TRL SFT Tools**: HuggingFace TRL SFTTrainer format with OpenAI function calling schema
-- **Im Format**: ChatML-compatible format with `<|im_start|>` and `<|im_end|>` delimiters
 - **GRPO**: Reasoning traces with working-out tags for mathematical reasoning models
 - **Alpaca**: Instruction-following format for supervised fine-tuning
 - **ChatML**: Conversation format with role delineation markers (structured or text)
 - **Single Tool Call**: Individual tool call format for training tool usage
 - **Harmony**: OpenAI Harmony Response Format for gpt-oss models
-- **Unsloth**: Conversations format for Unsloth framework
+- **Conversations**: Generic conversations format compatible with Unsloth, Axolotl, HF TRL
 - **Custom**: User-defined formatters for specialized use cases
 
 ### Architecture

@@ -1275,7 +1275,7 @@ class TestTRLSFTToolsFormatter:
                             "type": "int",
                             "description": "Decimal precision",
                             "required": False,
-                            "default": 2,
+                            "default": "2",
                         },
                     ],
                     "returns": "Calculation result",

@@ -254,13 +254,13 @@ deepfabric format --repo $SOURCE_REPO --formatter trl -o stage1_trl.jsonl
 echo ""
 echo "Stage 2: Creating multiple format variants..."
 deepfabric format stage1_trl.jsonl -f harmony -o stage2_harmony.jsonl
-deepfabric format stage1_trl.jsonl -f unsloth -o stage2_unsloth.jsonl
+deepfabric format stage1_trl.jsonl -f conversations -o stage2_conversations.jsonl
 deepfabric format stage1_trl.jsonl -f chatml -o stage2_chatml.jsonl
 
 # Stage 3: Validate all outputs
 echo ""
 echo "Stage 3: Validating transformed datasets..."
-python ../validate_formats.py stage1_trl.jsonl stage2_harmony.jsonl stage2_unsloth.jsonl stage2_chatml.jsonl
+python ../validate_formats.py stage1_trl.jsonl stage2_harmony.jsonl stage2_conversations.jsonl stage2_chatml.jsonl
 
 # Stage 4: Quality assessment
 echo ""
@@ -279,9 +279,9 @@ deepfabric upload stage2_harmony.jsonl \
   --repo ${TARGET_REPO}-harmony \
   --tags curated harmony gpt-oss training
 
-deepfabric upload stage2_unsloth.jsonl \
-  --repo ${TARGET_REPO}-unsloth \
-  --tags curated unsloth training
+deepfabric upload stage2_conversations.jsonl \
+  --repo ${TARGET_REPO}-conversations \
+  --tags curated conversations training
 
 deepfabric upload stage2_chatml.jsonl \
   --repo ${TARGET_REPO}-chatml \
@@ -292,7 +292,7 @@ echo "=== Pipeline Complete ==="
 echo "Curated datasets available at:"
 echo "  - https://huggingface.co/datasets/${TARGET_REPO}-trl"
 echo "  - https://huggingface.co/datasets/${TARGET_REPO}-harmony"
-echo "  - https://huggingface.co/datasets/${TARGET_REPO}-unsloth"
+echo "  - https://huggingface.co/datasets/${TARGET_REPO}-conversations"
 echo "  - https://huggingface.co/datasets/${TARGET_REPO}-chatml"
 
 # Cleanup

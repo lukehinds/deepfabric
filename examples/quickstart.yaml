@@ -2,7 +2,7 @@
 # QUICKSTART CONFIG
 # ============================================================================
 # Purpose: Simple config to get started with DeepFabric
-# Output format: Unsloth conversations format (most versatile)
+# Output format: Standard conversations format (most versatile)
 # Usage: deepfabric generate examples/quickstart.yaml
 # ============================================================================
 
@@ -17,8 +17,8 @@ topic_tree:
   provider: "gemini"  # or "anthropic", "gemini", "ollama"
   model: "gemini-2.5-flash-lite"  # Cost-effective model
   temperature: 0.8
-  degree: 3  # Number of subtopics per branch
-  depth: 3  # Tree depth (2-3 is usually enough)
+  degree: 2  # Number of subtopics per branch
+  depth: 2  # Tree depth (2-3 is usually enough)
   save_as: "topics.jsonl"
 
 # Data generation settings
@@ -38,10 +38,10 @@ dataset:
     sys_msg: false
   save_as: "dataset_raw.jsonl"
 
-  # Format for Unsloth/general training
+  # Format for general training (Unsloth, Axolotl, HF TRL, etc.)
   # formatters:
   #   - name: "training_format"
-  #     template: "builtin://unsloth.py"
+  #     template: "builtin://conversations.py"
   #     output: "dataset_formatted.jsonl"
   #     config:
   #       include_system: false
