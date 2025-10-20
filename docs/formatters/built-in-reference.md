@@ -59,13 +59,15 @@ formatters:
 ### Framework Compatibility
 
 **Unsloth:**
+
 ```python
 dataset = load_dataset("your-username/your-dataset", split="train")
-dataset = standardize_data_formats(dataset)
-dataset = dataset.map(formatting_prompts_func, batched=True)
+dataset = standardize_data_formats(dataset) # Placeholder for data standardization
+dataset = dataset.map(formatting_prompts_func, batched=True) # Placeholder for formatting function
 ```
 
 **Axolotl:**
+
 ```yaml
 datasets:
   - path: your-username/your-dataset
@@ -73,6 +75,7 @@ datasets:
 ```
 
 **HuggingFace TRL:**
+
 ```python
 from trl import SFTTrainer
 trainer = SFTTrainer(
@@ -231,6 +234,7 @@ config:
 ### Role Hierarchy
 
 The Harmony format enforces a strict role hierarchy (highest to lowest priority):
+
 1. **system** - System instructions and metadata
 2. **developer** - Developer instructions and tool definitions
 3. **user** - User messages
@@ -240,6 +244,7 @@ The Harmony format enforces a strict role hierarchy (highest to lowest priority)
 ### Channels
 
 Assistant messages can be assigned to different channels:
+
 - **final**: User-facing responses (default)
 - **analysis**: Internal chain-of-thought reasoning (not safe for user display)
 - **commentary**: Function tool calls and preambles
@@ -254,6 +259,7 @@ Assistant messages can be assigned to different channels:
 ### Output Formats
 
 **Text Format** (`output_format: "text"`):
+
 ```text
 <|start|>system<|message|>
 You are ChatGPT, a large language model trained by OpenAI.
@@ -289,6 +295,7 @@ The weather in London is currently 18°C with cloudy conditions.
 ```
 
 **Structured Format** (`output_format: "structured"`):
+
 ```json
 {
   "messages": [
@@ -360,6 +367,7 @@ namespace functions {
 ### Example Configurations
 
 **Basic Chat Configuration**:
+
 ```yaml
 formatters:
 - name: "harmony_chat"
@@ -372,6 +380,7 @@ formatters:
 ```
 
 **Advanced Configuration with Tools**:
+
 ```yaml
 formatters:
 - name: "harmony_tools"
@@ -390,6 +399,7 @@ formatters:
 ```
 
 **Chain-of-Thought Configuration**:
+
 ```yaml
 formatters:
 - name: "harmony_cot"
@@ -503,6 +513,7 @@ formatters:
 ### Advanced Configuration
 
 **Disable Reasoning Prefixes**:
+
 ```yaml
 config:
   include_reasoning_prefix: false
@@ -510,6 +521,7 @@ config:
 ```
 
 **Custom Tool Call Format**:
+
 ```yaml
 config:
   tool_call_format: "FUNCTION_CALL: {tool_call}"
@@ -517,6 +529,7 @@ config:
 ```
 
 **Plain Text Tool Responses**:
+
 ```yaml
 config:
   tool_response_as_json: false
@@ -629,6 +642,7 @@ formatters:
 ### Advanced Configuration
 
 **Override System Prompt for Training**:
+
 ```yaml
 config:
   include_system_prompt: true
@@ -639,12 +653,14 @@ config:
 ```
 
 **Clean Output (Remove Original Tools Field)**:
+
 ```yaml
 config:
   remove_available_tools_field: true
 ```
 
 **Disable Schema Validation (Performance)**:
+
 ```yaml
 config:
   validate_tool_schemas: false
@@ -666,6 +682,7 @@ deepfabric format --repo org/agent-dataset --formatter trl -o trl_formatted.json
 ```
 
 This workflow is ideal for:
+
 - Converting existing agent/tool datasets to TRL format
 - Reformatting community datasets for your training pipeline
 - Experimenting with different formatters on public datasets
@@ -753,6 +770,7 @@ config:
 ### Output Formats
 
 **Structured Format** (`output_format: "structured"`):
+
 ```json
 {
   "messages": [
@@ -764,6 +782,7 @@ config:
 ```
 
 **Text Format** (`output_format: "text"`):
+
 ```json
 {
   "text": "<|im_start|>system\nYou are a helpful assistant.\n<|im_end|>\n<|im_start|>user\nHello!\n<|im_end|>\n<|im_start|>assistant\nHi there! How can I help you today?\n<|im_end|>"
@@ -788,24 +807,28 @@ formatters:
 ## Choosing the Right Formatter
 
 ### For Mathematical Reasoning Training
+
 - **GRPO**: When training models to show step-by-step reasoning with extractable answers
 - **Harmony**: For models that need to show internal reasoning (analysis channel) separate from final answers
 - **Alpaca**: For instruction-following with math problems
 - **ChatML**: For conversational math tutoring scenarios
 
 ### For General Instruction Following
+
 - **Alpaca**: Standard instruction-following format
 - **ChatML**: When you need conversation context and role clarity
 - **Harmony**: For gpt-oss models with developer instructions and role hierarchy
 - **Conversations**: For Unsloth, Axolotl, or HF TRL training with conversations format
 
 ### For Chat and Dialogue
+
 - **Harmony**: Advanced format with channels, tool support, and role hierarchy for gpt-oss models
 - **ChatML**: ChatML-compatible format with `<|im_start|>/<|im_end|>` delimiters
 - **Conversations**: Standard conversations format for multiple frameworks
 - **Alpaca**: Single-turn instruction-response pairs
 
 ### For Tool/Function Calling
+
 - **TRL SFT Tools**: HuggingFace TRL SFTTrainer with OpenAI function schema (recommended for modern training workflows)
 - **Single Tool Call**: Individual tool call format with each call in its own message exchange
 - **Tool Calling**: Embedded tool calling with thinking traces and multiple tools per response
@@ -813,6 +836,7 @@ formatters:
 - **Custom formatters**: For specific tool calling conventions
 
 ### For Custom Requirements
+
 Create a [custom formatter](custom-formatter-guide.md) that inherits from BaseFormatter.
 
 ## Validation and Error Handling
