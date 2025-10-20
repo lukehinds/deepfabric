@@ -63,6 +63,25 @@ trainer = SFTTrainer(
 trainer.train()
 ```
 
+Or if your dataset is already in a different template style, simply re-format on the fly direct within your training notebook.
+
+```python
+```python
+from trl import SFTTrainer
+from datasets import load_dataset
+
+!deepfabric format --repo "alwaysfurther/deepfabric-agent-tool-calling" -f trl_sft_tools -o dataset.jsonl
+dataset = load_dataset("json", data_files="dataset.jsonl", split="train")
+
+# Train directly with TRL - no preprocessing needed
+trainer = SFTTrainer(
+    model=model,
+    train_dataset=dataset["train"],
+    # ... your training config
+)
+trainer.train()
+```
+
 **Reinforcement Learning from Process Supervision (GRPO)**: Train models to generate step-by-step reasoning with the `builtin://grpo` formatter. Ideal for mathematical reasoning, complex problem-solving, and transparent decision-making where each reasoning step can be verified and reinforced.
 
 ```python
