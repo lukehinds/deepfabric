@@ -75,6 +75,7 @@ dataset:
 Formats data for Alpaca-style instruction tuning.
 
 **Default configuration:**
+
 ```yaml
 instruction_template: "### Instruction:\n{instruction}\n\n### Response:"
 include_empty_input: false
@@ -85,6 +86,7 @@ include_empty_input: false
 Formats data in ChatML format (structured or text).
 
 **Default configuration:**
+
 ```yaml
 output_format: "text"
 start_token: "<|im_start|>"
@@ -97,6 +99,7 @@ include_system: false
 Formats data for GRPO (Guided Reasoning Process Optimization) training.
 
 **Default configuration:**
+
 ```yaml
 reasoning_start_tag: "<start_working_out>"
 reasoning_end_tag: "<end_working_out>"
@@ -109,6 +112,7 @@ solution_end_tag: "</SOLUTION>"
 The command expects a JSONL file where each line is a JSON object. Supported formats include:
 
 1. **Question-Answer format:**
+
 ```json
 {
   "question": "What is recursion?",
@@ -117,6 +121,7 @@ The command expects a JSONL file where each line is a JSON object. Supported for
 ```
 
 2. **Messages format:**
+
 ```json
 {
   "messages": [
@@ -127,6 +132,7 @@ The command expects a JSONL file where each line is a JSON object. Supported for
 ```
 
 3. **Instruction format:**
+
 ```json
 {
   "instruction": "Write a function to calculate factorial",
@@ -140,6 +146,7 @@ The command expects a JSONL file where each line is a JSON object. Supported for
 You can now format datasets directly from the Hugging Face Hub using `--repo`, or continue using local JSONL files. Many HF datasets come in compatible formats:
 
 **Format directly from a Hub repo:**
+
 ```bash
 # Pull from Hub, format to Harmony, write to formatted.jsonl
 deepfabric format --repo "org/dataset-name" --format harmony
@@ -153,6 +160,7 @@ PY
 ```
 
 **For datasets with `messages` field (e.g., chat datasets):**
+
 ```bash
 # Download dataset using datasets library or git
 huggingface-cli download microsoft/DialoGPT-medium --repo-type dataset
@@ -169,6 +177,7 @@ deepfabric format orca_math.jsonl -f chatml
 ```
 
 **For datasets with instruction format (e.g., Alpaca-style):**
+
 ```bash
 # Many HF datasets use instruction/input/output format
 deepfabric format alpaca_dataset.jsonl -f chatml
@@ -181,6 +190,7 @@ deepfabric format alpaca_dataset.jsonl -f chatml
 - Q&A format (`question`, `answer` or `response`)
 
 **Example conversion workflow (local):**
+
 ```bash
 # 1. Download from HuggingFace
 huggingface-cli download tatsu-lab/alpaca --repo-type dataset
@@ -196,11 +206,13 @@ deepfabric format alpaca.jsonl -f grpo -o alpaca_grpo.jsonl
 ## Workflow Example
 
 1. Generate a dataset:
+
 ```bash
 deepfabric generate config.yaml
 ```
 
 2. Apply different formatters to the same dataset:
+
 ```bash
 # For ChatML training
 deepfabric format dataset_raw.jsonl -f chatml -o dataset_chatml.jsonl
