@@ -3,7 +3,7 @@
     <source media="(prefers-color-scheme: dark)" srcset="./assets/logo-light.png">
     <img alt="DeepFabric logo" src="./assets/logo-light.png" width="400px" height="270px" style="max-width: 100%;">
   </picture>
-  <h3>Generate High-Quality Synthetic Datasets at Scale</h3>
+  <h3>Complete pipeline for Training Model Behavior in Agentic Systems</h3>
 
   <!-- CTA Buttons -->
   <p>
@@ -37,9 +37,44 @@
   <br/>
 </div>
 
-**DeepFabric** is a powerful synthetic dataset generation framework that leverages LLMs to create high-quality, diverse training data at scale. Built for ML engineers, researchers, and AI developers, it streamlines the entire dataset creation pipeline from topic generation to model-ready formats.
+**DeepFabric** is a synthetic dataset generation framework designed for training small language models (SLMs) to be capable agents. By combining structured reasoning traces with tool calling patterns, DeepFabric enables you to fine-tune models that make intelligent decisions, select appropriate tools, and execute multi-step workflows—at any model scale.
 
-No more unruly models failing to Tool call or comply with reams of natural language to try and yield structured formats. DeepFabric ensures your models are consistent, well-structured, and ready for fine-tuning or evaluation.
+Built for ML engineers, researchers, and AI developers, DeepFabric streamlines the entire agent training pipeline: from hierarchical topic generation to structured reasoning templates to model-ready formats across all major training frameworks. Whether you're building MCP-compatible agents, distilling capabilities into smaller models, or creating specialized tool-calling systems, DeepFabric provides the high-quality, diverse training data you need at scale.
+
+## From Generation to Training in Minutes
+
+DeepFabric datasets are production-ready for immediate training—no conversion scripts, no preprocessing pipelines, just generate and train:
+
+**Supervised Fine-Tuning (SFT)**: Drop DeepFabric datasets directly into HuggingFace TRL's `SFTTrainer` for tool-calling and conversational agent training. The `builtin://trl_sft_tools` formatter outputs the exact structure TRL expects, including function schemas and multi-turn tool interactions.
+
+```python
+from trl import SFTTrainer
+from datasets import load_dataset
+
+# Load your DeepFabric dataset
+dataset = load_dataset("json", data_files="your_deepfabric_dataset.jsonl")
+
+# Train directly with TRL - no preprocessing needed
+trainer = SFTTrainer(
+    model=model,
+    train_dataset=dataset["train"],
+    # ... your training config
+)
+trainer.train()
+```
+
+**Reinforcement Learning from Process Supervision (GRPO)**: Train models to generate step-by-step reasoning with the `builtin://grpo` formatter. Ideal for mathematical reasoning, complex problem-solving, and transparent decision-making where each reasoning step can be verified and reinforced.
+
+```python
+# GRPO-formatted dataset with explicit reasoning traces
+dataset = load_dataset("json", data_files="math_reasoning_grpo.jsonl")
+
+# Each example contains structured reasoning steps for RL optimization
+# Perfect for training models that show their work
+```
+
+**Multi-Framework Support**: The same dataset generation can target Unsloth, Axolotl, or custom frameworks through DeepFabric's formatter system—generate once, experiment with multiple training approaches without regenerating data.
+
 ## Key Features
 
 ### Core Capabilities
@@ -49,21 +84,33 @@ No more unruly models failing to Tool call or comply with reams of natural langu
 - **Tool Calling Support**: Generate function-calling and agent interaction datasets
 - **Structured Output**: Pydantic & Outlines enforced schemas for consistent, high-quality data
 - **Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Ollama, and more
-- **HuggingFace Integration**: Direct dataset upload with auto-generated cards 
+- **HuggingFace Integration**: Direct dataset upload with auto-generated cards
+
+## Why Train SLMs for Agents?
+
+Training smaller, specialized models for agentic tasks offers distinct advantages over relying on large API-based models:
+
+- **Cost Efficiency**: Deploy fine-tuned agents locally instead of paying per API call, dramatically reducing operational costs
+- **Privacy & Control**: Keep sensitive data and agent reasoning entirely within your infrastructure
+- **Specialized Behavior**: Train models to follow your exact tool-calling patterns, reasoning styles, and domain expertise
+- **Format Flexibility**: Generate once, train everywhere—DeepFabric's formatters support TRL, Unsloth, Axolotl, and custom training frameworks
+- **MCP Ecosystem Ready**: Create training datasets optimized for Model Context Protocol servers and standardized tool interfaces
+
+DeepFabric's structured approach ensures your training data teaches not just *what* tools to call, but *why* they're selected and *how* to construct parameters—the reasoning traces that transform models into reliable agents.
 
 ## Supported Output Formats
 
 | Format | Template | Use Case | Framework Compatibility |
 |--------|----------|----------|-----------------------|
 | **TRL SFT Tools** | `builtin://trl_sft_tools` | Tool calling fine-tuning | HuggingFace TRL SFTTrainer |
-| **Alpaca** | `builtin://alpaca.py` | Instruction-following | Stanford Alpaca, LLaMA |
-| **ChatML** | `builtin://chatml.py` | Multi-turn conversations | Most chat models |
-| **Conversations** | `builtin://conversations.py` | Generic conversations format | Unsloth, Axolotl, HF TRL |
-| **GRPO** | `builtin://grpo.py` | Mathematical reasoning | GRPO training |
+| **XLAM v2** | `builtin://xlam_v2` | Multi-turn tool calling | Salesforce xLAM models |
 | **Tool Calling** | `builtin://tool_calling.py` | Function calling | Agent training |
 | **Single Tool Call** | `builtin://single_tool_call.py` | Individual tool calls | Single function execution |
-| **XLAM v2** | `builtin://xlam_v2` | Multi-turn tool calling | Salesforce xLAM models |
+| **GRPO** | `builtin://grpo.py` | Mathematical reasoning | GRPO training |
 | **Harmony** | `builtin://harmony.py` | Reasoning with tags | OpenAI gpt-oss |
+| **Conversations** | `builtin://conversations.py` | Generic conversations format | Unsloth, Axolotl, HF TRL |
+| **ChatML** | `builtin://chatml.py` | Multi-turn conversations | Most chat models |
+| **Alpaca** | `builtin://alpaca.py` | Instruction-following | Stanford Alpaca, LLaMA |
 | **Custom** | `file://your_format.py` | Your requirements | Any framework |
 
 ### Custom Format
@@ -72,15 +119,17 @@ You can create your own custom output format by implementing a simple Python cla
 
 ## Conversation Templates
 
-| Template Type | Description | Example Use Case |
-|--------------|-------------|------------------|
-| **Single-Turn** | Question → Answer | FAQ, classification |
-| **Multi-Turn** | Extended dialogues | Chatbots, tutoring |
-| **Chain of Thought (CoT)** | Step-by-step reasoning | Math, logic problems |
-| **Structured CoT** | Explicit reasoning traces | Educational content |
-| **Hybrid CoT** | Mixed reasoning styles | Complex problem-solving |
-| **Tool Calling** | Function invocations | Agent interactions |
-| **System-Prompted** | With system instructions | Role-playing, personas |
+DeepFabric's conversation templates determine how your training data structures reasoning and tool interaction. For agent training, combining reasoning templates (CoT variants) with tool calling creates datasets that teach both *decision-making* and *execution*—the foundation of capable agents.
+
+| Template Type | Description | Agent Training Value |
+|--------------|-------------|---------------------|
+| **Tool Calling** | Function invocations with reasoning | Teaches tool selection, parameter construction, and execution patterns |
+| **Chain of Thought (CoT)** | Step-by-step reasoning | Enables transparent decision-making for complex multi-step tasks |
+| **Structured CoT** | Explicit reasoning traces | Provides clear reasoning paths ideal for agent auditing and debugging |
+| **Hybrid CoT** | Mixed reasoning styles | Combines intuitive and analytical thinking for adaptive agents |
+| **Multi-Turn** | Extended dialogues | Enables context retention and multi-step planning |
+| **System-Prompted** | With system instructions | Defines agent personas, constraints, and behavioral guidelines |
+| **Single-Turn** | Question → Answer | Direct task completion and classification tasks |
 
 ### Template Missing?
 
@@ -352,26 +401,15 @@ make format          # Format code
 
 If you're using DeepFabric in production or research, we'd love to hear from you! Share your experience in our [Discord](https://discord.gg/pPcjYzGvbS) or open a discussion.
 
-## Use Cases
-
-### Industry Applications
-| Use Case | Description | Example Config |
-|----------|-------------|----------------|
-| **Model Distillation** | Teacher-student training | [distillation.yaml](examples/specialized.yaml) |
-| **Evaluation Benchmarks** | Model testing datasets | [benchmark.yaml](examples/advanced.yaml) |
-| **Domain Adaptation** | Specialized knowledge | [domain.yaml](examples/specialized.yaml) |
-| **Agent Training** | Tool-use & reasoning | [agent.yaml](examples/agent_tool_calling.yaml) |
-| **Instruction Tuning** | Task-specific models | [instruct.yaml](examples/unsloth_instruct_config.yaml) |
-| **Math Reasoning** | Step-by-step solutions | [math.yaml](examples/grpo_math_config.yaml) |
-
-
 ## Tips for Best Results
 
 1. **Start Small**: Test with `depth=2, degree=3` before scaling up
 2. **Mix Models**: Use stronger models for topics, faster ones for generation
-3. **Iterate**: Generate small batches and refine prompts based on results
-4. **Validate**: Always review a sample before training
-5. **Version Control**: Save configurations for reproducibility
+3. **Combine Templates**: Mix CoT reasoning with tool calling to teach both decision-making and execution
+4. **Validate Tool Patterns**: Ensure tool calls include reasoning about *why* tools are selected and *how* parameters are constructed
+5. **Iterate**: Generate small batches and refine prompts based on results
+6. **Test Agent Behavior**: Run small-scale training experiments to validate dataset quality before generating at scale
+7. **Version Control**: Save configurations for reproducibility and systematic improvement
 
 ### Analytics
 
