@@ -37,7 +37,7 @@
   <br/>
 </div>
 
-**DeepFabric** is a synthetic dataset generation framework designed for training small language models (SLMs) to be capable agents. By combining structured reasoning traces with tool calling patterns, DeepFabric enables you to fine-tune models that make intelligent decisions, select appropriate tools, and execute multi-step workflows—at any model scale.
+**DeepFabric** is a specialised dataset generation and model fine-tuning framework designed for training small language models (SLMs) to become capable agents. By combining reasoning traces with tool calling patterns, and enforcement of type based structured outputs - DeepFabric enables you to fine-tune models that make intelligent decisions, select appropriate tools, and execute multi-step workflows—at any model scale.
 
 Built for ML engineers, researchers, and AI developers, DeepFabric streamlines the entire agent training pipeline: from hierarchical topic generation to structured reasoning templates to model-ready formats across all major training frameworks. Whether you're building MCP-compatible agents, distilling capabilities into smaller models, or creating specialized tool-calling systems, DeepFabric provides the high-quality, diverse training data you need at scale.
 
