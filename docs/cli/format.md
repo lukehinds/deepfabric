@@ -184,6 +184,7 @@ deepfabric format alpaca_dataset.jsonl -f chatml
 ```
 
 **Common HuggingFace dataset formats supported:**
+
 - OpenAI ChatML format (`messages` field)
 - Alpaca format (`instruction`, `input`, `output`)
 - ShareGPT format (`conversations`)
@@ -225,6 +226,7 @@ deepfabric format dataset_raw.jsonl -f grpo -o dataset_grpo.jsonl
 ```
 
 This allows you to prepare the same dataset for different training frameworks without regenerating the data.
+
 ### TRL SFT Tools
 
 Use `-f trl` to convert agent/tool datasets to the Hugging Face TRL SFT tool-calling format. This maps to the built-in `trl_sft_tools` formatter.
