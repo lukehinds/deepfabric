@@ -62,8 +62,8 @@ formatters:
 
 ```python
 dataset = load_dataset("your-username/your-dataset", split="train")
-dataset = standardize_data_formats(dataset)
-dataset = dataset.map(formatting_prompts_func, batched=True)
+dataset = standardize_data_formats(dataset) # Placeholder for data standardization
+dataset = dataset.map(formatting_prompts_func, batched=True) # Placeholder for formatting function
 ```
 
 **Axolotl:**
