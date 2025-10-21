@@ -37,13 +37,13 @@
   <br/>
 </div>
 
-**DeepFabric** is a specialised dataset generation and model fine-tuning framework designed for training small language models (SLMs) to become capable agents. By combining reasoning traces with tool calling patterns, and enforcement of type based structured outputs - DeepFabric enables you to fine-tune models that make intelligent decisions, select appropriate tools, and execute multi-step workflows—at any model scale.
+**DeepFabric** is a specialised dataset generation and model fine-tuning framework designed for training small language models (SLMs) to become capable agents. By combining reasoning traces with tool calling patterns, and enforcement of type based structured outputs - DeepFabric enables you to fine-tune models that make intelligent decisions, select appropriate tools, and execute multi-step workflows efficiently and with accuracy.
 
 Built for ML engineers, researchers, and AI developers, DeepFabric streamlines the entire agent training pipeline: from hierarchical topic generation to structured reasoning templates to model-ready formats across all major training frameworks. Whether you're building MCP-compatible agents, distilling capabilities into smaller models, or creating specialized tool-calling systems, DeepFabric provides the high-quality, diverse training data you need at scale.
 
-## From Generation to Training in Minutes
+## Generation to Training
 
-DeepFabric datasets are production-ready for immediate training—no conversion scripts, no preprocessing pipelines, just generate and train:
+DeepFabric datasets are ready for immediate training, multi-format capable with no conversion scripts needed, no preprocessing pipelines, just generate and train:
 
 **Supervised Fine-Tuning (SFT)**: Drop DeepFabric datasets directly into HuggingFace TRL's `SFTTrainer` for tool-calling and conversational agent training. The `builtin://trl_sft_tools` formatter outputs the exact structure TRL expects, including function schemas and multi-turn tool interactions.
 
@@ -69,7 +69,7 @@ Or if your dataset is already in a different template style, simply re-format on
 from trl import SFTTrainer
 from datasets import load_dataset
 
-!deepfabric format --repo "alwaysfurther/deepfabric-agent-tool-calling" -f trl_sft_tools -o dataset.jsonl
+!deepfabric format --repo "org/deepfabric-dataset" -f trl_sft_tools -o dataset.jsonl
 dataset = load_dataset("json", data_files="dataset.jsonl", split="train")
 
 # Train directly with TRL - no preprocessing needed
