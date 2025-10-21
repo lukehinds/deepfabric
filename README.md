@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/lukehinds-deepfabric-badge.png)](https://mseep.ai/app/lukehinds-deepfabric)
+
 <div align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./assets/logo-light.png">
