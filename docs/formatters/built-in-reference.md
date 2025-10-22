@@ -740,6 +740,185 @@ trainer.train()
 
 ---
 
+## Tool Calling Formatter
+
+**Template**: `builtin://tool_calling`
+**Use Case**: Embedded tool calling execution traces with chain-of-thought reasoning
+
+### Description
+
+The Tool Calling formatter transforms agent reasoning datasets into embedded tool execution format that shows the actual execution flow of tool calls, complete with thinking traces, tool calls, and tool responses. This format is ideal for training models on chain-of-thought reasoning combined with tool usage.
+
+### Configuration Options
+
+```yaml
+config:
+  system_prompt: "You are a helpful AI assistant..."  # Default: auto-generated
+  include_tools_in_system: true                      # Default: true
+  thinking_format: "<think>\n{reasoning}\n</think>"  # Customizable thinking tags
+  tool_call_format: "<tool_call>\n{tool_call}\n</tool_call>"  # Customizable tool call tags
+  tool_response_format: "<tool_response>\n{tool_output}\n</tool_response>"  # Customizable response tags
+```
+
+### Key Features
+
+1. **Customizable Tags**: All three tag formats (`thinking_format`, `tool_call_format`, `tool_response_format`) can be customized to match your training requirements
+2. **Rich Reasoning Support**: Automatically extracts and formats chain-of-thought reasoning from multiple input formats
+3. **Tool Integration**: Includes available tools in the system message in OpenAI function schema format
+4. **Multi-Format Input**: Supports both SimpleAgentCoT and HybridAgentCoT input formats
+
+### Input Formats Supported
+
+- **SimpleAgentCoT**: With `initial_analysis`, `reasoning_steps`, `tool_selection_rationale`, `parameter_reasoning`
+- **HybridAgentCoT**: With `chain_of_thought`, `reasoning_trace` (step-by-step traces), `tool_selection_rationale`, `parameter_reasoning`
+- **Generic**: Any format with `question`, `tool_used`, `tool_input`, `tool_output`, and answer fields
+
+### Output Format
+
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful AI assistant...\n\nHere are the available tools:\n<tools>\n[...tool definitions...]\n</tools>"
+    },
+    {
+      "role": "user",
+      "content": "What's the current context and switch to production?"
+    },
+    {
+      "role": "assistant",
+      "content": "<think>\nAnalysis: Need to check current context first...\n\nStep-by-step reasoning:\n1. Use kubectl_config_current_context\n2. Then use kubectl_config_use_context\n\nTool selection: kubectl_config_current_context is appropriate\n</think><tool_call>\n{\"name\": \"kubectl_config_current_context\", \"arguments\": {}}\n</tool_call>"
+    },
+    {
+      "role": "tool",
+      "content": "<tool_response>\nstaging\n</tool_response>"
+    },
+    {
+      "role": "assistant",
+      "content": "The current context is 'staging'. Switching to 'production' now."
+    }
+  ]
+}
+```
+
+### Tag Format Customization
+
+You can customize the tags to match different model training conventions:
+
+**DeepSeek-style (default)**:
+```yaml
+config:
+  thinking_format: "<think>\n{reasoning}\n</think>"
+  tool_call_format: "<tool_call>\n{tool_call}\n</tool_call>"
+  tool_response_format: "<tool_response>\n{tool_output}\n</tool_response>"
+```
+
+**XML-style**:
+```yaml
+config:
+  thinking_format: "<reasoning>\n{reasoning}\n</reasoning>"
+  tool_call_format: "<function_call>\n{tool_call}\n</function_call>"
+  tool_response_format: "<function_response>\n{tool_output}\n</function_response>"
+```
+
+**Bracket-style**:
+```yaml
+config:
+  thinking_format: "[THINKING]\n{reasoning}\n[/THINKING]"
+  tool_call_format: "[TOOL]\n{tool_call}\n[/TOOL]"
+  tool_response_format: "[RESPONSE]\n{tool_output}\n[/RESPONSE]"
+```
+
+### Example Configurations
+
+**Basic Configuration**:
+
+```yaml
+formatters:
+- name: "tool_calling_basic"
+  template: "builtin://tool_calling"
+  output: "tool_calling_dataset.jsonl"
+  config:
+    include_tools_in_system: true
+```
+
+**Custom System Prompt**:
+
+```yaml
+formatters:
+- name: "tool_calling_custom"
+  template: "builtin://tool_calling"
+  output: "tool_calling_dataset.jsonl"
+  config:
+    system_prompt: |
+      You are an expert AI assistant with access to various tools.
+      Think through problems step-by-step before using tools.
+    include_tools_in_system: true
+    thinking_format: "<think>\n{reasoning}\n</think>"
+```
+
+### Chaining with ChatML
+
+A common pattern is to chain the tool_calling formatter with the ChatML formatter to get text-based output suitable for training:
+
+```yaml
+formatters:
+  # Step 1: Add tool calling structure with thinking tags
+  - name: "tool_calling"
+    template: "builtin://tool_calling"
+    output: "step1_messages.jsonl"
+    config:
+      thinking_format: "<think>\n{reasoning}\n</think>"
+      tool_call_format: "<tool_call>\n{tool_call}\n</tool_call>"
+      tool_response_format: "<tool_response>\n{tool_output}\n</tool_response>"
+      include_tools_in_system: true
+
+  # Step 2: Convert to ChatML text (chains from step 1)
+  - name: "chatml"
+    template: "builtin://chatml"
+    output: "final_chatml.jsonl"
+    config:
+      output_format: "text"
+      require_system_message: false
+```
+
+This produces final output like:
+```
+<|im_start|>system
+You are a helpful AI assistant...
+<tools>[...]</tools>
+<|im_end|>
+<|im_start|>user
+Question here
+<|im_end|>
+<|im_start|>assistant
+<think>
+Reasoning here...
+</think><tool_call>
+{...}
+</tool_call>
+<|im_end|>
+<|im_start|>tool
+<tool_response>
+Output here
+</tool_response>
+<|im_end|>
+<|im_start|>assistant
+Final answer here
+<|im_end|>
+```
+
+### Use Cases
+
+- **Chain-of-Thought Tool Usage**: Training models to reason before calling tools
+- **Qwen/DeepSeek Training**: Matches the thinking + tool calling patterns of these models
+- **Multi-Step Tool Workflows**: Teaching models to use multiple tools sequentially
+- **Kubernetes/DevOps Training**: Ideal for kubectl or similar CLI tool datasets
+- **API Integration**: Training models to call APIs with proper reasoning
+
+---
+
 ## ChatML Formatter
 
 **Template**: `builtin://chatml.py`

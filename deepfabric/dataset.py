@@ -244,6 +244,9 @@ class Dataset:
         """
         Apply formatters to the dataset and return formatted datasets.
 
+        Formatters are applied sequentially - each formatter processes the output
+        of the previous formatter, enabling formatter chaining in a single pass.
+
         Args:
             formatter_configs: list of formatter configuration dictionaries or FormatterConfig objects
 
@@ -255,6 +258,8 @@ class Dataset:
         """
 
         formatted_datasets = {}
+        # Start with original samples, each formatter will chain from previous
+        current_samples = self.samples
 
         for config in formatter_configs:
             # Parse config using Pydantic model for validation
@@ -272,12 +277,12 @@ class Dataset:
             output_path = formatter_config_model.output
 
             try:
-                # Load and apply the formatter
+                # Load and apply the formatter to the current samples (output of previous formatter)
                 formatter = self.formatter_registry.load_formatter(template, formatter_config)
 
                 # Use the new format_with_metadata method for better error reporting
                 if hasattr(formatter, "format_with_metadata"):
-                    result = formatter.format_with_metadata(self.samples)
+                    result = formatter.format_with_metadata(current_samples)
                     formatted_samples = result.samples
 
                     # Log statistics if available
@@ -291,7 +296,7 @@ class Dataset:
                         )  # Show first 3 errors
                 else:
                     # Fallback to basic format method
-                    formatted_result = formatter.format(self.samples)
+                    formatted_result = formatter.format(current_samples)
                     # Extract samples from DatasetOutput if needed
                     if hasattr(formatted_result, "samples"):
                         formatted_samples = formatted_result.samples
@@ -318,6 +323,9 @@ class Dataset:
                         formatted_dataset.samples = formatted_samples
                 else:
                     formatted_dataset.samples = formatted_samples if formatted_samples else []
+
+                # Update current_samples for next formatter in chain
+                current_samples = formatted_dataset.samples
 
                 # Save to file if output path is specified
                 if output_path:

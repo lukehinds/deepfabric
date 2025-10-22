@@ -89,9 +89,39 @@ dataset:
 ## Workflow
 
 1. **Dataset Generation**: DeepFabric generates the raw dataset using the configured pipeline
-2. **Formatter Application**: Each configured formatter processes the raw dataset
-3. **Output Generation**: Formatted datasets are saved to specified output files
+2. **Formatter Application**: Formatters are applied sequentially, with each formatter processing the output of the previous formatter (enabling formatter chaining)
+3. **Output Generation**: Formatted datasets are saved to specified output files after each formatter step
 4. **Validation**: Each formatter validates both input compatibility and output correctness
+
+### Formatter Chaining
+
+Formatters are applied sequentially in the order they are defined in your configuration. Each formatter processes the output of the previous formatter, enabling powerful transformation pipelines:
+
+```yaml
+formatters:
+  # First formatter: Add tool calling structure with thinking tags
+  - name: "tool_calling"
+    template: "builtin://tool_calling"
+    output: "step1_with_tools.jsonl"
+    config:
+      thinking_format: "<think>\n{reasoning}\n</think>"
+      tool_call_format: "<tool_call>\n{tool_call}\n</tool_call>"
+      tool_response_format: "<tool_response>\n{tool_output}\n</tool_response>"
+
+  # Second formatter: Convert to ChatML text format (chains from first formatter)
+  - name: "chatml"
+    template: "builtin://chatml"
+    output: "final_chatml.jsonl"
+    config:
+      output_format: "text"
+```
+
+In this example:
+1. The `tool_calling` formatter processes the raw dataset and adds structured thinking and tool call tags
+2. The `chatml` formatter then processes the output of `tool_calling`, converting it to ChatML text format
+3. The final output preserves all the tags from the first formatter while applying the ChatML structure
+
+This allows you to compose complex formatting pipelines without intermediate manual steps.
 
 ## Error Handling
 
@@ -105,9 +135,10 @@ The formatter system includes comprehensive error handling:
 ## Performance Considerations
 
 - **Caching**: Formatter classes are cached after first load for better performance
-- **Parallel Processing**: Multiple formatters can be applied independently
-- **Memory Efficiency**: Formatters process datasets without duplicating the source data
+- **Sequential Processing**: Formatters are applied sequentially to enable chaining, with each formatter processing the output of the previous one
+- **Memory Efficiency**: Formatters process datasets without duplicating the source data unnecessarily
 - **Validation**: Optional output validation can be disabled for better performance
+- **Intermediate Outputs**: Each formatter in a chain can optionally save its output, useful for debugging or creating multiple format variants from a single pipeline
 
 ## Next Steps
 
