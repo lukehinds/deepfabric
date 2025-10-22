@@ -58,6 +58,10 @@ class GraphConfig(BaseModel):
     )
     degree: int = Field(default=3, ge=1, le=10, description="The branching factor of the graph")
     depth: int = Field(default=2, ge=1, le=5, description="The depth of the graph")
+    base_url: str | None = Field(
+        default=None,
+        description="Base URL for API endpoint (e.g., custom OpenAI-compatible servers)",
+    )
 
 
 # Pydantic Models for strict data representation
@@ -120,9 +124,14 @@ class Graph(TopicModel):
         self.depth = self.config.depth
 
         # Initialize LLM client
+        llm_kwargs = {}
+        if self.config.base_url:
+            llm_kwargs["base_url"] = self.config.base_url
+
         self.llm_client = LLMClient(
             provider=self.provider,
             model_name=self.model_name,
+            **llm_kwargs,
         )
 
         trace(

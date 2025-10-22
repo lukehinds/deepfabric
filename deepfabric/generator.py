@@ -101,6 +101,10 @@ class DataSetGeneratorConfig(BaseModel):
         default=DEFAULT_REQUEST_TIMEOUT, ge=5, le=300, description="Request timeout in seconds"
     )
     sys_msg: bool = Field(default=True, description="Whether to include system message in dataset")
+    base_url: str | None = Field(
+        default=None,
+        description="Base URL for API endpoint (e.g., custom OpenAI-compatible servers)",
+    )
 
     # Rate limiting configuration
     rate_limit: dict[str, int | float | str | bool] | None = Field(
@@ -161,10 +165,14 @@ class DataSetGenerator:
         self.failure_analysis = {category: [] for category in ERROR_CATEGORIES}
 
         # Initialize LLM client with rate limiting configuration
+        llm_kwargs = {"rate_limit_config": self.config.rate_limit}
+        if self.config.base_url:
+            llm_kwargs["base_url"] = self.config.base_url
+
         self.llm_client = LLMClient(
             provider=self.provider,
             model_name=self.model_name,
-            rate_limit_config=self.config.rate_limit,  # Pass rate limit config (can be None)
+            **llm_kwargs,
         )
         trace(
             "generator_created",
