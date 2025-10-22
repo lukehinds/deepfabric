@@ -56,6 +56,10 @@ class TopicTreeConfig(BaseModel):
         le=10,
         description="Depth of the tree",
     )
+    base_url: str | None = Field(
+        default=None,
+        description="Base URL for API endpoint (e.g., custom OpenAI-compatible servers)",
+    )
     save_as: str | None = Field(default=None, description="Where to save the generated topic tree")
 
 
@@ -86,6 +90,10 @@ class TopicGraphConfig(BaseModel):
     )
     degree: int = Field(default=3, ge=1, le=10, description="The branching factor of the graph")
     depth: int = Field(default=2, ge=1, le=5, description="The depth of the graph")
+    base_url: str | None = Field(
+        default=None,
+        description="Base URL for API endpoint (e.g., custom OpenAI-compatible servers)",
+    )
     save_as: str | None = Field(default=None, description="Where to save the generated topic graph")
 
 
@@ -120,6 +128,10 @@ class DataEngineConfig(BaseModel):
     )
     max_tokens: int = Field(
         default=2000, ge=1, description="Maximum tokens to generate in a single call to the llm"
+    )
+    base_url: str | None = Field(
+        default=None,
+        description="Base URL for API endpoint (e.g., custom OpenAI-compatible servers)",
     )
     save_as: str | None = Field(default=None, description="Where to save the generated data")
 

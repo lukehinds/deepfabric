@@ -75,6 +75,10 @@ class TreeConfig(BaseModel):
         le=2.0,
         description="Temperature for model generation",
     )
+    base_url: str | None = Field(
+        default=None,
+        description="Base URL for API endpoint (e.g., custom OpenAI-compatible servers)",
+    )
 
 
 class TreeValidator:
@@ -142,9 +146,14 @@ class Tree(TopicModel):
         self.model_name = self.config.model_name
 
         # Initialize LLM client
+        llm_kwargs = {}
+        if self.config.base_url:
+            llm_kwargs["base_url"] = self.config.base_url
+
         self.llm_client = LLMClient(
             provider=self.provider,
             model_name=self.model_name,
+            **llm_kwargs,
         )
 
         trace(
