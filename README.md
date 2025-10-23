@@ -1,8 +1,8 @@
 <div align="center">
   <h1>DeepFabric</h1>
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./assets/logo-light.png">
-    <img alt="DeepFabric logo" src="./assets/logo-light.png" width="343px" height="200px" style="max-width: 100%;">
+    <source media="(prefers-color-scheme: dark)" srcset="./assets/logo-light.png" />
+    <img alt="DeepFabric logo" src="./assets/logo-light.png" style="width:50%;max-width:50%;height:auto;display:block;margin:0 auto;" />
   </picture>
   <h3>Complete pipeline for Training Model Behavior in Agentic Systems</h3>
 
