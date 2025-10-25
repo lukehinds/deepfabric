@@ -71,26 +71,38 @@ class SingleToolCallFormatter(BaseFormatter):
     where each tool call is in its own message exchange.
     """
 
-    def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config)
+    def __init__(self, config: dict[str, Any] | None = None, tool_registry=None):
+        super().__init__(config, tool_registry=tool_registry)
 
     def get_config_model(self) -> type[BaseModel] | None:
         """Return the configuration model for this formatter."""
         return SingleToolCallConfig
 
-    def validate(self, entry: dict) -> bool:
+    def validate(self, entry: dict | BaseModel) -> bool:  # type: ignore[override]
         """Validate that entry has required fields for tool calling format."""
-        required_fields = ["question", "tool_used"]
-        # Check for either "answer" (SimpleAgentCoT) or "final_answer" (HybridAgentCoT)
-        has_answer = "answer" in entry or "final_answer" in entry
-        return all(field in entry for field in required_fields) and has_answer
+        # Support both legacy schema and unified Conversation schema
+        if hasattr(entry, "tool_executions"):
+            return len(entry.tool_executions) > 0  # type: ignore[union-attr]
+        if hasattr(entry, "tool_context") and entry.tool_context:  # type: ignore[union-attr]
+            return len(entry.tool_context.executions) > 0  # type: ignore[union-attr]
+        # Dict format
+        if isinstance(entry, dict):
+            if "tool_executions" in entry and entry["tool_executions"]:
+                return True
+            if "tool_context" in entry and entry["tool_context"]:
+                tool_context = entry["tool_context"]
+                if isinstance(tool_context, dict) and "executions" in tool_context:
+                    return bool(tool_context["executions"])
+        return False
 
-    def _format_single_sample(self, sample: dict) -> dict | None:
+    def _format_single_sample(self, sample: dict | BaseModel) -> dict | None:
         """
         Format a single agent reasoning sample to single tool call conversation format.
 
+        Uses unified Conversation schema with tool_context.
+
         Args:
-            sample: Agent reasoning sample with tool usage
+            sample: Agent conversation (Pydantic model or dict)
 
         Returns:
             Formatted conversation sample with single tool call per message
@@ -98,33 +110,18 @@ class SingleToolCallFormatter(BaseFormatter):
         if not self.validate(sample):
             return None
 
-        # Get configuration instance - cast to proper type for type hints
         config: SingleToolCallConfig = (
             self._config_model
             if isinstance(self._config_model, SingleToolCallConfig)
             else SingleToolCallConfig()
         )
 
-        # Extract components from agent reasoning sample
-        question = sample["question"]
-        tool_used = sample["tool_used"]
-        tool_input = sample.get("tool_input", "{}")
-        tool_output = sample.get("tool_output", "Tool execution completed.")
-        answer = sample.get("answer") or sample.get("final_answer", "No answer provided")
-        available_tools = sample.get("available_tools", [])
+        # Extract data from either legacy or unified schema
+        question = self._get_question(sample)
+        tool_executions = self._get_tool_executions(sample)
+        answer = self._get_answer(sample)
+        available_tools = self._get_available_tools(sample)
 
-        # Parse tool input if it's a string
-        if isinstance(tool_input, str):
-            try:
-                # Try to parse as JSON
-                tool_args = json.loads(tool_input.replace("'", '"'))
-            except (json.JSONDecodeError, AttributeError):
-                # If parsing fails, create a simple structure
-                tool_args = {"input": tool_input}
-        else:
-            tool_args = tool_input
-
-        # Create messages list
         messages = []
 
         # Add system message with tools
@@ -133,88 +130,110 @@ class SingleToolCallFormatter(BaseFormatter):
             system_content = f"{config.system_prompt}\n\n{tools_text}"
             messages.append({"role": "system", "content": system_content})
         elif config.include_tools_in_system:
-            # Even without specific tools, include the system prompt with generic functions note
             system_content = f"{config.system_prompt}\n\n{self._get_generic_tools_text()}"
             messages.append({"role": "system", "content": system_content})
 
         # Add user question
         messages.append({"role": "user", "content": question})
 
-        # Add assistant message with tool call
-        assistant_content = ""
+        for execution in tool_executions:
+            assistant_content = ""
 
-        if config.include_reasoning_prefix:
-            # Generate action description based on tool name
-            action = self._get_tool_action_description(tool_used, sample)
-            reasoning_prefix = config.reasoning_prefix_template.format(action=action)
-            assistant_content = f"{reasoning_prefix}\n\n"
+            # Extract execution details from either format
+            func_name = (
+                execution.function_name
+                if hasattr(execution, "function_name")
+                else execution.get("function_name", "")
+            )
 
-        # Add the tool call
-        tool_call_json = json.dumps({"name": tool_used, "arguments": tool_args})
-        tool_call = config.tool_call_format.format(tool_call=tool_call_json)
-        assistant_content += tool_call
+            if config.include_reasoning_prefix:
+                action = self._get_tool_action_description(func_name, execution)
+                reasoning_prefix = config.reasoning_prefix_template.format(action=action)
+                assistant_content = f"{reasoning_prefix}\n\n"
 
-        messages.append({"role": "assistant", "content": assistant_content})
-
-        # Add tool response
-        if config.tool_response_as_json:
-            # Format tool output as JSON
-            try:
-                # If tool_output is already a dict/JSON, use it directly
-                if isinstance(tool_output, dict):
-                    tool_response_content = json.dumps(tool_output)
-                elif isinstance(tool_output, str):
-                    # Try to parse it as JSON first
+            # Get parsed arguments
+            if hasattr(execution, "parsed_arguments"):
+                parsed_args = execution.parsed_arguments
+            elif isinstance(execution, dict) and "parsed_arguments" in execution:
+                parsed_args = execution["parsed_arguments"]
+            elif isinstance(execution, dict) and "arguments" in execution:
+                args = execution["arguments"]
+                if isinstance(args, str):
                     try:
-                        parsed_output = json.loads(tool_output)
-                        tool_response_content = json.dumps(parsed_output)
+                        parsed_args = json.loads(args)
                     except json.JSONDecodeError:
-                        # If not JSON, create a simple JSON structure
-                        tool_response_content = json.dumps({"result": tool_output})
+                        parsed_args = {}
                 else:
-                    tool_response_content = json.dumps({"result": str(tool_output)})
-            except Exception:
-                tool_response_content = json.dumps({"result": str(tool_output)})
-        else:
-            tool_response_content = str(tool_output)
+                    parsed_args = args
+            else:
+                parsed_args = {}
 
-        messages.append({"role": "tool", "content": tool_response_content})
+            tool_call_json = json.dumps({"name": func_name, "arguments": parsed_args})
+            tool_call = config.tool_call_format.format(tool_call=tool_call_json)
+            assistant_content += tool_call
 
-        # Handle multiple tool calls if present
-        # Check if there are additional tool calls in the sample
-        if "additional_tools" in sample:
-            for additional_tool in sample["additional_tools"]:
-                # Add assistant message for next tool call
-                tool_name = additional_tool.get("name", "unknown_tool")
-                tool_args = additional_tool.get("arguments", {})
-                tool_result = additional_tool.get("result", "Tool executed")
+            messages.append({"role": "assistant", "content": assistant_content})
 
-                assistant_content = ""
-                if config.include_reasoning_prefix:
-                    action = self._get_tool_action_description(tool_name, additional_tool)
-                    reasoning_prefix = config.reasoning_prefix_template.format(action=action)
-                    assistant_content = f"{reasoning_prefix}\n\n"
+            # Get result
+            result = (
+                execution.result if hasattr(execution, "result") else execution.get("result", "")  # type: ignore[union-attr]
+            )
 
-                tool_call_json = json.dumps({"name": tool_name, "arguments": tool_args})
-                tool_call = config.tool_call_format.format(tool_call=tool_call_json)
-                assistant_content += tool_call
+            if config.tool_response_as_json:
+                tool_response_content = json.dumps({"result": result})
+            else:
+                tool_response_content = result
 
-                messages.append({"role": "assistant", "content": assistant_content})
-
-                # Add tool response
-                if config.tool_response_as_json:
-                    tool_response_content = json.dumps({"result": tool_result})
-                else:
-                    tool_response_content = str(tool_result)
-
-                messages.append({"role": "tool", "content": tool_response_content})
+            messages.append({"role": "tool", "content": tool_response_content})
 
         # Add final assistant answer (only once, after all tool calls)
         messages.append({"role": "assistant", "content": answer})
 
         return {"messages": messages}
 
-    def _get_tool_action_description(self, tool_name: str, sample: dict) -> str:
+    def _get_question(self, sample) -> str:
+        """Extract question from either legacy or unified schema."""
+        if isinstance(sample, dict):
+            return sample.get("question", "")
+        return getattr(sample, "question", "")
+
+    def _get_answer(self, sample) -> str:
+        """Extract answer from either legacy or unified schema."""
+        if isinstance(sample, dict):
+            return sample.get("answer") or sample.get("final_answer", "")
+        # Try various possible fields
+        return getattr(sample, "answer", None) or getattr(sample, "final_answer", None) or ""
+
+    def _get_tool_executions(self, sample):
+        """Extract tool executions from unified schema."""
+        # Unified schema (Pydantic model)
+        if hasattr(sample, "tool_context") and sample.tool_context:
+            return sample.tool_context.executions
+        # Unified schema (dict format)
+        if isinstance(sample, dict) and "tool_context" in sample:
+            tool_context = sample["tool_context"]
+            if isinstance(tool_context, dict):
+                return tool_context.get("executions", [])
+        return []
+
+    def _get_available_tools(self, sample):
+        """Extract available tools from sample or tool registry."""
+        # Try sample first (unified schema)
+        if (
+            hasattr(sample, "tool_context")
+            and sample.tool_context
+            and hasattr(sample.tool_context, "available_tools")
+        ):
+            return sample.tool_context.available_tools
+        # Dict format
+        if isinstance(sample, dict) and "tool_context" in sample:
+            tool_context = sample["tool_context"]
+            if isinstance(tool_context, dict) and "available_tools" in tool_context:
+                return tool_context["available_tools"]
+        # Fall back to tool registry
+        return self.tool_registry.tools if self.tool_registry else []
+
+    def _get_tool_action_description(self, tool_name: str, execution) -> str:
         """Generate a natural language description of the tool action."""
         tool_actions = {
             "get_weather": "check the weather",
@@ -225,33 +244,34 @@ class SingleToolCallFormatter(BaseFormatter):
             "api_call": "make the API call",
         }
 
-        # Try to get a specific action or use a generic one
         action = tool_actions.get(tool_name, f"use the {tool_name} tool")
 
-        # Check both tool_input and arguments keys for parameters
-        if "tool_input" in sample or "arguments" in sample:
-            try:
-                tool_args = None
-                if "tool_input" in sample:
-                    tool_input = sample["tool_input"]
-                    if isinstance(tool_input, str):
-                        tool_args = json.loads(tool_input.replace("'", '"'))
-                    else:
-                        tool_args = tool_input
-                elif "arguments" in sample:
-                    tool_args = sample["arguments"]
-
-                if tool_args:
-                    if tool_name == "get_weather" and "location" in tool_args:
-                        action = f"check the weather in {tool_args['location']}"
-                    elif tool_name == "get_time" and "timezone" in tool_args:
-                        action = f"check the time in {tool_args['timezone']}"
-                    elif tool_name == "calculator" and "expression" in tool_args:
-                        action = f"calculate {tool_args['expression']}"
-                    elif tool_name == "web_search" and "query" in tool_args:
-                        action = f"search for {tool_args['query']}"
-            except (json.JSONDecodeError, KeyError, TypeError):
-                pass
+        # Extract arguments from either format
+        if hasattr(execution, "parsed_arguments"):
+            tool_args = execution.parsed_arguments
+        elif isinstance(execution, dict) and "parsed_arguments" in execution:
+            tool_args = execution["parsed_arguments"]
+        elif isinstance(execution, dict) and "arguments" in execution:
+            # Try to parse arguments if it's a JSON string
+            args = execution["arguments"]
+            if isinstance(args, str):
+                try:
+                    tool_args = json.loads(args)
+                except json.JSONDecodeError:
+                    tool_args = {}
+            else:
+                tool_args = args
+        else:
+            tool_args = {}
+        if tool_args:
+            if tool_name == "get_weather" and "location" in tool_args:
+                action = f"check the weather in {tool_args['location']}"
+            elif tool_name == "get_time" and "timezone" in tool_args:
+                action = f"check the time in {tool_args['timezone']}"
+            elif tool_name == "calculator" and "expression" in tool_args:
+                action = f"calculate {tool_args['expression']}"
+            elif tool_name == "web_search" and "query" in tool_args:
+                action = f"search for {tool_args['query']}"
 
         return action
 
@@ -270,25 +290,23 @@ class SingleToolCallFormatter(BaseFormatter):
             indent=2,
         )
 
-    def _format_tools_for_system(self, available_tools: list[dict]) -> str:
+    def _format_tools_for_system(self, available_tools: list) -> str:
         """Format available tools for inclusion in system message."""
         functions = []
         for tool in available_tools:
-            # Convert to function format
             func_def = {
-                "name": tool["name"],
-                "description": tool.get("description", ""),
+                "name": tool.name,
+                "description": tool.description,
                 "parameters": {"type": "object", "properties": {}, "required": []},
             }
 
-            # Add parameters if present
-            for param in tool.get("parameters", []):
-                func_def["parameters"]["properties"][param["name"]] = {
-                    "type": param.get("type", "string"),
-                    "description": param.get("description", ""),
+            for param in tool.parameters:
+                func_def["parameters"]["properties"][param.name] = {
+                    "type": param.type,
+                    "description": param.description,
                 }
-                if param.get("required", True):
-                    func_def["parameters"]["required"].append(param["name"])
+                if param.required:
+                    func_def["parameters"]["required"].append(param.name)
 
             functions.append(func_def)
 

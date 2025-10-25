@@ -42,7 +42,7 @@ generator = DataSetGenerator(
 
 **default_num_examples** (int, optional): Default number of example demonstrations to include. Default: 3.
 
-**conversation_type** (str, optional): Type of conversation format. One of: `basic`, `cot_freetext`, `cot_structured`, `cot_hybrid`, `agent_cot_tools`, `agent_cot_hybrid`, `agent_cot_multi_turn`, `xlam_multi_turn`. Default: `basic`.
+**conversation_type** (str, optional): Type of conversation format. One of: `basic`, `chain_of_thought`. Default: `basic`.
 
 **reasoning_style** (str, optional): Style of reasoning for CoT formats. One of: `mathematical`, `logical`, `general`. Default: `general`.
 

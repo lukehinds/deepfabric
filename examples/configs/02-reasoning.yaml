@@ -1,0 +1,204 @@
+# ============================================================================
+# REASONING STYLES - Chain-of-thought with different reasoning formats
+# ============================================================================
+# Purpose: Demonstrate freetext, structured, and hybrid reasoning styles
+# Usage: deepfabric start examples/configs/02-reasoning.yaml
+# ============================================================================
+#
+# IMPORTANT: When generating CoT datasets, keep answers CONCISE.
+# Reasoning is captured separately in <think> tags or structured fields.
+# Verbose answers waste tokens and create duplicate content.
+#
+# When using conversation_type: "chain_of_thought", you must specify a
+# reasoning_style that controls how reasoning is structured:
+#
+# 1. FREETEXT - Natural language reasoning paragraphs
+#    Use for: Human-like explanations, narrative reasoning
+#
+# 2. STRUCTURED - Explicit step-by-step traces
+#    Use for: Clear step-by-step reasoning, algorithmic thinking
+#
+# 3. HYBRID - Combination of freetext analysis and structured steps
+#    Use for: Best of both worlds, rich reasoning context
+#
+# ============================================================================
+
+dataset_system_prompt: |
+  You are an AI assistant that shows clear reasoning before answering questions.
+  Think through problems step-by-step and explain your thought process.
+
+topic_tree:
+  topic_prompt: "Math word problems and logical reasoning challenges"
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.7
+  degree: 2
+  depth: 2
+  save_as: "topics.jsonl"
+
+# ============================================================================
+# OPTION 1: FREETEXT REASONING (Natural Language)
+# ============================================================================
+# Reasoning is expressed as natural language paragraphs
+# Most human-like and flexible reasoning style
+#
+# Output includes:
+# {
+#   "messages": [...],
+#   "question": "If a train travels 60 mph for 2 hours...",
+#   "final_answer": "The train travels 120 miles",
+#   "reasoning": {
+#     "style": "freetext",
+#     "content": "To solve this problem, I need to use the formula..."
+#   }
+# }
+# ============================================================================
+
+data_engine:
+  generation_system_prompt: |
+    You are generating training data for reasoning models.
+    Generate math problems where reasoning is captured separately from the answer.
+    Keep answers concise and direct - do NOT repeat reasoning in the answer.
+
+  instructions: |
+    Create realistic math word problems that require reasoning to solve.
+    The answer should be concise and direct, NOT verbose explanations.
+    Example: "The answer is 120 miles." NOT "Let me explain... [long explanation]"
+
+  # Chain of thought with freetext reasoning
+  conversation_type: "chain_of_thought"
+  reasoning_style: "freetext"
+
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.1
+  max_retries: 3  # Retry on API failures
+
+dataset:
+  save_as: "dataset_freetext.jsonl"
+  creation:
+    num_steps: 2
+    batch_size: 2
+    sys_msg: true
+
+# ============================================================================
+# OPTION 2: STRUCTURED REASONING (Step-by-Step)
+# ============================================================================
+# Uncomment this section for explicit step-by-step reasoning traces
+#
+# Output includes:
+# {
+#   "messages": [...],
+#   "question": "Calculate the area of a circle with radius 5",
+#   "final_answer": "78.54 square units",
+#   "reasoning": {
+#     "style": "structured",
+#     "content": [
+#       {"step_number": 1, "thought": "Identify formula: A = πr²", "action": null},
+#       {"step_number": 2, "thought": "Substitute r=5", "action": "calculate"},
+#       {"step_number": 3, "thought": "π × 25 = 78.54", "action": null}
+#     ]
+#   }
+# }
+#
+# Best for training models to follow algorithmic reasoning patterns
+# ============================================================================
+
+# data_engine:
+#   generation_system_prompt: |
+#     You are generating training data for reasoning models.
+#     Generate problems with explicit step-by-step reasoning traces.
+#     Keep final answers concise - reasoning is captured in structured steps.
+#
+#   instructions: |
+#     Create math problems that require multi-step reasoning.
+#     Answer should be brief and direct, NOT verbose explanations.
+#     Example: "The area is 78.54 square units." NOT "Let me walk you through..."
+#
+#   # Chain of thought with structured reasoning
+#   conversation_type: "chain_of_thought"
+#   reasoning_style: "structured"
+#
+#   provider: "openai"
+#   model: "gpt-4o-mini"
+#   temperature: 0.7
+#
+# dataset:
+#   save_as: "dataset_structured.jsonl"
+#   creation:
+#     num_steps: 10
+#     batch_size: 2
+#     provider: "openai"
+#     model: "gpt-4o-mini"
+#     sys_msg: true
+
+# ============================================================================
+# OPTION 3: HYBRID REASONING (Best of Both)
+# ============================================================================
+# Uncomment this section for combined freetext + structured reasoning
+#
+# Output includes both:
+# - Natural language analysis/overview
+# - Explicit step-by-step traces
+#
+# Example:
+# {
+#   "reasoning": {
+#     "style": "hybrid",
+#     "freetext_analysis": "This is a geometry problem requiring...",
+#     "structured_steps": [
+#       {"step_number": 1, "thought": "...", "action": "..."},
+#       {"step_number": 2, "thought": "...", "action": "..."}
+#     ]
+#   }
+# }
+#
+# Provides rich context for training sophisticated reasoning models
+# ============================================================================
+
+# data_engine:
+#   generation_system_prompt: |
+#     You are generating training data for reasoning models.
+#     Generate problems with both natural language analysis and step-by-step traces.
+#     Keep final answers concise - reasoning is captured in the hybrid structure.
+#
+#   instructions: |
+#     Create problems requiring complex reasoning.
+#     Answer should be brief and conclusive, NOT lengthy explanations.
+#     Example: "You'll need 144 baskets." NOT "Let me explain the solution..."
+#
+#   # Chain of thought with hybrid reasoning
+#   conversation_type: "chain_of_thought"
+#   reasoning_style: "hybrid"
+#
+#   provider: "openai"
+#   model: "gpt-4o-mini"
+#   temperature: 0.7
+#
+# dataset:
+#   save_as: "dataset_hybrid.jsonl"
+#   creation:
+#     num_steps: 10
+#     batch_size: 2
+#     provider: "openai"
+#     model: "gpt-4o-mini"
+#     sys_msg: true
+
+# ============================================================================
+# CHOOSING THE RIGHT REASONING STYLE:
+#
+# Use FREETEXT when:
+# - You want human-like, conversational reasoning
+# - Flexibility in explanation style is important
+# - Training general reasoning capabilities
+#
+# Use STRUCTURED when:
+# - You need consistent, algorithmic reasoning patterns
+# - Training on procedural or mathematical tasks
+# - You want clear, numbered reasoning steps
+#
+# Use HYBRID when:
+# - You want rich reasoning context
+# - Training advanced reasoning models
+# - You need both overview and detailed steps
+# ============================================================================

@@ -1,6 +1,10 @@
+import re
+
+from collections import deque
 from typing import Any
 
-from rich.console import Console
+from rich.console import Console, Group
+from rich.live import Live
 from rich.panel import Panel
 from rich.progress import (
     BarColumn,
@@ -9,10 +13,15 @@ from rich.progress import (
     SpinnerColumn,
     TextColumn,
     TimeElapsedColumn,
-    TimeRemainingColumn,
 )
-from rich.table import Table
+from rich.table import Column, Table
 from rich.text import Text
+
+from .progress import StreamObserver
+
+# Constants
+STREAM_BUFFER_DISPLAY_THRESHOLD = 100  # Show ellipsis if accumulated text exceeds this
+STREAM_TEXT_MAX_LENGTH = 80  # Max characters to display in streaming text
 
 
 class DeepFabricTUI:
@@ -62,8 +71,8 @@ class DeepFabricTUI:
         self.console.print(f" {message}", style="blue")
 
 
-class TreeBuildingTUI:
-    """TUI for tree building operations with simplified progress."""
+class TreeBuildingTUI(StreamObserver):
+    """TUI for tree building operations with simplified progress and streaming."""
 
     def __init__(self, tui: DeepFabricTUI):
         self.tui = tui
@@ -74,6 +83,10 @@ class TreeBuildingTUI:
         self.failed_attempts = 0
         self.current_depth = 0
         self.max_depth = 0
+        self.stream_buffer = deque(maxlen=2000)
+        self.live_display = None
+        self.stream_progress = None  # Separate progress for streaming display
+        self.stream_task = None
 
     def start_building(self, model_name: str, depth: int, degree: int) -> None:
         """Start the tree building process."""
@@ -90,12 +103,29 @@ class TreeBuildingTUI:
         # Create simple progress display with indeterminate progress
         self.progress = Progress(
             SpinnerColumn(),
-            TextColumn("[bold blue]{task.description}"),
+            TextColumn("[bold blue]{task.description}", table_column=Column(width=50)),
+            BarColumn(),
             TimeElapsedColumn(),
             console=self.console,
         )
 
-        self.progress.start()
+        # Create separate progress for streaming with animated spinner
+        self.stream_progress = Progress(
+            SpinnerColumn(),
+            TextColumn("{task.description}", style="dim"),
+            console=self.console,
+        )
+        self.stream_task = self.stream_progress.add_task(
+            "  Processing: (waiting for LLM output...)"
+        )
+
+        # Start Live display with both progress bars
+        self.live_display = Live(
+            Group(self.progress, self.stream_progress),
+            console=self.console,
+            refresh_per_second=10,
+        )
+        self.live_display.start()
         self.overall_task = self.progress.add_task(f"Building topic tree (depth 1/{depth})")
 
     def start_depth_level(self, depth: int) -> None:
@@ -122,10 +152,37 @@ class TreeBuildingTUI:
         """Record a generation failure."""
         self.failed_attempts += 1
 
+    def on_stream_chunk(self, _source: str, chunk: str, _metadata: dict[str, Any]) -> None:
+        """Handle streaming text from tree generation."""
+        self.stream_buffer.append(chunk)
+
+        if self.live_display and self.stream_progress and self.stream_task is not None:
+            accumulated_text = "".join(self.stream_buffer)
+            if len(accumulated_text) > STREAM_BUFFER_DISPLAY_THRESHOLD:
+                display_text = "..." + accumulated_text[-STREAM_TEXT_MAX_LENGTH:]
+            else:
+                display_text = accumulated_text
+
+            display_text = display_text.replace("\n", " ").replace("\r", "")
+            display_text = re.sub(r"\s+", " ", display_text)
+
+            # Update the streaming task description
+            self.stream_progress.update(
+                self.stream_task, description=f"  Processing: {display_text}"
+            )
+
+    def on_step_start(self, step_name: str, metadata: dict[str, Any]) -> None:
+        """Handle step start - tree building doesn't need specific handling."""
+        pass
+
+    def on_step_complete(self, step_name: str, metadata: dict[str, Any]) -> None:
+        """Handle step complete - tree building doesn't need specific handling."""
+        pass
+
     def finish_building(self, total_paths: int, failed_generations: int) -> None:
         """Finish the tree building process."""
-        if self.progress:
-            self.progress.stop()
+        if self.live_display:
+            self.live_display.stop()
 
         # Final summary
         self.console.print()
@@ -137,8 +194,8 @@ class TreeBuildingTUI:
         self.tui.info(f"Generated {total_paths} total paths")
 
 
-class GraphBuildingTUI:
-    """TUI for graph building operations with simplified progress."""
+class GraphBuildingTUI(StreamObserver):
+    """TUI for graph building operations with simplified progress and streaming."""
 
     def __init__(self, tui: DeepFabricTUI):
         self.tui = tui
@@ -148,6 +205,10 @@ class GraphBuildingTUI:
         self.nodes_count = 1  # Start with root
         self.edges_count = 0
         self.failed_attempts = 0
+        self.stream_buffer = deque(maxlen=2000)
+        self.live_display = None
+        self.stream_progress = None
+        self.stream_task = None
 
     def start_building(self, model_name: str, depth: int, degree: int) -> None:
         """Start the graph building process."""
@@ -163,14 +224,30 @@ class GraphBuildingTUI:
         # Create simple progress display
         self.progress = Progress(
             SpinnerColumn(),
-            TextColumn("[bold blue]{task.description}"),
+            TextColumn("[bold blue]{task.description}", table_column=Column(width=50)),
             BarColumn(),
             MofNCompleteColumn(),
             TimeElapsedColumn(),
             console=self.console,
         )
 
-        self.progress.start()
+        # Create separate progress for streaming with animated spinner
+        self.stream_progress = Progress(
+            SpinnerColumn(),
+            TextColumn("{task.description}", style="dim"),
+            console=self.console,
+        )
+        self.stream_task = self.stream_progress.add_task(
+            "  Processing: (waiting for LLM output...)"
+        )
+
+        # Start Live display with both progress bars
+        self.live_display = Live(
+            Group(self.progress, self.stream_progress),
+            console=self.console,
+            refresh_per_second=10,
+        )
+        self.live_display.start()
         self.overall_task = self.progress.add_task("  Building topic graph", total=depth)
 
     def start_depth_level(self, depth: int, leaf_count: int) -> None:
@@ -200,10 +277,37 @@ class GraphBuildingTUI:
         _ = node_topic  # Mark as intentionally unused
         self.failed_attempts += 1
 
+    def on_stream_chunk(self, _source: str, chunk: str, _metadata: dict[str, Any]) -> None:
+        """Handle streaming text from graph generation."""
+        self.stream_buffer.append(chunk)
+
+        if self.live_display and self.stream_progress and self.stream_task is not None:
+            accumulated_text = "".join(self.stream_buffer)
+            if len(accumulated_text) > STREAM_BUFFER_DISPLAY_THRESHOLD:
+                display_text = "..." + accumulated_text[-STREAM_TEXT_MAX_LENGTH:]
+            else:
+                display_text = accumulated_text
+
+            display_text = display_text.replace("\n", " ").replace("\r", "")
+            display_text = re.sub(r"\s+", " ", display_text)
+
+            # Update the streaming task description
+            self.stream_progress.update(
+                self.stream_task, description=f"  Processing: {display_text}"
+            )
+
+    def on_step_start(self, step_name: str, metadata: dict[str, Any]) -> None:
+        """Handle step start - graph building doesn't need specific handling."""
+        pass
+
+    def on_step_complete(self, step_name: str, metadata: dict[str, Any]) -> None:
+        """Handle step complete - graph building doesn't need specific handling."""
+        pass
+
     def finish_building(self, failed_generations: int) -> None:
         """Finish the graph building process."""
-        if self.progress:
-            self.progress.stop()
+        if self.live_display:
+            self.live_display.stop()
 
         # Show final stats
         self.console.print()
@@ -223,25 +327,133 @@ class GraphBuildingTUI:
             self.tui.success("Graph building completed successfully")
 
 
-class DatasetGenerationTUI:
-    """Enhanced TUI for dataset generation with rich integration."""
+class DatasetGenerationTUI(StreamObserver):
+    """Enhanced TUI for dataset generation with rich integration and streaming display."""
 
     def __init__(self, tui: DeepFabricTUI):
         self.tui = tui
         self.console = tui.console
+        self.stream_buffer = deque(maxlen=2000)  # Last ~2000 chars of streaming text
+        self.current_step = ""
+        self.current_sample_type = ""  # Track the type of sample being generated
+        self.live_display = None  # Will be set by dataset_manager
+        self.progress = None
+        self.stream_progress = None  # Separate progress for streaming display
+        self.stream_task = None
+        self.stream_text = Text()  # Rich Text object for streaming content
 
     def create_rich_progress(self) -> Progress:
-        """Create a rich progress bar for dataset generation."""
-        return Progress(
+        """Create a rich progress bar for dataset generation (without TimeRemainingColumn)."""
+        self.progress = Progress(
             SpinnerColumn(),
-            TextColumn("[bold blue]{task.description}"),
+            TextColumn("[bold blue]{task.description}", table_column=Column(width=50)),
             BarColumn(),
             MofNCompleteColumn(),
-            TextColumn("• [bold green]{task.completed}/{task.total}"),
             TimeElapsedColumn(),
-            TimeRemainingColumn(),
             console=self.console,
         )
+        return self.progress
+
+    def on_stream_chunk(self, _source: str, chunk: str, _metadata: dict[str, Any]) -> None:
+        """Handle incoming streaming text chunks from LLM.
+
+        Args:
+            source: Source identifier (e.g., "user_question", "tool_sim_weather")
+            chunk: Text chunk from LLM
+            metadata: Additional context
+        """
+        # Append chunk to buffer (deque auto-trims to maxlen)
+        self.stream_buffer.append(chunk)
+
+        # Update the live display if it's running
+        if self.live_display and self.stream_progress and self.stream_task is not None:
+            # Get accumulated text and keep only last 80 chars for single-line display
+            accumulated_text = "".join(self.stream_buffer)
+            # Truncate to last 80 chars to fit on one line in most terminals
+            if len(accumulated_text) > STREAM_BUFFER_DISPLAY_THRESHOLD:
+                display_text = "..." + accumulated_text[-STREAM_TEXT_MAX_LENGTH:]
+            else:
+                display_text = accumulated_text
+
+            # Remove newlines and excessive whitespace to keep it on a single line
+            display_text = display_text.replace("\n", " ").replace("\r", "")
+            # Collapse multiple spaces to single space
+            display_text = re.sub(r"\s+", " ", display_text)
+
+            # Build description with sample type if available
+            if self.current_sample_type:
+                description = f"Processing ({self.current_sample_type}): {display_text}"
+            else:
+                description = f"  Processing: {display_text}"
+
+            # Update the streaming task description
+            self.stream_progress.update(self.stream_task, description=description)
+
+    def on_step_start(self, step_name: str, metadata: dict[str, Any]) -> None:
+        """Update current step display.
+
+        Args:
+            step_name: Human-readable step name
+            metadata: Additional context (sample_idx, conversation_type, etc.)
+        """
+        # Update current step
+        self.current_step = step_name
+
+        # Extract and update sample type from metadata if available
+        if "conversation_type" in metadata:
+            conv_type = metadata["conversation_type"]
+            # Map conversation types to friendly names
+            type_map = {
+                "basic": "Basic Q&A",
+                "chain_of_thought": "Chain of Thought",
+                "single_turn_agent": "Single-Turn Agent (Tool Calling)",
+                "multi_turn_agent": "Multi-Turn Agent (Tool Calling)",
+            }
+            self.current_sample_type = type_map.get(conv_type, conv_type)
+        elif "agent_mode" in metadata:
+            agent_mode = metadata["agent_mode"]
+            if agent_mode == "single_turn":
+                self.current_sample_type = "Single-Turn Agent (Tool Calling)"
+            elif agent_mode == "multi_turn":
+                self.current_sample_type = "Multi-Turn Agent (Tool Calling)"
+            else:
+                self.current_sample_type = f"Agent ({agent_mode})"
+
+        # Don't print anything - the progress bar already shows progress
+        # Just silently update internal state
+
+    def on_step_complete(self, step_name: str, metadata: dict[str, Any]) -> None:
+        """Handle step completion.
+
+        Args:
+            step_name: Human-readable step name
+            metadata: Additional context
+        """
+        # Could add completion markers or timing info here if desired
+        pass
+
+    def get_stream_display(self) -> str:
+        """Build the streaming text display from buffer.
+
+        Returns:
+            Formatted string of recent LLM output
+        """
+        if not self.stream_buffer:
+            return "[dim italic]Waiting for generation...[/dim italic]"
+
+        # Get recent text from buffer
+        recent_text = "".join(self.stream_buffer)
+
+        # Truncate if too long and add ellipsis
+        max_display_length = 500
+        if len(recent_text) > max_display_length:
+            recent_text = "..." + recent_text[-max_display_length:]
+
+        return f"[dim]{recent_text}[/dim]"
+
+    def clear_stream_buffer(self) -> None:
+        """Clear the streaming text buffer (e.g., between samples)."""
+        self.stream_buffer.clear()
 
     def show_generation_header(self, model_name: str, num_steps: int, batch_size: int) -> None:
         """Display the dataset generation header."""
@@ -275,8 +487,9 @@ class DatasetGenerationTUI:
         self.tui.error(message)
 
 
-# Global TUI instance
+# Global TUI instances
 _tui_instance = None
+_dataset_tui_instance = None
 
 
 def get_tui() -> DeepFabricTUI:
@@ -298,5 +511,8 @@ def get_graph_tui() -> GraphBuildingTUI:
 
 
 def get_dataset_tui() -> DatasetGenerationTUI:
-    """Get a dataset generation TUI instance."""
-    return DatasetGenerationTUI(get_tui())
+    """Get the global dataset generation TUI instance (singleton)."""
+    global _dataset_tui_instance  # noqa: PLW0603
+    if _dataset_tui_instance is None:
+        _dataset_tui_instance = DatasetGenerationTUI(get_tui())
+    return _dataset_tui_instance

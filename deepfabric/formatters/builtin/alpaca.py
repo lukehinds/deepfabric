@@ -14,6 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from ...schemas import Conversation
 from ..base import BaseFormatter
 from ..models import (
     AlpacaConfig,
@@ -29,8 +30,8 @@ class AlpacaFormatter(BaseFormatter):
     used for instruction-following fine-tuning.
     """
 
-    def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config)
+    def __init__(self, config: dict[str, Any] | None = None, tool_registry=None):
+        super().__init__(config, tool_registry=tool_registry)
 
         # Access configuration through typed model if available
         if self._config_model:
@@ -48,27 +49,113 @@ class AlpacaFormatter(BaseFormatter):
             self.include_empty_input = self.config.get("include_empty_input", True)
             self.instruction_template = self.config.get("instruction_template", None)
 
-    def _format_single_sample(self, sample: dict) -> dict | None:
+    def _format_single_sample(self, sample: Conversation | dict | Any) -> dict | None:
         """
         Format a single sample to Alpaca format.
 
         Args:
-            sample: A single dataset sample
+            sample: A Conversation Pydantic model, dict, or anything with model_dump()
 
         Returns:
             Formatted sample in Alpaca format or None if formatting fails
         """
-        if not self.validate(sample):
+        # Handle dict samples that might be Q&A or instruction format
+        if isinstance(sample, dict):
+            # Check if it's Q&A format (not messages format)
+            if "question" in sample and ("answer" in sample or "final_answer" in sample):
+                return self._format_qa_sample(sample)
+
+            # Check if it's already in Alpaca instruction format
+            if "instruction" in sample and "output" in sample:
+                return self._format_instruction_sample(sample)
+
+            # Try to convert to Conversation model for messages format
+            try:
+                conversation = Conversation(**sample)
+            except Exception:
+                return None
+        elif isinstance(sample, Conversation):
+            conversation = sample
+        elif hasattr(sample, "model_dump"):
+            try:
+                conversation = Conversation(**sample.model_dump())
+            except Exception:
+                return None
+        else:
             return None
 
-        # Handle different input formats
-        if "messages" in sample:
-            return self._format_messages_sample(sample)
-        if self.instruction_field in sample and self.output_field in sample:
-            return self._format_direct_sample(sample)
-        if "question" in sample and ("answer" in sample or "final_answer" in sample):
-            return self._format_qa_sample(sample)
-        return self._format_generic_sample(sample)
+        # Format using Conversation model
+        return self._format_conversation(conversation)
+
+    def _format_conversation(self, conversation: Conversation) -> dict[str, Any]:
+        """
+        Format a Conversation model to Alpaca format.
+
+        Args:
+            conversation: Pydantic Conversation model
+
+        Returns:
+            Formatted Alpaca output with instruction, input, and output fields
+        """
+        instruction = ""
+        input_text = ""
+        output_text = ""
+
+        # Extract instruction from system message
+        system_messages = [msg for msg in conversation.messages if msg.role == "system"]
+        if system_messages:
+            instruction = system_messages[0].content
+
+        # Extract input from user messages
+        user_messages = [msg for msg in conversation.messages if msg.role == "user"]
+        if user_messages:
+            # If we have a system instruction, use user content as input
+            if instruction:
+                input_text = " ".join(msg.content for msg in user_messages)
+            else:
+                # If no system instruction, use first user message as instruction
+                instruction = user_messages[0].content
+                if len(user_messages) > 1:
+                    input_text = " ".join(msg.content for msg in user_messages[1:])
+
+        # Extract output from assistant messages
+        assistant_messages = [msg for msg in conversation.messages if msg.role == "assistant"]
+        if assistant_messages:
+            output_text = " ".join(msg.content for msg in assistant_messages)
+        # If no assistant message but has reasoning and final_answer
+        elif conversation.reasoning and conversation.final_answer:
+            output_parts = []
+            content = conversation.reasoning.content
+
+            if isinstance(content, str):
+                output_parts.append(content)
+            elif isinstance(content, list):
+                for step in content:
+                    if hasattr(step, "thought") and step.thought:
+                        output_parts.append(step.thought)
+
+            if output_parts:
+                output_text = (
+                    " ".join(output_parts) + f" The answer is {conversation.final_answer}."
+                )
+            else:
+                output_text = conversation.final_answer
+
+        # Apply instruction template if provided
+        if self.instruction_template:
+            instruction = self.instruction_template.format(instruction=instruction)
+
+        # Build result
+        result = {
+            self.instruction_field: instruction,
+            self.output_field: output_text,
+        }
+
+        # Include input field based on configuration
+        if self.include_empty_input or input_text:
+            result[self.input_field] = input_text
+
+        return result
 
     def _format_messages_sample(self, sample: dict[str, Any]) -> dict[str, Any]:
         """Format a sample with messages structure to Alpaca format."""
@@ -182,6 +269,26 @@ class AlpacaFormatter(BaseFormatter):
 
         if input_text or self.include_empty_input:
             alpaca_sample["input"] = input_text
+
+        return alpaca_sample
+
+    def _format_instruction_sample(self, sample: dict[str, Any]) -> dict[str, Any]:
+        """Format an instruction sample (already in Alpaca format) applying templates and config."""
+        instruction = sample["instruction"]
+        output = sample["output"]
+        input_text = sample.get("input", "")
+
+        # Apply custom instruction template if provided
+        if self.instruction_template:
+            instruction = self.instruction_template.format(instruction=instruction)
+
+        alpaca_sample = {
+            self.instruction_field: instruction,
+            self.output_field: output,
+        }
+
+        if input_text or self.include_empty_input:
+            alpaca_sample[self.input_field] = input_text
 
         return alpaca_sample
 

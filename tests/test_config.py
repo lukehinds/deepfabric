@@ -33,7 +33,6 @@ def sample_config_dict():
             "temperature": 0.9,
             "max_retries": 2,
             "conversation_type": "basic",
-            "reasoning_style": "general",
         },
         "dataset": {
             "creation": {
@@ -72,7 +71,6 @@ def sample_config_dict_no_sys_msg():
             "temperature": 0.9,
             "max_retries": 2,
             "conversation_type": "basic",
-            "reasoning_style": "general",
         },
         "dataset": {
             "creation": {
@@ -122,7 +120,7 @@ def test_load_from_yaml(sample_yaml_file, sample_config_dict):
     assert config.dataset_system_prompt == sample_config_dict["dataset_system_prompt"]
     assert config.topic_tree.model_dump(exclude_none=True) == sample_config_dict["topic_tree"]
 
-    # Add the new agent fields to the expected config for comparison
+    # Add the new fields to the expected config for comparison
     expected_data_engine = sample_config_dict["data_engine"].copy()
     expected_data_engine["available_tools"] = []  # Default value
     expected_data_engine["custom_tools"] = []  # Default value

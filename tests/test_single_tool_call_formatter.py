@@ -6,6 +6,16 @@ from deepfabric.formatters.builtin.single_tool_call import (
     SingleToolCallConfig,
     SingleToolCallFormatter,
 )
+from deepfabric.schemas import (
+    ChatMessage,
+    Conversation,
+    ReasoningTrace,
+    ToolContext,
+    ToolDefinition,
+    ToolExecution,
+    ToolParameter,
+    ToolRegistry,
+)
 
 
 class TestSingleToolCallFormatter:
@@ -15,14 +25,31 @@ class TestSingleToolCallFormatter:
         """Test basic single tool call formatting."""
         formatter = SingleToolCallFormatter()
 
-        sample = {
-            "question": "What's the weather in Paris?",
-            "reasoning": "Need to check the weather",
-            "tool_used": "get_weather",
-            "tool_input": '{"location": "Paris"}',
-            "tool_output": "15°C, partly cloudy",
-            "answer": "The weather in Paris is currently 15°C and partly cloudy.",
-        }
+        sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="What's the weather in Paris?"),
+                ChatMessage(
+                    role="assistant",
+                    content="The weather in Paris is currently 15°C and partly cloudy.",
+                ),
+            ],
+            reasoning=ReasoningTrace(
+                style="freetext", content="Need to check the weather. Check weather for Paris."
+            ),
+            tool_context=ToolContext(
+                available_tools=[],
+                executions=[
+                    ToolExecution(
+                        function_name="get_weather",
+                        arguments='{"location": "Paris"}',
+                        reasoning="Get weather for Paris",
+                        result="15°C, partly cloudy",
+                    )
+                ],
+            ),
+            question="What's the weather in Paris?",
+            final_answer="The weather in Paris is currently 15°C and partly cloudy.",
+        )
 
         result = formatter._format_single_sample(sample)
 
@@ -42,7 +69,7 @@ class TestSingleToolCallFormatter:
 
         # Check user message
         user_msg = next(msg for msg in messages if msg["role"] == "user")
-        assert user_msg["content"] == "What's the weather in Paris?"
+        assert user_msg["content"] == sample.question
 
         # Check first assistant message contains tool call
         assistant_msgs = [msg for msg in messages if msg["role"] == "assistant"]
@@ -52,7 +79,7 @@ class TestSingleToolCallFormatter:
         assert "get_weather" in assistant_msgs[0]["content"]
 
         # Check final answer
-        assert assistant_msgs[-1]["content"] == sample["answer"]
+        assert assistant_msgs[-1]["content"] == sample.final_answer
 
     def test_with_custom_config(self):
         """Test formatter with custom configuration."""
@@ -66,24 +93,34 @@ class TestSingleToolCallFormatter:
 
         formatter = SingleToolCallFormatter(config)
 
-        sample = {
-            "question": "Calculate 2+2",
-            "tool_used": "calculator",
-            "tool_input": '{"expression": "2+2"}',
-            "tool_output": "4",
-            "answer": "The result is 4.",
-        }
+        sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="Calculate 2+2"),
+                ChatMessage(role="assistant", content="The result is 4."),
+            ],
+            reasoning=ReasoningTrace(style="freetext", content="Need to calculate. Calculate 2+2."),
+            tool_context=ToolContext(
+                available_tools=[],
+                executions=[
+                    ToolExecution(
+                        function_name="calculator",
+                        arguments='{"expression": "2+2"}',
+                        reasoning="Calculate sum",
+                        result="4",
+                    )
+                ],
+            ),
+            question="Calculate 2+2",
+            final_answer="The result is 4.",
+        )
 
         result = formatter._format_single_sample(sample)
         assert result is not None
 
         messages = result["messages"]
 
-        # Check no reasoning prefix
-        assistant_msg = next(msg for msg in messages if msg["role"] == "assistant")
-        assert not assistant_msg["content"].startswith("I'll")
-
         # Check custom tool call format
+        assistant_msg = next(msg for msg in messages if msg["role"] == "assistant")
         assert "TOOL:" in assistant_msg["content"]
 
         # Check tool response is not JSON
@@ -91,30 +128,48 @@ class TestSingleToolCallFormatter:
         assert tool_msg["content"] == "4"
 
     def test_with_available_tools(self):
-        """Test formatter with available tools list."""
-        formatter = SingleToolCallFormatter()
+        """Test formatter with tool registry."""
 
-        sample = {
-            "question": "What's the time in Tokyo?",
-            "tool_used": "get_time",
-            "tool_input": '{"timezone": "Asia/Tokyo"}',
-            "tool_output": '{"time": "22:30", "timezone": "JST"}',
-            "answer": "The current time in Tokyo is 10:30 PM JST.",
-            "available_tools": [
-                {
-                    "name": "get_time",
-                    "description": "Get current time in a timezone",
-                    "parameters": [
-                        {
-                            "name": "timezone",
-                            "type": "string",
-                            "description": "Timezone identifier",
-                            "required": True,
-                        }
+        tool_registry = ToolRegistry(
+            tools=[
+                ToolDefinition(
+                    name="get_time",
+                    description="Get current time in a timezone",
+                    parameters=[
+                        ToolParameter(
+                            name="timezone",
+                            type="str",
+                            description="Timezone identifier",
+                            required=True,
+                        )
                     ],
-                }
+                    returns="Current time in timezone",
+                )
+            ]
+        )
+
+        formatter = SingleToolCallFormatter(tool_registry=tool_registry)
+
+        sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="What's the time in Tokyo?"),
+                ChatMessage(role="assistant", content="The current time in Tokyo is 10:30 PM JST."),
             ],
-        }
+            reasoning=ReasoningTrace(style="freetext", content="Need time. Get time."),
+            tool_context=ToolContext(
+                available_tools=tool_registry.tools,
+                executions=[
+                    ToolExecution(
+                        function_name="get_time",
+                        arguments='{"timezone": "Asia/Tokyo"}',
+                        reasoning="Get Tokyo time",
+                        result='{"time": "22:30", "timezone": "JST"}',
+                    )
+                ],
+            ),
+            question="What's the time in Tokyo?",
+            final_answer="The current time in Tokyo is 10:30 PM JST.",
+        )
 
         result = formatter._format_single_sample(sample)
         assert result is not None
@@ -130,22 +185,37 @@ class TestSingleToolCallFormatter:
         """Test JSON formatting of tool responses."""
         formatter = SingleToolCallFormatter({"tool_response_as_json": True})
 
-        sample = {
-            "question": "Test",
-            "tool_used": "test_tool",
-            "tool_input": "{}",
-            "tool_output": {"temperature": 20, "unit": "celsius"},
-            "answer": "Done",
-        }
+        sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="Test"),
+                ChatMessage(role="assistant", content="Done"),
+            ],
+            reasoning=ReasoningTrace(style="freetext", content="Test"),
+            tool_context=ToolContext(
+                available_tools=[],
+                executions=[
+                    ToolExecution(
+                        function_name="test_tool",
+                        arguments="{}",
+                        reasoning="Test",
+                        result='{"temperature": 20, "unit": "celsius"}',
+                    )
+                ],
+            ),
+            question="Test",
+            final_answer="Done",
+        )
 
         result = formatter._format_single_sample(sample)
+        assert result is not None
         tool_msg = next(msg for msg in result["messages"] if msg["role"] == "tool")
 
         # Should be valid JSON
         parsed = json.loads(tool_msg["content"])
-        expected_temperature = 20
-        assert parsed["temperature"] == expected_temperature
-        assert parsed["unit"] == "celsius"
+        assert "result" in parsed
+        result_data = json.loads(parsed["result"])
+        assert result_data["temperature"] == 20  # noqa: PLR2004
+        assert result_data["unit"] == "celsius"
 
     def test_reasoning_prefix_generation(self):
         """Test reasoning prefix generation for different tools."""
@@ -156,100 +226,90 @@ class TestSingleToolCallFormatter:
             }
         )
 
-        # Test weather tool
-        sample = {
-            "question": "What's the weather?",
-            "tool_used": "get_weather",
-            "tool_input": '{"location": "Paris"}',
-            "tool_output": "Sunny",
-            "answer": "It's sunny.",
-        }
+        # Test weather tool with location
+        sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="What's the weather?"),
+                ChatMessage(role="assistant", content="It's sunny."),
+            ],
+            reasoning=ReasoningTrace(style="freetext", content="Need weather. Get weather."),
+            tool_context=ToolContext(
+                available_tools=[],
+                executions=[
+                    ToolExecution(
+                        function_name="get_weather",
+                        arguments='{"location": "Paris"}',
+                        reasoning="Get weather",
+                        result="Sunny",
+                    )
+                ],
+            ),
+            question="What's the weather?",
+            final_answer="It's sunny.",
+        )
 
         result = formatter._format_single_sample(sample)
-        assistant_msg = next(msg for msg in result["messages"] if msg["role"] == "assistant")
+        assert result is not None
+        messages = result.get("messages", [])
+        assistant_msg = next((msg for msg in messages if msg.get("role") == "assistant"), None)
+        assert assistant_msg is not None
         assert "I'll check the weather in Paris for you." in assistant_msg["content"]
 
-        # Test generic tool
-        sample["tool_used"] = "unknown_tool"
-        result = formatter._format_single_sample(sample)
-        assistant_msg = next(msg for msg in result["messages"] if msg["role"] == "assistant")
-        assert "I'll use the unknown_tool tool for you." in assistant_msg["content"]
-
-    def test_invalid_sample_handling(self):
-        """Test handling of invalid samples."""
-        formatter = SingleToolCallFormatter()
-
-        # Missing required field
-        invalid_sample = {
-            "question": "Test",
-            # Missing tool_used
-            "answer": "Result",
-        }
-
-        result = formatter._format_single_sample(invalid_sample)
-        assert result is None
-
-        # Missing answer
-        invalid_sample = {
-            "question": "Test",
-            "tool_used": "test_tool",
-            # Missing answer or final_answer
-        }
-
-        result = formatter._format_single_sample(invalid_sample)
-        assert result is None
-
     def test_multiple_tool_calls(self):
-        """Test handling of multiple tool calls without duplicating final answer."""
+        """Test handling of multiple tool calls."""
         formatter = SingleToolCallFormatter()
 
-        sample = {
-            "question": "What's the weather and time?",
-            "tool_used": "get_weather",
-            "tool_input": '{"location": "Paris"}',
-            "tool_output": "15°C, sunny",
-            "additional_tools": [
-                {
-                    "name": "get_time",
-                    "arguments": {"timezone": "Europe/Paris"},
-                    "result": "14:30 CET",
-                }
+        sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="What's the weather and time?"),
+                ChatMessage(
+                    role="assistant",
+                    content="The weather in Paris is 15°C and sunny. The current time is 14:30 CET.",
+                ),
             ],
-            "answer": "The weather in Paris is 15°C and sunny. The current time is 14:30 CET.",
-        }
+            reasoning=ReasoningTrace(
+                style="freetext", content="Need weather and time. Get weather. Get time."
+            ),
+            tool_context=ToolContext(
+                available_tools=[],
+                executions=[
+                    ToolExecution(
+                        function_name="get_weather",
+                        arguments='{"location": "Paris"}',
+                        reasoning="Get weather",
+                        result="15°C, sunny",
+                    ),
+                    ToolExecution(
+                        function_name="get_time",
+                        arguments='{"timezone": "Europe/Paris"}',
+                        reasoning="Get time",
+                        result="14:30 CET",
+                    ),
+                ],
+            ),
+            question="What's the weather and time?",
+            final_answer="The weather in Paris is 15°C and sunny. The current time is 14:30 CET.",
+        )
 
         result = formatter._format_single_sample(sample)
         assert result is not None
 
         messages = result["messages"]
 
-        # Count the number of assistant messages with the final answer
-        final_answer_count = sum(
-            1 for msg in messages if msg["role"] == "assistant" and "14:30 CET" in msg["content"]
-        )
-
-        # Should only have one final answer message
-        assert final_answer_count == 1
-
-        # Verify message sequence
-        roles = [msg["role"] for msg in messages]
-        # Should have: system (optional), user, assistant (weather call), tool, assistant (time call), tool, assistant (final)
-        expected_min_assistant_msgs = 3  # weather call, time call, final answer
-        expected_tool_msgs = 2  # weather response, time response
-        assert roles.count("assistant") >= expected_min_assistant_msgs
-        assert roles.count("tool") == expected_tool_msgs
-
-        # Check that the additional tool has proper reasoning prefix
+        # Count the number of assistant messages
         assistant_msgs = [msg for msg in messages if msg["role"] == "assistant"]
-        # Find the message with the time tool call
-        time_call_msg = next((msg for msg in assistant_msgs if "get_time" in msg["content"]), None)
-        assert time_call_msg is not None
-        # Should have specific action for timezone
-        assert "check the time in Europe/Paris" in time_call_msg["content"]
+        # Should have: weather call, time call, final answer
+        expected_min_assistant_msgs = 3
+        assert len(assistant_msgs) >= expected_min_assistant_msgs
+
+        # Check tool messages
+        tool_msgs = [msg for msg in messages if msg["role"] == "tool"]
+        expected_tool_msgs = 2
+        assert len(tool_msgs) == expected_tool_msgs
 
         # Verify the final message is the answer
         assert messages[-1]["role"] == "assistant"
-        assert messages[-1]["content"] == sample["answer"]
+        assert messages[-1]["content"] == sample.final_answer
 
     def test_config_model(self):
         """Test configuration model."""

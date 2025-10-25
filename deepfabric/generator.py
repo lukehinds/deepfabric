@@ -4,10 +4,11 @@ import math
 import random
 
 from collections.abc import AsyncGenerator
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from .builders import ConversationBuilderFactory
 from .constants import (
     API_ERROR_INDICATORS,
     DEFAULT_MAX_RETRIES,
@@ -23,21 +24,18 @@ from .dataset import Dataset
 from .exceptions import DataSetGeneratorError
 from .llm import LLMClient
 from .metrics import trace
+from .progress import ProgressReporter
 from .prompts import (
     AGENT_COT_HYBRID_PROMPT,
     AGENT_COT_MULTI_TURN_PROMPT,
     AGENT_COT_TOOLS_PROMPT,
     CONVERSATION_GENERATION_PROMPT,
-    FREETEXT_COT_MATHEMATICAL_PROMPT,
     FREETEXT_COT_PROMPT,
-    HYBRID_COT_MATHEMATICAL_PROMPT,
     HYBRID_COT_PROMPT,
-    STRUCTURED_COT_MATHEMATICAL_PROMPT,
     STRUCTURED_COT_PROMPT,
-    XLAM_MULTI_TURN_PROMPT,
     AgentPromptBuilder,
 )
-from .schemas import ToolRegistry, get_conversation_schema
+from .schemas import Conversation, ToolRegistry, get_conversation_schema
 from .tools.loader import get_available_tools, load_tools_from_dict, load_tools_from_file
 from .topic_model import TopicModel
 from .utils import ensure_not_running_loop
@@ -112,40 +110,49 @@ class DataSetGeneratorConfig(BaseModel):
         description="Rate limiting and retry configuration (uses provider defaults if not specified)",
     )
 
-    # Chain of Thought parameters
-    conversation_type: Literal[
-        "basic",
-        "structured",
-        "tool_calling",
-        "cot_freetext",
-        "cot_structured",
-        "cot_hybrid",
-        "agent_cot_tools",
-        "agent_cot_hybrid",
-        "agent_cot_multi_turn",
-        "xlam_multi_turn",
-    ] = Field(default="basic", description="Type of conversation to generate")
-    reasoning_style: Literal["mathematical", "logical", "general"] = Field(
-        default="general", description="Style of reasoning for CoT generation"
+    # Modular conversation configuration
+    conversation_type: Literal["basic", "chain_of_thought"] = Field(
+        default="basic",
+        description="Base conversation type: basic (simple chat), chain_of_thought (with reasoning traces)",
     )
 
-    # Agent-specific parameters
+    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = Field(
+        default=None,
+        description="Reasoning style for chain_of_thought type: freetext (natural language), structured (step-by-step), hybrid (both)",
+    )
+
+    agent_mode: Literal["single_turn", "multi_turn"] | None = Field(
+        default=None,
+        description="Agent mode: single_turn (one-shot tool use), multi_turn (extended agent conversations). Requires tools to be configured.",
+    )
+
+    # Tool configuration (used when agent_mode is enabled or for tool_calling)
     available_tools: list[str] = Field(
         default_factory=list,
-        description="List of tool names available to the agent (empty means all tools)",
+        description="List of tool names available (empty means all tools from registry)",
     )
     custom_tools: list[dict] = Field(
         default_factory=list, description="Custom tool definitions as dictionaries"
     )
     max_tools_per_query: int = Field(
-        default=3, ge=1, le=10, description="Maximum number of tools an agent can use per query"
+        default=3, ge=1, le=10, description="Maximum number of tools per query/turn"
     )
     tool_registry_path: str | None = Field(
         default=None, description="Path to custom tool definitions file (JSON/YAML)"
     )
-    domain_context: str | None = Field(
-        default=None,
-        description="Domain/scenario context for XLAM multi-turn (becomes 'system' field)",
+
+    # Multi-turn configuration (used when agent_mode="multi_turn")
+    min_turns: int = Field(
+        default=2,
+        ge=1,
+        le=10,
+        description="Minimum number of conversation turns for multi-turn agent mode",
+    )
+    max_turns: int = Field(
+        default=4,
+        ge=1,
+        le=10,
+        description="Maximum number of conversation turns for multi-turn agent mode",
     )
 
 
@@ -165,7 +172,7 @@ class DataSetGenerator:
         self.failure_analysis = {category: [] for category in ERROR_CATEGORIES}
 
         # Initialize LLM client with rate limiting configuration
-        llm_kwargs = {"rate_limit_config": self.config.rate_limit}
+        llm_kwargs: dict[str, Any] = {"rate_limit_config": self.config.rate_limit}
         if self.config.base_url:
             llm_kwargs["base_url"] = self.config.base_url
 
@@ -190,15 +197,18 @@ class DataSetGenerator:
         # Store generation prompt for content generation
         self.generation_prompt = self.config.generation_system_prompt
 
-        # Initialize tool registry for agent conversation types
+        # Initialize tool registry when agent_mode is enabled or tools are configured
         self.tool_registry = None
-        if self.config.conversation_type in {
-            "agent_cot_tools",
-            "agent_cot_hybrid",
-            "agent_cot_multi_turn",
-            "xlam_multi_turn",
-        }:
+        if (
+            self.config.agent_mode is not None
+            or self.config.available_tools
+            or self.config.custom_tools
+            or self.config.tool_registry_path
+        ):
             self._initialize_tool_registry()
+
+        # Progress reporter for streaming feedback (set by external callers)
+        self.progress_reporter: ProgressReporter | None = None
 
     def _initialize_tool_registry(self):
         """Initialize tool registry from configuration."""
@@ -310,87 +320,82 @@ class DataSetGenerator:
             prompts.append(sample_prompt)
         return prompts
 
+    def _get_minimal_schema(self) -> type:
+        """Get the conversation schema for the current config."""
+        return get_conversation_schema(self.config.conversation_type)
+
     async def _generate_structured_samples_async(
         self,
         prompts: list[str],
         include_sys_msg: bool,
+        start_sample_idx: int = 0,
     ) -> tuple[list, list]:
-        """Generate structured samples using Outlines with appropriate schema."""
+        """Generate structured samples using builder pattern.
+
+        Args:
+            prompts: List of topic prompts to generate samples for
+            include_sys_msg: Whether to include system message in output
+            start_sample_idx: Starting sample index for progress reporting
+
+        Returns:
+            Tuple of (successful samples, failed responses)
+        """
+
         samples = []
         failed_responses = []
 
-        schema_class = get_conversation_schema(
-            self.config.conversation_type, self.config.reasoning_style
+        # Create config with overridden sys_msg if needed
+        config = self.config
+        if include_sys_msg != self.config.sys_msg:
+            # Create a copy of config with sys_msg overridden
+            config = self.config.model_copy(update={"sys_msg": include_sys_msg})
+
+        # Create appropriate builder for this configuration
+        builder = ConversationBuilderFactory.create(
+            config=config,
+            llm=self.llm_client,
+            tool_registry=self.tool_registry,
+            progress_reporter=self.progress_reporter,
         )
 
-        async def _generate(prompt: str) -> tuple[bool, dict | Exception]:
-            try:
-                # Use higher max_tokens for complex conversation types to prevent truncation
-                max_tokens = self.config.max_tokens
-
-                # Structured CoT types need more tokens for reasoning traces + messages
-                if self.config.conversation_type in {
-                    "cot_structured",
-                    "cot_hybrid",
-                    "agent_cot_hybrid",
-                    "agent_cot_multi_turn",
-                    "xlam_multi_turn",
-                }:
-                    max_tokens = max(max_tokens, 4000)
-
-                conversation = await self.llm_client.generate_async(
-                    prompt=prompt,
-                    schema=schema_class,
-                    max_retries=self.config.max_retries,
-                    max_tokens=max_tokens,
-                    temperature=self.config.temperature,
+        async def _generate(prompt: str, sample_idx: int) -> tuple[bool, Exception | Conversation]:
+            # Notify progress reporter about which sample we're working on
+            if self.progress_reporter:
+                self.progress_reporter.emit_step_start(
+                    f"Generating sample {sample_idx + 1}", sample_idx=sample_idx + 1
                 )
 
-                sample = conversation.model_dump()
-
-                if include_sys_msg and "messages" in sample:
-                    sample["messages"].insert(
-                        0,
-                        {
-                            "role": "system",
-                            "content": self.dataset_system_prompt,
-                        },
-                    )
-
-                if (
-                    self.config.conversation_type
-                    in {
-                        "agent_cot_tools",
-                        "agent_cot_hybrid",
-                        "agent_cot_multi_turn",
-                        "xlam_multi_turn",
-                    }
-                    and self.tool_registry is not None
-                ):
-                    sample["available_tools"] = [
-                        tool.model_dump() for tool in self.tool_registry.tools
-                    ]
-
-                # Add domain context for XLAM multi-turn
-                if self.config.conversation_type == "xlam_multi_turn":
-                    if self.config.domain_context:
-                        sample["domain_context"] = self.config.domain_context
-                    elif "scenario_description" not in sample:
-                        sample["scenario_description"] = "AI assistant conversation"
+            try:
+                # Builder handles all generation complexity
+                conversation = await builder.generate(prompt)
 
             except Exception as e:  # noqa: BLE001
-                if self.config.conversation_type == "xlam_multi_turn":
-                    logger.error("XLAM generation error: %s", e, exc_info=True)
                 return False, e
             else:
-                return True, sample
+                # Validate tool execution count for agent modes
+                if self.config.agent_mode is not None:
+                    if not conversation.tool_context or not conversation.tool_context.executions:
+                        return False, ValueError("Agent mode requires at least one tool execution")
 
-        tasks = [asyncio.create_task(_generate(prompt)) for prompt in prompts]
+                    num_executions = len(conversation.tool_context.executions)
+                    if num_executions > self.config.max_tools_per_query:
+                        return False, ValueError(
+                            f"Sample has {num_executions} tool executions, "
+                            f"exceeds limit of {self.config.max_tools_per_query}"
+                        )
+
+                return True, conversation
+
+        # Generate all samples concurrently with sample indices
+        tasks = [
+            asyncio.create_task(_generate(prompt, start_sample_idx + idx))
+            for idx, prompt in enumerate(prompts)
+        ]
         results = await asyncio.gather(*tasks)
 
         for success, payload in results:
             if success:
-                samples.append(payload)  # type: ignore[arg-type]
+                samples.append(payload)
             else:
                 error = payload
                 error_msg = f"Generation failed: {error}"
@@ -633,7 +638,7 @@ class DataSetGenerator:
                 failed_before = len(self.failed_samples)
 
                 success, samples_generated = await self._process_batch_with_retries_async(
-                    prompts, include_sys_msg
+                    prompts, include_sys_msg, start_idx
                 )
 
                 failed_in_batch = len(self.failed_samples) - failed_before
@@ -681,19 +686,22 @@ class DataSetGenerator:
         self,
         prompts: list[str],
         include_sys_msg: bool,
+        start_sample_idx: int = 0,
     ) -> tuple[bool, int]:
         """Process a batch with retry logic."""
         for attempt in range(self.config.max_retries):
             try:
                 samples, failed_responses = await self._generate_structured_samples_async(
-                    prompts, include_sys_msg
+                    prompts, include_sys_msg, start_sample_idx
                 )
 
                 # Update failed samples
                 self.failed_samples.extend(failed_responses)
 
                 if samples:
-                    failed_samples, failure_descriptions = self.dataset.add_samples(samples)
+                    failed_samples, failure_descriptions = self.dataset.add_samples(
+                        samples, tool_registry=self.tool_registry
+                    )
 
                     if failed_samples:
                         for sample, desc in zip(failed_samples, failure_descriptions, strict=True):
@@ -760,18 +768,7 @@ class DataSetGenerator:
         prompt = prompt.replace(
             "{{{{examples}}}}", self.build_examples_text(num_example_demonstrations)
         )
-        prompt = prompt.replace("{{{{subtopics}}}}", self.build_subtopics_text(subtopics_list))
-
-        # XLAM multi-turn specific replacements
-        if self.config.conversation_type == "xlam_multi_turn":
-            tools_text = self.build_tools_text()
-            domain_context = (
-                self.config.domain_context or "AI assistant with access to various tools"
-            )
-            prompt = prompt.replace("{{{{tools}}}}", tools_text)
-            prompt = prompt.replace("{{{{domain_context}}}}", domain_context)
-
-        return prompt
+        return prompt.replace("{{{{subtopics}}}}", self.build_subtopics_text(subtopics_list))
 
     def build_system_prompt(self):
         """Return the original system prompt for dataset inclusion."""
@@ -816,45 +813,49 @@ class DataSetGenerator:
         return f"\nLastly, the topic of the training data should be related to the following subtopics: {' -> '.join(subtopic_list)}"
 
     def _get_cot_prompt_template(self) -> str:  # noqa: PLR0911
-        """Get the appropriate CoT prompt template based on conversation type and reasoning style."""
-        # Use mathematical prompts when reasoning_style is mathematical
-        if self.config.reasoning_style == "mathematical":
-            mathematical_prompts = {
-                "cot_freetext": FREETEXT_COT_MATHEMATICAL_PROMPT,
-                "cot_structured": STRUCTURED_COT_MATHEMATICAL_PROMPT,
-                "cot_hybrid": HYBRID_COT_MATHEMATICAL_PROMPT,
-            }
-            if self.config.conversation_type in mathematical_prompts:
-                return mathematical_prompts[self.config.conversation_type]
+        """Get the appropriate prompt template based on modular configuration."""
+        # Handle basic conversations
+        if self.config.conversation_type == "basic":
+            return CONVERSATION_GENERATION_PROMPT
 
-        # Agent tool-calling prompts use structured generation
-        if self.config.conversation_type == "agent_cot_tools":
-            if self.tool_registry is not None:
-                return AgentPromptBuilder.build_tool_context_prompt(self.tool_registry)
-            return AGENT_COT_TOOLS_PROMPT
+        # Handle chain of thought conversations
+        if self.config.conversation_type == "chain_of_thought":
+            # Agent mode with tools - use agent prompts
+            if self.config.agent_mode == "single_turn" and self.tool_registry:
+                # Choose between simple or hybrid based on reasoning style
+                if self.config.reasoning_style == "hybrid":
+                    return (
+                        AgentPromptBuilder.build_tool_context_prompt(
+                            self.tool_registry, max_tools_per_query=self.config.max_tools_per_query
+                        )
+                        or AGENT_COT_HYBRID_PROMPT
+                    )
+                return (
+                    AgentPromptBuilder.build_tool_context_prompt(
+                        self.tool_registry, max_tools_per_query=self.config.max_tools_per_query
+                    )
+                    or AGENT_COT_TOOLS_PROMPT
+                )
 
-        if self.config.conversation_type == "agent_cot_hybrid":
-            if self.tool_registry is not None:
-                return AgentPromptBuilder.build_tool_context_prompt(self.tool_registry)
-            return AGENT_COT_HYBRID_PROMPT
+            if self.config.agent_mode == "multi_turn" and self.tool_registry:
+                # Standard multi-turn agent
+                return (
+                    AgentPromptBuilder.build_multi_turn_context_prompt(
+                        self.tool_registry, max_tools_per_query=self.config.max_tools_per_query
+                    )
+                    or AGENT_COT_MULTI_TURN_PROMPT
+                )
 
-        if self.config.conversation_type == "agent_cot_multi_turn":
-            if self.tool_registry is not None:
-                return AgentPromptBuilder.build_multi_turn_context_prompt(self.tool_registry)
-            return AGENT_COT_MULTI_TURN_PROMPT
+            # Non-agent CoT - select based on reasoning style
+            if self.config.reasoning_style == "freetext":
+                return FREETEXT_COT_PROMPT
+            if self.config.reasoning_style == "structured":
+                return STRUCTURED_COT_PROMPT
+            if self.config.reasoning_style == "hybrid":
+                return HYBRID_COT_PROMPT
 
-        if self.config.conversation_type == "xlam_multi_turn":
-            # For XLAM multi-turn, we use a custom prompt with tools and domain context
-
-            return XLAM_MULTI_TURN_PROMPT
-
-        # Default CoT prompts for non-mathematical reasoning
-        cot_prompts = {
-            "cot_freetext": FREETEXT_COT_PROMPT,
-            "cot_structured": STRUCTURED_COT_PROMPT,
-            "cot_hybrid": HYBRID_COT_PROMPT,
-        }
-        return cot_prompts.get(self.config.conversation_type, CONVERSATION_GENERATION_PROMPT)
+        # Fallback to basic conversation prompt
+        return CONVERSATION_GENERATION_PROMPT
 
     def save_dataset(self, save_path: str):
         """Save the dataset to a file."""

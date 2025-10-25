@@ -1,13 +1,8 @@
-"""
-Pydantic models for the formatter system.
-
-These models provide type safety, validation, and better IDE support
-for formatter configurations and data structures.
-"""
-
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
+
+from ..schemas import Conversation
 
 
 class Message(BaseModel):
@@ -16,12 +11,24 @@ class Message(BaseModel):
     role: Literal["system", "user", "assistant", "function", "tool"] = Field(
         ..., description="The role of the message sender"
     )
-    content: str = Field(..., description="The content of the message")
+    content: str | None = Field(default=None, description="The content of the message")
+    tool_calls: list[dict] | None = Field(default=None, description="Tool calls made by assistant")
 
     @field_validator("content")
     @classmethod
-    def content_must_not_be_empty(cls, v):
-        if not v.strip():
+    def content_must_not_be_empty(cls, v, info):
+        # Allow empty content if tool_calls are present (for tool-calling messages)
+        tool_calls = info.data.get("tool_calls")
+        if tool_calls:
+            return v
+
+        # Allow empty content for assistant and tool roles (used in tool-calling flows)
+        role = info.data.get("role")
+        if role in ("assistant", "tool"):
+            return v
+
+        # For system and user roles, content must not be empty
+        if v is None or not v.strip():
             raise ValueError("content cannot be empty or whitespace only")
         return v
 
@@ -238,10 +245,20 @@ class ChatmlConfig(BaseModel):
     require_system_message: bool = Field(
         default=False, description="Whether to require system message"
     )
+    normalize_whitespace: bool = Field(
+        default=True,
+        description="Remove excessive blank lines and normalize whitespace in message content",
+    )
 
 
 # Union type for all possible sample formats
-DatasetSample = ConversationSample | QASample | InstructionSample | GenericSample
+DatasetSample = (
+    ConversationSample
+    | QASample
+    | InstructionSample
+    | Conversation  # Unified schema with optional capability fields
+    | GenericSample
+)
 
 
 class DatasetInput(BaseModel):
@@ -352,7 +369,7 @@ class HarmonyConfig(BaseModel):
         None, description="Optional developer instructions to include"
     )
     system_message: str = Field(
-        default="You are ChatGPT, a large language model trained by OpenAI.",
+        default="You are a large language model trained by OpenAI.",
         description="Default system message",
     )
     reasoning_level: Literal["none", "low", "medium", "high"] = Field(

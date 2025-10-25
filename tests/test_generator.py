@@ -48,15 +48,19 @@ def test_create_data_no_steps(data_engine):
 
 def test_create_data_success(data_engine):
     # Mock the generate method on the data_engine's llm_client instance
-    from deepfabric.schemas import ChatMessage, ChatTranscript  # noqa: PLC0415
+    from deepfabric.schemas import ChatMessage, Conversation  # noqa: PLC0415
 
-    data_engine.llm_client.generate_async = AsyncMock(
-        return_value=ChatTranscript(
+    # Create a side_effect that returns a new instance each time
+    def create_conversation():
+        return Conversation(
             messages=[
                 ChatMessage(role="user", content="example"),
                 ChatMessage(role="assistant", content="response"),
             ]
         )
+
+    data_engine.llm_client.generate_async = AsyncMock(
+        side_effect=lambda *_args, **_kwargs: create_conversation()
     )
 
     topic_tree = MagicMock()
@@ -106,9 +110,9 @@ def test_create_data_with_sys_msg_default(data_engine):
 
     # Verify system message is included
     assert len(dataset.samples) == 1
-    assert len(dataset.samples[0]["messages"]) == 3  # noqa: PLR2004
-    assert dataset.samples[0]["messages"][0]["role"] == "system"
-    assert dataset.samples[0]["messages"][0]["content"] == data_engine.config.dataset_system_prompt
+    assert len(dataset.samples[0].messages) == 3  # noqa: PLR2004
+    assert dataset.samples[0].messages[0].role == "system"
+    assert dataset.samples[0].messages[0].content == data_engine.config.dataset_system_prompt
 
 
 def test_create_data_without_sys_msg(data_engine):
@@ -135,8 +139,8 @@ def test_create_data_without_sys_msg(data_engine):
 
     # Verify system message is not included
     assert len(dataset.samples) == 1
-    assert len(dataset.samples[0]["messages"]) == 2  # noqa: PLR2004
-    assert dataset.samples[0]["messages"][0]["role"] == "user"
+    assert len(dataset.samples[0].messages) == 2  # noqa: PLR2004
+    assert dataset.samples[0].messages[0].role == "user"
 
 
 def test_create_data_sys_msg_override():
@@ -179,8 +183,8 @@ def test_create_data_sys_msg_override():
 
     # Verify system message is included despite engine default
     assert len(dataset.samples) == 1  # type: ignore
-    assert len(dataset.samples[0]["messages"]) == 3  # type: ignore # noqa: PLR2004
-    assert dataset.samples[0]["messages"][0]["role"] == "system"  # type: ignore
+    assert len(dataset.samples[0].messages) == 3  # type: ignore # noqa: PLR2004
+    assert dataset.samples[0].messages[0].role == "system"  # type: ignore
 
 
 def test_build_prompt(data_engine):

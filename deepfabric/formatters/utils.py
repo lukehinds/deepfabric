@@ -1,10 +1,3 @@
-"""
-Shared utility functions for formatters.
-
-This module provides common functionality used across multiple formatters
-to reduce code duplication and improve maintainability.
-"""
-
 from typing import Any
 
 from .models import ConversationSample, GenericSample, InstructionSample, QASample
@@ -58,6 +51,10 @@ def extract_messages(sample: Any) -> list[dict[str, str]]:  # noqa: PLR0911
     # Handle GenericSample or dict
     data = sample.data if isinstance(sample, GenericSample) else sample
 
+    # Convert Pydantic objects to dict
+    if hasattr(data, "model_dump") and callable(getattr(data, "model_dump", None)):
+        data = data.model_dump()  # type: ignore[union-attr]
+
     # Try to extract messages from common formats
     if isinstance(data, dict):
         # Check for messages field
@@ -104,8 +101,8 @@ def extract_data(sample: Any) -> dict:
     """
     if isinstance(sample, GenericSample):
         return sample.data
-    if hasattr(sample, "model_dump"):
-        return sample.model_dump()
+    if hasattr(sample, "model_dump") and callable(getattr(sample, "model_dump", None)):
+        return sample.model_dump()  # type: ignore[union-attr]
     if isinstance(sample, dict):
         return sample
     raise ValueError(f"Cannot extract data from sample type: {type(sample)}")

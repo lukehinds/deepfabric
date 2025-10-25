@@ -5,11 +5,17 @@ import traceback
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 
+from rich.console import Group
+from rich.live import Live
+from rich.progress import Progress as RichProgress
+from rich.progress import SpinnerColumn, TextColumn
+
 from .config import DeepFabricConfig
 from .config_manager import DEFAULT_MODEL
 from .dataset import Dataset
 from .exceptions import ConfigurationError
 from .generator import DataSetGenerator
+from .progress import ProgressReporter
 from .tui import get_dataset_tui, get_tui
 from .utils import ensure_not_running_loop
 
@@ -23,10 +29,11 @@ DEBUG_MAX_FAILURES_TO_SHOW = 10
 async def handle_dataset_events_async(
     generator: AsyncIterator[dict | Dataset], engine=None, debug: bool = False
 ) -> Dataset | None:
-    """Handle dataset generation with TUI progress."""
+    """Handle dataset generation with TUI progress and streaming feedback."""
     tui = get_dataset_tui()
     progress = None
     task = None
+    live = None
 
     final_result: Dataset | None = None
     try:
@@ -36,11 +43,30 @@ async def handle_dataset_events_async(
                     tui.show_generation_header(
                         event["model_name"], event["num_steps"], event["batch_size"]
                     )
-                    progress = tui.create_rich_progress()
-                    progress.start()
+                    tui.progress = tui.create_rich_progress()
+                    progress = tui.progress
                     task = progress.add_task(
                         "  Generating dataset samples", total=event["total_samples"]
                     )
+
+                    # Create streaming progress with animated spinner
+                    tui.stream_progress = RichProgress(
+                        SpinnerColumn(),
+                        TextColumn("{task.description}", style="dim"),
+                        console=tui.console,
+                    )
+                    tui.stream_task = tui.stream_progress.add_task(
+                        "  Processing: (waiting for LLM output...)"
+                    )
+
+                    # Start Live display with both progress bars
+                    live = Live(
+                        Group(progress, tui.stream_progress),
+                        console=tui.console,
+                        refresh_per_second=10,
+                    )
+                    tui.live_display = live  # Give TUI reference to update it
+                    live.start()
                 elif event["event"] == "step_complete":
                     if progress and task is not None:
                         samples_generated = event.get("samples_generated", 0)
@@ -59,8 +85,9 @@ async def handle_dataset_events_async(
                                     get_tui().error(f"    - {reason}")
 
                 elif event["event"] == "generation_complete":
-                    if progress:
-                        progress.stop()
+                    if live:
+                        live.stop()
+                    tui.console.print()  # Add blank line after live display
                     tui.success(f"Successfully generated {event['total_samples']} samples")
                     if event["failed_samples"] > 0:
                         tui.warning(f"Failed to generate {event['failed_samples']} samples")
@@ -82,8 +109,8 @@ async def handle_dataset_events_async(
                 # Handle unexpected non-dict, non-Dataset events
                 get_tui().warning(f"Unexpected event type: {type(event)}")
     except Exception as e:
-        if progress:
-            progress.stop()
+        if live:
+            live.stop()
         if debug:
             get_tui().error(f"🔍 Debug: Full traceback:\n{traceback.format_exc()}")
         get_tui().error(f"Dataset generation failed: {str(e)}")
@@ -167,6 +194,14 @@ async def create_dataset_async(
 
     engine_params = config.get_engine_params(**(engine_overrides or {}))
     final_model = model or engine_params.get("model_name", DEFAULT_MODEL)
+
+    # Create progress reporter and attach TUI as observer for streaming feedback
+    progress_reporter = ProgressReporter()
+    tui = get_dataset_tui()
+    progress_reporter.attach(tui)
+
+    # Attach progress reporter to engine
+    engine.progress_reporter = progress_reporter
 
     try:
         generator = engine.create_data_with_events_async(

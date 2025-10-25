@@ -10,135 +10,164 @@ This module tests:
 
 import pytest
 
-from deepfabric.schemas import CONVERSATION_SCHEMAS, get_conversation_schema
+from deepfabric.schemas import CONVERSATION_SCHEMAS, Conversation, get_conversation_schema
 
 
 class TestSchemaFramework:
     """Test the schema framework and registry system."""
 
     def test_conversation_schemas_exist(self):
-        """Test that expected schemas are available."""
-        # Check that basic schemas are in mapping
+        """Test that expected schemas are available in new modular system."""
+        # Check that new modular schemas are in mapping
         assert "basic" in CONVERSATION_SCHEMAS
-        assert "agent_cot_tools" in CONVERSATION_SCHEMAS
+        assert "chain_of_thought" in CONVERSATION_SCHEMAS
 
     def test_get_conversation_schema(self):
-        """Test conversation schema retrieval."""
-        # Test basic schema
+        """Test conversation schema retrieval with new modular types."""
+
+        # All new conversation types return the unified Conversation schema
         basic_schema = get_conversation_schema("basic")
         assert basic_schema is not None
+        assert basic_schema == Conversation
 
-        # Test agent schemas
-        agent_schema = get_conversation_schema("agent_cot_tools")
-        assert agent_schema is not None
+        chain_of_thought_schema = get_conversation_schema("chain_of_thought")
+        assert chain_of_thought_schema is not None
+        assert chain_of_thought_schema == Conversation
 
 
-class TestAgentCoTSchemas:
-    """Test agent CoT schema validation and functionality."""
+class TestUnifiedConversationSchema:
+    """Test the new unified Conversation schema with capability fields."""
 
-    def test_agent_cot_tools_schema_available(self):
-        """Test that agent_cot_tools schema is available."""
-        schema = get_conversation_schema("agent_cot_tools")
-        assert schema is not None
+    def test_chain_of_thought_with_reasoning_capability(self):
+        """Test Conversation schema with reasoning capability."""
 
-        # Should be able to create an instance
+        schema = get_conversation_schema("chain_of_thought")
+        assert schema == Conversation
+
+        # Create instance with reasoning capability (freetext style)
         sample_data = {
+            "messages": [
+                {"role": "user", "content": "Test question"},
+                {"role": "assistant", "content": "Test answer"},
+            ],
+            "metadata": {},
             "question": "Test question",
-            "initial_analysis": "Test analysis",
-            "reasoning_steps": ["Step 1", "Step 2"],
-            "tool_selection_rationale": "Tool was chosen because...",
-            "parameter_reasoning": "Parameters determined by...",
-            "result_interpretation": "Result means...",
-            "tool_used": "test_tool",
-            "tool_input": '{"param": "value"}',
-            "tool_output": "Test result",
-            "answer": "Test answer",
+            "final_answer": "Test answer",
+            "reasoning": {
+                "style": "freetext",
+                "content": "This is my natural language reasoning...",
+            },
         }
 
         instance = schema(**sample_data)
-        assert instance.question == "Test question"  # type: ignore
+        assert instance.question == "Test question"
+        assert instance.reasoning is not None
+        assert instance.reasoning.style == "freetext"
+        assert isinstance(instance.reasoning.content, str)
 
-    def test_agent_cot_hybrid_schema(self):
-        """Test that agent_cot_hybrid schema works with hybrid data."""
-        schema = get_conversation_schema("agent_cot_hybrid")
-        assert schema is not None
+    def test_chain_of_thought_with_tool_context(self):
+        """Test Conversation schema with tool_context capability."""
 
-        # Should be able to create an instance with hybrid data
-        hybrid_data = {
-            "question": "Test question",
-            "chain_of_thought": "Natural language reasoning",
-            "reasoning_trace": [
-                {"step_number": 1, "thought": "Test thought", "action": "Test action"}
+        schema = get_conversation_schema("chain_of_thought")
+        assert schema == Conversation
+
+        # Create instance with tool_context capability
+        sample_data = {
+            "messages": [
+                {"role": "user", "content": "Test question"},
+                {"role": "assistant", "content": "Test answer"},
             ],
-            "tool_selection_rationale": "Tool was chosen because...",
-            "parameter_reasoning": "Parameters determined by...",
-            "result_interpretation": "Result means...",
-            "tool_used": "test_tool",
-            "tool_input": '{"param": "value"}',
-            "tool_output": "Test result",
+            "metadata": {},
+            "question": "Test question",
             "final_answer": "Test answer",
+            "reasoning": {
+                "style": "structured",
+                "content": [
+                    {"step_number": 1, "thought": "Step 1", "action": None},
+                    {"step_number": 2, "thought": "Step 2", "action": None},
+                ],
+            },
+            "tool_context": {
+                "available_tools": [],
+                "executions": [
+                    {
+                        "function_name": "test_tool",
+                        "arguments": '{"param": "value"}',
+                        "reasoning": "Testing tool execution",
+                        "result": "Test result",
+                    }
+                ],
+            },
         }
 
-        instance = schema(**hybrid_data)
-        assert instance.question == "Test question"  # type: ignore
-        assert instance.chain_of_thought == "Natural language reasoning"  # type: ignore
-        assert len(instance.reasoning_trace) == 1  # type: ignore
-        assert instance.final_answer == "Test answer"  # type: ignore
+        instance = schema(**sample_data)
+        assert instance.question == "Test question"
+        assert instance.reasoning is not None
+        assert instance.reasoning.style == "structured"
+        assert instance.tool_context is not None
+        assert len(instance.tool_context.executions) == 1
 
 
 class TestBasicSchemaFunctionality:
-    """Test basic schema functionality that exists in the current system."""
+    """Test basic schema functionality with new unified Conversation schema."""
 
-    def test_tool_conversation_schema(self):
-        """Test the tool conversation schema."""
-        schema = get_conversation_schema("tool_calling")
+    def test_conversation_with_metadata(self):
+        """Test conversation with metadata field."""
+
+        schema = get_conversation_schema("basic")
         assert schema is not None
+        assert schema == Conversation
 
-        # Test with basic tool conversation data
-        tool_data = {
+        # Test with conversation data that has metadata
+        data_with_metadata = {
             "messages": [
                 {"role": "user", "content": "What's the weather?"},
                 {"role": "assistant", "content": "I'll check the weather for you."},
-            ]
+            ],
+            "metadata": {"topic": "weather"},
         }
 
-        instance = schema(**tool_data)
-        assert len(instance.messages) == 2  # type: ignore  # noqa: PLR2004
+        instance = schema(**data_with_metadata)
+        assert len(instance.messages) == 2  # noqa: PLR2004
 
     def test_basic_conversation_schema(self):
         """Test the basic conversation schema."""
+
         schema = get_conversation_schema("basic")
         assert schema is not None
+        assert schema == Conversation
 
         # Test with basic conversation data
         basic_data = {
             "messages": [
                 {"role": "user", "content": "Hello"},
                 {"role": "assistant", "content": "Hi there!"},
-            ]
+            ],
+            "metadata": {},
         }
 
         instance = schema(**basic_data)
-        assert len(instance.messages) == 2  # type: ignore  # noqa: PLR2004
+        assert len(instance.messages) == 2  # noqa: PLR2004
 
 
 class TestSchemaIntegration:
     """Test schema integration with the broader system."""
 
     def test_conversation_schemas_mapping(self):
-        """Test that conversation schemas mapping contains expected types."""
-
-        # Check that key schemas exist
-        expected_schemas = ["basic", "tool_calling", "agent_cot_tools", "agent_cot_hybrid"]
+        """Test that conversation schemas mapping contains new modular types."""
+        # Check that new modular schemas exist
+        expected_schemas = ["basic", "chain_of_thought"]
         for schema_type in expected_schemas:
             assert schema_type in CONVERSATION_SCHEMAS
 
     def test_schema_retrieval(self):
-        """Test schema retrieval for different types."""
-        # Test basic types work
-        for schema_type in ["basic", "tool_calling", "agent_cot_tools", "agent_cot_hybrid"]:
+        """Test schema retrieval for modular types."""
+
+        # Test all modular types return unified Conversation schema
+        for schema_type in ["basic", "chain_of_thought"]:
             schema = get_conversation_schema(schema_type)
             assert schema is not None
+            assert schema == Conversation
 
     def test_unsupported_conversation_type(self):
         """Test error handling for unsupported conversation types."""

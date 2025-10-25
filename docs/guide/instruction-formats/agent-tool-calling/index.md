@@ -57,13 +57,13 @@ DeepFabric supports two specialized agent tool-calling formats:
   ],
   "tool_executions": [
     {
-      "function": "get_weather",
+      "function_name": "get_weather",
       "arguments": {"location": "Paris"},
       "reasoning": "Getting Paris weather as requested",
       "result": "Paris: 18°C, partly cloudy, 60% humidity"
     },
     {
-      "function": "get_weather",
+      "function_name": "get_weather",
       "arguments": {"location": "New York"},
       "reasoning": "Getting NYC weather for comparison",
       "result": "New York: 22°C, sunny, 45% humidity"

@@ -1,0 +1,185 @@
+tools:
+  - name: firecrawl_scrape
+    description: "Scrape content from a single URL and return the page content in markdown format"
+    category: "web_scraping"
+    parameters:
+      - name: url
+        type: str
+        description: "URL to scrape"
+        required: true
+      - name: formats
+        type: list
+        description: "Output formats (e.g., ['markdown', 'html', 'links'])"
+        required: false
+        default: "['markdown']"
+      - name: onlyMainContent
+        type: bool
+        description: "Only return the main content of the page"
+        required: false
+        default: "true"
+      - name: includeTags
+        type: list
+        description: "HTML tags to include in the output"
+        required: false
+      - name: excludeTags
+        type: list
+        description: "HTML tags to exclude from the output"
+        required: false
+    returns: "Page content in requested format(s)"
+
+  - name: firecrawl_batch_scrape
+    description: "Scrape multiple URLs in a batch operation and return content for all pages"
+    category: "web_scraping"
+    parameters:
+      - name: urls
+        type: list
+        description: "List of URLs to scrape"
+        required: true
+      - name: formats
+        type: list
+        description: "Output formats for all pages"
+        required: false
+        default: "['markdown']"
+      - name: onlyMainContent
+        type: bool
+        description: "Only return main content for all pages"
+        required: false
+        default: "true"
+    returns: "Batch scraping job ID for status checking"
+
+  - name: firecrawl_check_batch_status
+    description: "Check the status of a batch scraping operation"
+    category: "web_scraping"
+    parameters:
+      - name: batchId
+        type: str
+        description: "Batch operation ID returned from batch_scrape"
+        required: true
+    returns: "Status information and results if completed"
+
+  - name: firecrawl_map
+    description: "Discover and map all URLs on a website starting from a base URL"
+    category: "web_scraping"
+    parameters:
+      - name: url
+        type: str
+        description: "Base URL to start mapping from"
+        required: true
+      - name: search
+        type: str
+        description: "Search query to filter discovered URLs"
+        required: false
+      - name: ignoreSitemap
+        type: bool
+        description: "Ignore the website's sitemap"
+        required: false
+        default: "false"
+      - name: includeSubdomains
+        type: bool
+        description: "Include subdomains in the mapping"
+        required: false
+        default: "false"
+      - name: limit
+        type: int
+        description: "Maximum number of URLs to return"
+        required: false
+        default: "5000"
+    returns: "List of discovered URLs on the website"
+
+  - name: firecrawl_crawl
+    description: "Crawl a website starting from a URL and extract content from multiple pages"
+    category: "web_scraping"
+    parameters:
+      - name: url
+        type: str
+        description: "Starting URL for the crawl"
+        required: true
+      - name: maxDepth
+        type: int
+        description: "Maximum depth to crawl (0 = only start URL)"
+        required: false
+        default: "2"
+      - name: limit
+        type: int
+        description: "Maximum number of pages to crawl"
+        required: false
+        default: "10"
+      - name: allowBackwardLinks
+        type: bool
+        description: "Allow crawling links that point backward"
+        required: false
+        default: "false"
+      - name: allowExternalLinks
+        type: bool
+        description: "Allow following external links"
+        required: false
+        default: "false"
+      - name: includePaths
+        type: list
+        description: "URL patterns to include in the crawl"
+        required: false
+      - name: excludePaths
+        type: list
+        description: "URL patterns to exclude from the crawl"
+        required: false
+    returns: "Content from all crawled pages"
+
+  - name: firecrawl_search
+    description: "Search the web using Firecrawl's search functionality"
+    category: "web_search"
+    parameters:
+      - name: query
+        type: str
+        description: "Search query string"
+        required: true
+      - name: limit
+        type: int
+        description: "Maximum number of search results to return"
+        required: false
+        default: "5"
+      - name: lang
+        type: str
+        description: "Language code for search results (e.g., 'en', 'es')"
+        required: false
+      - name: country
+        type: str
+        description: "Country code for search results (e.g., 'us', 'uk')"
+        required: false
+    returns: "Search results with URLs and content snippets"
+
+  - name: firecrawl_extract
+    description: "Extract structured data from web pages using AI and a schema"
+    category: "web_scraping"
+    parameters:
+      - name: urls
+        type: list
+        description: "List of URLs to extract data from"
+        required: true
+      - name: prompt
+        type: str
+        description: "Extraction prompt describing what information to extract"
+        required: true
+      - name: schema
+        type: dict
+        description: "JSON schema defining the structure of data to extract"
+        required: false
+      - name: systemPrompt
+        type: str
+        description: "System prompt to guide the extraction AI"
+        required: false
+      - name: allowExternalLinks
+        type: bool
+        description: "Allow extraction from external links found on the pages"
+        required: false
+        default: "false"
+      - name: enableWebSearch
+        type: bool
+        description: "Enable web search to find additional context"
+        required: false
+        default: "false"
+      - name: includeSubdomains
+        type: bool
+        description: "Include pages from subdomains in extraction"
+        required: false
+        default: "false"
+    returns: "Structured data extracted according to the schema"

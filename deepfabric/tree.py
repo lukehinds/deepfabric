@@ -156,6 +156,9 @@ class Tree(TopicModel):
             **llm_kwargs,
         )
 
+        # Progress reporter for streaming feedback (set by topic_manager)
+        self.progress_reporter = None
+
         trace(
             "tree_created",
             {
@@ -252,14 +255,28 @@ class Tree(TopicModel):
         )
 
         try:
-            # Generate structured subtopics using TopicList schema
-            topic_response = await self.llm_client.generate_async(
-                prompt=prompt,
-                schema=TopicList,
-                max_retries=MAX_RETRY_ATTEMPTS,
-                max_tokens=DEFAULT_MAX_TOKENS,
-                temperature=self.temperature,
-            )
+            # Generate structured subtopics using TopicList schema with streaming if available
+            topic_response = None
+            if self.progress_reporter:
+                async for chunk, result in self.llm_client.generate_async_stream(
+                    prompt=prompt,
+                    schema=TopicList,
+                    max_retries=MAX_RETRY_ATTEMPTS,
+                    max_tokens=DEFAULT_MAX_TOKENS,
+                    temperature=self.temperature,
+                ):
+                    if chunk:
+                        self.progress_reporter.emit_chunk("tree_generation", chunk)
+                    if result:
+                        topic_response = result
+            else:
+                topic_response = await self.llm_client.generate_async(
+                    prompt=prompt,
+                    schema=TopicList,
+                    max_retries=MAX_RETRY_ATTEMPTS,
+                    max_tokens=DEFAULT_MAX_TOKENS,
+                    temperature=self.temperature,
+                )
 
             # Extract and validate subtopics
             subtopics = topic_response.subtopics

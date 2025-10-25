@@ -38,19 +38,64 @@ def _raise_generation_error(max_retries: int, error: Exception) -> None:
 
 def _strip_additional_properties(schema_dict: dict) -> dict:
     """
-    Recursively remove additionalProperties from JSON schema.
+    Recursively remove additionalProperties from JSON schema and handle dict[str, Any] fields.
 
-    Gemini doesn't support additionalProperties field in JSON schemas.
-    This function strips it out from the schema and all nested definitions.
+    Gemini doesn't support:
+    1. additionalProperties field in JSON schemas
+    2. Objects with no properties defined (e.g., dict[str, Any])
+
+    Fields like dict[str, Any] have additionalProperties: true and no properties defined.
+    Gemini requires that object-type fields must have properties, so we exclude these
+    fields from the schema entirely.
 
     Args:
         schema_dict: JSON schema dictionary
 
     Returns:
-        Modified schema dict without additionalProperties
+        Modified schema dict without additionalProperties and dict[str, Any] fields
     """
     if not isinstance(schema_dict, dict):
         return schema_dict
+
+    # For Gemini, identify and remove dict[str, Any] fields
+    # These have additionalProperties: true and no properties, which Gemini rejects
+    if "properties" in schema_dict:
+        properties_to_remove = []
+        for prop_name, prop_schema in schema_dict["properties"].items():
+            # Combine isinstance check with specific conditions to avoid nested ifs
+            if isinstance(prop_schema, dict) and prop_schema.get("additionalProperties") is True:
+                # Remove fields with additionalProperties: true (e.g., dict[str, Any])
+                # Gemini requires objects to have properties defined
+                properties_to_remove.append(prop_name)
+            elif isinstance(prop_schema, dict) and (
+                prop_schema.get("type") == "object"
+                and "properties" not in prop_schema
+                and "$ref" not in prop_schema
+            ):
+                # Also remove objects with no properties and no explicit additionalProperties
+                properties_to_remove.append(prop_name)
+            elif isinstance(prop_schema, dict) and "anyOf" in prop_schema:
+                # Check if anyOf contains an object with no properties (e.g., dict[str, Any] | None)
+                # Remove the entire field if any variant is an incompatible object
+                for variant in prop_schema["anyOf"]:
+                    if isinstance(variant, dict) and (
+                        variant.get("type") == "object"
+                        and "properties" not in variant
+                        and "$ref" not in variant
+                    ):
+                        # This field has an object variant with no properties - remove it
+                        properties_to_remove.append(prop_name)
+                        break
+
+        # Remove incompatible properties from the schema
+        for prop_name in properties_to_remove:
+            del schema_dict["properties"][prop_name]
+
+        # Update required array to exclude removed properties
+        if "required" in schema_dict:
+            schema_dict["required"] = [
+                r for r in schema_dict["required"] if r not in properties_to_remove
+            ]
 
     # Remove additionalProperties from current level
     schema_dict.pop("additionalProperties", None)
@@ -60,7 +105,7 @@ def _strip_additional_properties(schema_dict: dict) -> dict:
         for def_name, def_schema in schema_dict["$defs"].items():
             schema_dict["$defs"][def_name] = _strip_additional_properties(def_schema)
 
-    # Process properties
+    # Process properties recursively
     if "properties" in schema_dict:
         for prop_name, prop_schema in schema_dict["properties"].items():
             schema_dict["properties"][prop_name] = _strip_additional_properties(prop_schema)
@@ -69,6 +114,13 @@ def _strip_additional_properties(schema_dict: dict) -> dict:
     if "items" in schema_dict:
         schema_dict["items"] = _strip_additional_properties(schema_dict["items"])
 
+    # Process union types (anyOf, oneOf, allOf)
+    for union_key in ["anyOf", "oneOf", "allOf"]:
+        if union_key in schema_dict:
+            schema_dict[union_key] = [
+                _strip_additional_properties(variant) for variant in schema_dict[union_key]
+            ]
+
     return schema_dict
 
 
@@ -76,8 +128,12 @@ def _create_gemini_compatible_schema(schema: type[BaseModel]) -> type[BaseModel]
     """
     Create a Gemini-compatible version of a Pydantic schema.
 
-    Gemini doesn't support additionalProperties. This function creates a wrapper
-    that generates schemas without this field.
+    Gemini doesn't support:
+    1. additionalProperties field in JSON schemas
+    2. Objects with no properties defined (e.g., dict[str, Any])
+
+    This function creates a wrapper that generates schemas meeting these requirements
+    by removing incompatible fields entirely.
 
     Args:
         schema: Original Pydantic model
@@ -100,6 +156,114 @@ def _create_gemini_compatible_schema(schema: type[BaseModel]) -> type[BaseModel]
     GeminiCompatModel.__doc__ = schema.__doc__
 
     return GeminiCompatModel
+
+
+def _ensure_openai_strict_mode_compliance(schema_dict: dict) -> dict:
+    """
+    Ensure schema complies with OpenAI's strict mode requirements.
+
+    OpenAI's strict mode requires:
+    1. For objects, 'additionalProperties' must be explicitly set to false
+    2. ALL properties must be in the 'required' array (no optional fields allowed)
+    3. No fields with additionalProperties: true (incompatible with strict mode)
+
+    Fields like dict[str, Any] have additionalProperties: true and cannot be
+    represented in strict mode, so they are excluded from the schema entirely.
+
+    Args:
+        schema_dict: JSON schema dictionary
+
+    Returns:
+        Modified schema dict meeting OpenAI strict mode requirements
+    """
+    if not isinstance(schema_dict, dict):
+        return schema_dict
+
+    # For OpenAI strict mode, identify and remove dict[str, Any] fields
+    # These have additionalProperties: true which is incompatible with strict mode
+    if "properties" in schema_dict:
+        properties_to_remove = []
+        for prop_name, prop_schema in schema_dict["properties"].items():
+            # Check for direct additionalProperties: true
+            if isinstance(prop_schema, dict) and prop_schema.get("additionalProperties") is True:
+                # Remove fields with additionalProperties: true (e.g., dict[str, Any])
+                properties_to_remove.append(prop_name)
+            # Check for anyOf containing object variants with additionalProperties: true
+            elif isinstance(prop_schema, dict) and "anyOf" in prop_schema:
+                for variant in prop_schema["anyOf"]:
+                    if isinstance(variant, dict) and variant.get("additionalProperties") is True:
+                        # This anyOf contains an incompatible object variant - remove entire field
+                        properties_to_remove.append(prop_name)
+                        break
+
+        # Remove incompatible properties from the schema
+        for prop_name in properties_to_remove:
+            del schema_dict["properties"][prop_name]
+
+        # Update required array to exclude removed properties
+        if "required" in schema_dict:
+            schema_dict["required"] = [
+                r for r in schema_dict["required"] if r not in properties_to_remove
+            ]
+
+        # After removing incompatible fields, ensure ALL remaining properties are required
+        # OpenAI strict mode doesn't allow optional fields
+        property_keys = list(schema_dict["properties"].keys())
+        schema_dict["required"] = property_keys
+        schema_dict["additionalProperties"] = False
+
+    # For all objects (including those without properties), set additionalProperties to false
+    if schema_dict.get("type") == "object":
+        schema_dict["additionalProperties"] = False
+
+    # Recursively process nested structures
+    if "$defs" in schema_dict:
+        for def_name, def_schema in schema_dict["$defs"].items():
+            schema_dict["$defs"][def_name] = _ensure_openai_strict_mode_compliance(def_schema)
+
+    # Process properties recursively
+    if "properties" in schema_dict:
+        for prop_name, prop_schema in schema_dict["properties"].items():
+            schema_dict["properties"][prop_name] = _ensure_openai_strict_mode_compliance(
+                prop_schema
+            )
+
+    # Process items (for arrays)
+    if "items" in schema_dict:
+        schema_dict["items"] = _ensure_openai_strict_mode_compliance(schema_dict["items"])
+
+    return schema_dict
+
+
+def _create_openai_compatible_schema(schema: type[BaseModel]) -> type[BaseModel]:
+    """
+    Create an OpenAI-compatible version of a Pydantic schema.
+
+    OpenAI's strict mode requires that all objects have 'additionalProperties: false'.
+    This function ensures the schema meets those requirements while preserving
+    Pydantic's correct handling of required vs optional fields.
+
+    Args:
+        schema: Original Pydantic model
+
+    Returns:
+        Wrapper model that generates OpenAI-compatible schemas
+    """
+
+    # Create a new model class that overrides model_json_schema
+    class OpenAICompatModel(schema):  # type: ignore[misc,valid-type]
+        @classmethod
+        def model_json_schema(cls, **kwargs):
+            # Get the original schema
+            original_schema = super().model_json_schema(**kwargs)
+            # Ensure OpenAI strict mode compliance
+            return _ensure_openai_strict_mode_compliance(original_schema)
+
+    # Set name and docstring
+    OpenAICompatModel.__name__ = f"{schema.__name__}OpenAICompat"
+    OpenAICompatModel.__doc__ = schema.__doc__
+
+    return OpenAICompatModel
 
 
 def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
@@ -274,9 +438,14 @@ class LLMClient:
         kwargs = self._convert_generation_params(**kwargs)
 
         # For Gemini, use compatible schema without additionalProperties
+        # For OpenAI, ensure all properties are in required array
         generation_schema = schema
         if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
             generation_schema = _create_gemini_compatible_schema(schema)
+        elif (
+            self.provider == "openai" and isinstance(schema, type) and issubclass(schema, BaseModel)
+        ):
+            generation_schema = _create_openai_compatible_schema(schema)
 
         # Generate JSON string with Outlines using the schema as output type
         json_output = self.model(prompt, generation_schema, **kwargs)
@@ -320,13 +489,110 @@ class LLMClient:
         kwargs = self._convert_generation_params(**kwargs)
 
         # For Gemini, use compatible schema without additionalProperties
+        # For OpenAI, ensure all properties are in required array
         generation_schema = schema
         if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
             generation_schema = _create_gemini_compatible_schema(schema)
+        elif (
+            self.provider == "openai" and isinstance(schema, type) and issubclass(schema, BaseModel)
+        ):
+            generation_schema = _create_openai_compatible_schema(schema)
 
-        json_output = await self.async_model(prompt, generation_schema, **kwargs)
+        # Ensure we have an async model; if not, fall back to running the sync path
+        async_model = self.async_model
+        if async_model is None:
+            return await asyncio.to_thread(self.generate, prompt, schema, **kwargs)
+
+        # Call the async model (guaranteed non-None by check above)
+        json_output = await async_model(prompt, generation_schema, **kwargs)
         # Validate with original schema to ensure proper validation
         return schema.model_validate_json(json_output)
+
+    async def generate_async_stream(self, prompt: str, schema: Any, max_retries: int = 3, **kwargs):  # noqa: ARG002
+        """Asynchronously generate structured output with streaming text chunks.
+
+        This method streams the LLM's output text as it's generated, then returns
+        the final parsed Pydantic model. It yields tuples of (chunk, result) where:
+        - During streaming: (text_chunk, None)
+        - When complete: (None, final_pydantic_model)
+
+        Args:
+            prompt: Input prompt
+            schema: Pydantic model or other schema type
+            max_retries: Maximum number of retry attempts (deprecated, use rate_limit_config)
+            **kwargs: Additional generation parameters
+
+        Yields:
+            tuple[str | None, Any | None]:
+                - (chunk, None) during streaming
+                - (None, model) when generation is complete
+
+        Raises:
+            DataSetGeneratorError: If generation fails after all retries
+
+        Note:
+            The max_retries parameter is deprecated. Use rate_limit_config in __init__ instead.
+
+        Example:
+            >>> async for chunk, result in client.generate_async_stream(prompt, MyModel):
+            ...     if chunk:
+            ...         print(chunk, end='', flush=True)  # Display streaming text
+            ...     if result:
+            ...         return result  # Final parsed model
+        """
+        # Call streaming generation directly (retry decorator doesn't work with generators)
+        kwargs = self._convert_generation_params(**kwargs)
+
+        # Apply provider-specific schema transformations
+        generation_schema = schema
+        if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
+            generation_schema = _create_gemini_compatible_schema(schema)
+        elif (
+            self.provider == "openai" and isinstance(schema, type) and issubclass(schema, BaseModel)
+        ):
+            generation_schema = _create_openai_compatible_schema(schema)
+
+        # Check if model supports streaming
+        async_model = self.async_model or self.model
+        if not hasattr(async_model, "generate_stream"):
+            # Fallback: no streaming support, yield entire result at once
+            result = await self.generate_async(prompt, schema, max_retries, **kwargs)
+            yield (None, result)
+            return
+
+        # Stream generation
+        accumulated_text = []
+        try:
+            # For sync models used in async context
+            if self.async_model is None:
+                # Run streaming generation in thread pool
+                from concurrent.futures import ThreadPoolExecutor  # noqa: PLC0415
+
+                def _sync_stream():
+                    return list(self.model.generate_stream(prompt, generation_schema, **kwargs))
+
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(_sync_stream)
+                    # Wait for completion and get all chunks
+                    chunks = await asyncio.wrap_future(future)
+                    for chunk in chunks:
+                        accumulated_text.append(chunk)
+                        yield (chunk, None)
+            else:
+                # True async streaming
+                stream = self.async_model.generate_stream(prompt, generation_schema, **kwargs)
+                async for chunk in stream:
+                    accumulated_text.append(chunk)
+                    yield (chunk, None)
+
+            # Parse accumulated JSON with original schema
+            full_text = "".join(accumulated_text)
+            result = schema.model_validate_json(full_text)
+            yield (None, result)
+
+        except Exception as e:
+            # Wrap and raise error
+            raise DataSetGeneratorError(f"Streaming generation failed: {e}") from e
 
     def _convert_generation_params(self, **kwargs) -> dict:
         """Convert generic parameters to provider-specific ones."""

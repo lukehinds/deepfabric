@@ -445,9 +445,8 @@ config:
 ### Input Formats Supported
 
 - **Agent CoT Tools**: Agent reasoning with tool usage from `agent_cot_tools` conversation type
-- **Simple Agent CoT**: Simple agent chain-of-thought with tool selection
-- **Hybrid Agent CoT**: Hybrid agent reasoning with tool traces
-- **Generic Tool**: Any format with question, tool_used, tool_input, tool_output, and answer
+- **Simple Agent CoT**: Simple agent chain-of-thought with tool selection and multi-tool support
+- **Hybrid Agent CoT**: Hybrid agent reasoning with tool traces and multi-tool support
 
 ### Output Format
 

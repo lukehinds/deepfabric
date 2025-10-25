@@ -1,14 +1,21 @@
+import ast
 import json
 import logging
 import re
 
-from contextlib import suppress
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
+
+
+# Type alias for metadata/structured_data fields
+# Provider-specific transformations in llm/client.py handle:
+# - OpenAI: adds additionalProperties: false
+# - Gemini: strips additionalProperties
+MetadataDict = dict[str, Any] | None
 
 
 # Basic message schema
@@ -34,7 +41,9 @@ class ReasoningStep(BaseModel):
 
     step_number: int = Field(description="The step number in the reasoning chain")
     thought: str = Field(description="The reasoning or thought for this step")
-    action: str = Field(description="Any action taken as part of this reasoning step")
+    action: str | None = Field(
+        default=None, description="Any action taken as part of this reasoning step"
+    )
 
 
 class StructuredConversation(BaseModel):
@@ -123,20 +132,36 @@ class ToolDefinition(BaseModel):
 
             # Add default value if present and not required
             # Convert string default back to proper type for JSON Schema
-            if not param.required and param.default is not None:
+            if not param.required and param.default is not None and param.default != "":
                 default_value = param.default
                 # Convert string representation back to typed value
-                if param.type == "int":
-                    default_value = int(param.default)
-                elif param.type == "float":
-                    default_value = float(param.default)
-                elif param.type == "bool":
-                    default_value = param.default.lower() in ("true", "1", "yes")
-                elif param.type in ("list", "dict"):
-                    with suppress(json.JSONDecodeError, TypeError):
-                        default_value = json.loads(param.default)
-                # str remains as-is
-                properties[param.name]["default"] = default_value
+                try:
+                    if param.type == "int":
+                        default_value = int(param.default)
+                    elif param.type == "float":
+                        default_value = float(param.default)
+                    elif param.type == "bool":
+                        default_value = param.default.lower() in ("true", "1", "yes")
+                    elif param.type in ("list", "dict"):
+                        # Handle special cases
+                        if param.default.lower() == "none":
+                            default_value = None
+                        else:
+                            # Try JSON first
+                            try:
+                                default_value = json.loads(param.default)
+                            except json.JSONDecodeError:
+                                # Fallback: try Python literal (e.g., ['markdown'] -> ["markdown"])
+                                try:
+                                    default_value = ast.literal_eval(param.default)
+                                except (ValueError, SyntaxError):
+                                    # Give up and skip this default
+                                    continue
+                    # str remains as-is
+                    properties[param.name]["default"] = default_value
+                except (ValueError, AttributeError):
+                    # Skip invalid default values (e.g., empty strings for int/float)
+                    pass
 
             # Track required parameters
             if param.required:
@@ -200,159 +225,29 @@ class ToolReasoningStep(BaseModel):
 
     step_number: int = Field(description="The step number in the tool planning sequence")
     reasoning: str = Field(description="Why this tool is needed at this point")
-    selected_tool: ToolDefinition = Field(description="The actual tool definition being selected")
-    parameter_reasoning: dict[str, str] = Field(description="Reasoning for each parameter value")
+    selected_tool_name: str = Field(description="Name of the tool being selected")
+    parameter_reasoning: str = Field(description="Reasoning for parameter values")
     expected_result: str = Field(description="What the tool should return and how it helps")
 
 
 class ToolExecution(BaseModel):
     """Represents actual execution of a tool with reasoning context."""
 
-    function: str = Field(description="Name of the function/tool being called")
-    arguments: dict[str, Any] = Field(description="Arguments passed to the function")
+    function_name: str = Field(description="Name of the function/tool being called")
+    arguments: str = Field(description="JSON string of arguments passed to the function")
     reasoning: str = Field(description="Brief explanation of why executing now")
     result: str = Field(description="The result returned from the tool execution")
 
+    @property
+    def parsed_arguments(self) -> dict[str, Any]:
+        """Parse arguments JSON string to dict.
 
-class SimpleAgentCoT(BaseModel):
-    """Simplified Agent Chain of Thought that models can actually generate."""
-
-    question: str = Field(description="The user's question or request")
-    initial_analysis: str = Field(description="Initial understanding of what's needed")
-    reasoning_steps: list[str] = Field(description="Step-by-step reasoning", min_length=1)
-    tool_selection_rationale: str = Field(description="Why this tool was chosen")
-    parameter_reasoning: str = Field(description="How tool parameters were determined")
-    result_interpretation: str = Field(description="What the tool result means")
-    tool_used: str = Field(description="Name of the tool that was used")
-    tool_input: str = Field(description="JSON string of tool input parameters")
-    tool_output: str = Field(description="The result from the tool execution")
-    answer: str = Field(description="Final answer to the user's question")
-
-
-class HybridAgentCoT(BaseModel):
-    """Hybrid Agent CoT with structured reasoning trace and tool calling."""
-
-    question: str = Field(description="The question or problem to solve")
-    chain_of_thought: str = Field(description="Natural language reasoning explanation")
-    reasoning_trace: list[ReasoningStep] = Field(
-        description="Structured reasoning steps", min_length=1
-    )
-    tool_selection_rationale: str = Field(description="Why this tool was chosen")
-    parameter_reasoning: str = Field(description="How tool parameters were determined")
-    result_interpretation: str = Field(description="What the tool result means")
-    tool_used: str = Field(description="Name of the tool that was used")
-    tool_input: str = Field(description="JSON string of tool input parameters")
-    tool_output: str = Field(description="The result from the tool execution")
-    final_answer: str = Field(description="The definitive answer to the question")
-
-
-class AgentCoTMultiTurn(BaseModel):
-    """Multi-turn agent conversation with tool calling and reasoning."""
-
-    messages: list[ChatMessage] = Field(
-        description="Conversation messages between user and agent", min_length=1
-    )
-    tool_planning_trace: list[ToolReasoningStep] = Field(
-        description="Complete planning trace for all tool usage", min_length=1
-    )
-    tool_execution_trace: list[ToolExecution] = Field(
-        description="All tool executions across conversation turns", min_length=1
-    )
-    reasoning_summary: str = Field(
-        description="Overall reasoning strategy across the multi-turn conversation"
-    )
-
-
-# XLAM 2.0 (APIGen-MT) Multi-Turn Agent Schemas
-class XlamConversationTurn(BaseModel):
-    """A single turn in an XLAM 2.0 multi-turn conversation."""
-
-    from_: Literal["human", "gpt", "function_call", "observation"] = Field(
-        alias="from", description="The speaker/actor for this turn"
-    )
-    value: str = Field(description="The content of this turn")
-
-    class Config:
-        populate_by_name = True
-        extra = "forbid"
-
-
-class XlamFunctionCall(BaseModel):
-    """Structured function call for XLAM format."""
-
-    name: str = Field(description="Function name to call")
-    arguments: dict[str, Any] = Field(description="Function arguments as key-value pairs")
+        Uses Any for values as function arguments can be strings, numbers, booleans, lists, nested dicts, etc.
+        """
+        return json.loads(self.arguments)
 
     class Config:
         extra = "forbid"
-
-
-class XlamMultiTurnAgent(BaseModel):
-    """
-    XLAM 2.0 multi-turn agent conversation with function calling.
-
-    This schema generates the core conversation structure that will be
-    formatted into XLAM 2.0 (APIGen-MT) format by the XlamV2Formatter.
-
-    Expected flow patterns:
-    1. human → gpt → function_call → observation → gpt (tool use)
-    2. human → gpt → human → gpt (clarification)
-    3. human → function_call → observation → gpt (direct execution)
-    """
-
-    # Core conversation turns
-    turns: list[XlamConversationTurn] = Field(
-        min_length=3,
-        max_length=15,
-        description="Conversation turns in sequence (human, gpt, function_call, observation)",
-    )
-
-    # Metadata for context (not in final XLAM output, but useful for generation)
-    scenario_description: str = Field(
-        description="Brief description of the scenario/domain context"
-    )
-    # Domain-specific system prompt (becomes 'system' field in XLAM output)
-    domain_policy: str = Field(
-        description="Detailed domain-specific policy, rules, and guidelines for this scenario (e.g., airline booking policy, e-commerce return policy). This should be unique and detailed for each scenario.",
-    )
-    # Note: Made required for OpenAI structured output compatibility (OpenAI requires all fields in 'required' array)
-    planning_notes: str = Field(
-        description="Internal reasoning about conversation flow and tool usage strategy (can be empty string if not needed)",
-    )
-
-    class Config:
-        extra = "forbid"
-
-    def get_function_calls(self) -> list[dict[str, Any]]:
-        """Extract all function calls from the conversation."""
-
-        calls = []
-        for turn in self.turns:
-            if turn.from_ == "function_call":
-                try:
-                    call_data = json.loads(turn.value)
-                    calls.append(call_data)
-                except json.JSONDecodeError as e:
-                    logger.warning(
-                        "Failed to decode JSON for function call. Value: %s, Error: %s",
-                        turn.value[:100],  # Log first 100 chars to avoid huge logs
-                        str(e),
-                    )
-                    continue
-        return calls
-
-    def validate_conversation_flow(self) -> bool:
-        """Validate that conversation follows logical turn patterns."""
-        # Must start with human
-        if not self.turns or self.turns[0].from_ != "human":
-            return False
-
-        # function_call must be followed by observation
-        for i, turn in enumerate(self.turns[:-1]):
-            if turn.from_ == "function_call" and self.turns[i + 1].from_ != "observation":
-                return False
-
-        return True
 
 
 # Tool calling schemas for conversations that include function calls
@@ -508,35 +403,146 @@ class HybridCoTMathematical(BaseModel, MathematicalAnswerMixin):
         return cls._format_mathematical_answer(v)
 
 
-# Conversation type mapping for different generation modes
+# Capability Models for Composable Conversation Schema
+class ReasoningTrace(BaseModel):
+    """Reasoning capability - present when conversation_type='chain_of_thought'."""
+
+    style: Literal["freetext", "structured", "hybrid"] = Field(
+        description="The reasoning style: freetext (natural language), structured (step-by-step), or hybrid (both)"
+    )
+    content: str | list[ReasoningStep] = Field(
+        description="Reasoning content - string for freetext, list of ReasoningStep for structured/hybrid"
+    )
+
+    class Config:
+        extra = "forbid"
+
+
+class ToolContext(BaseModel):
+    """Tool capability - present when tools are enabled."""
+
+    available_tools: list[ToolDefinition] = Field(
+        description="Tools available for use in this conversation"
+    )
+    executions: list[ToolExecution] = Field(
+        description="Tool executions performed during the conversation", min_length=1
+    )
+
+    class Config:
+        extra = "forbid"
+
+
+class AgentContext(BaseModel):
+    """Agent capability - present when agent_mode is enabled."""
+
+    mode: Literal["single_turn", "multi_turn"] = Field(
+        description="Agent interaction mode: single_turn for one-shot tool use, multi_turn for extended conversations"
+    )
+    planning_trace: str | None = Field(
+        default=None, description="Agent's planning and reasoning about tool usage strategy"
+    )
+    execution_summary: str | None = Field(
+        default=None, description="Summary of agent's execution and results interpretation"
+    )
+
+    class Config:
+        extra = "forbid"
+
+
+class Conversation(BaseModel):
+    """
+    Unified conversation schema with optional capability fields.
+
+    This composable schema supports various combinations:
+    - Basic conversation: just messages
+    - With reasoning: messages + reasoning capability
+    - With tools: messages + tool_context capability
+    - Agent mode: messages + tool_context + agent_context capabilities
+    - Full combination: all capabilities enabled
+
+    The schema validates that capability combinations are consistent
+    (e.g., agent_context requires tool_context).
+    """
+
+    messages: list[ChatMessage] = Field(description="Core conversation messages", min_length=1)
+    metadata: MetadataDict = Field(
+        default=None, description="Conversation metadata (topic, domain, etc.)"
+    )
+
+    # Optional capability fields - use empty strings/dicts instead of None for OpenAI compatibility
+    reasoning: ReasoningTrace | None = Field(
+        default=None, description="Reasoning capability - chain of thought traces"
+    )
+    tool_context: ToolContext | None = Field(
+        default=None, description="Tool capability - available tools and executions"
+    )
+    agent_context: AgentContext | None = Field(
+        default=None, description="Agent capability - agentic behavior and planning"
+    )
+    structured_data: MetadataDict = Field(
+        default=None, description="Additional structured data for specific formats"
+    )
+
+    # Fields for backward compatibility and specific use cases
+    question: str = Field(default="", description="Original question (useful for Q&A formats)")
+    final_answer: str = Field(default="", description="Final answer (useful for reasoning formats)")
+
+    @field_validator("reasoning")
+    @classmethod
+    def validate_reasoning_trace(cls, v: ReasoningTrace | None) -> ReasoningTrace | None:
+        """Validate reasoning trace content matches style."""
+        if v is None:
+            return None
+
+        if v.style in ("structured", "hybrid") and not isinstance(v.content, list):
+            msg = (
+                f"Reasoning style '{v.style}' requires list of ReasoningStep, got {type(v.content)}"
+            )
+            raise ValueError(msg)
+        if v.style == "freetext" and not isinstance(v.content, str):
+            msg = f"Reasoning style 'freetext' requires string content, got {type(v.content)}"
+            raise ValueError(msg)
+
+        return v
+
+    @field_validator("agent_context")
+    @classmethod
+    def validate_agent_requires_tools(cls, v: AgentContext | None, info) -> AgentContext | None:
+        """Validate that agent_context requires tool_context."""
+        if v is not None:
+            # Access tool_context from the model data
+            tool_context = info.data.get("tool_context")
+            if tool_context is None:
+                msg = "agent_context requires tool_context to be present"
+                raise ValueError(msg)
+        return v
+
+    class Config:
+        extra = "forbid"
+        json_schema_extra = {"additionalProperties": False}
+
+
+# Unified conversation schema mapping
 CONVERSATION_SCHEMAS = {
-    "basic": ChatTranscript,
-    "structured": StructuredConversation,
-    "tool_calling": ToolConversation,
-    "cot_freetext": FreeTextCoT,
-    "cot_structured": StructuredCoT,
-    "cot_hybrid": HybridCoT,
-    "agent_cot_tools": SimpleAgentCoT,
-    "agent_cot_hybrid": HybridAgentCoT,
-    "agent_cot_multi_turn": AgentCoTMultiTurn,
-    "xlam_multi_turn": XlamMultiTurnAgent,  # XLAM 2.0 (APIGen-MT) format
+    "basic": Conversation,
+    "chain_of_thought": Conversation,
 }
 
 
 def get_conversation_schema(
     conversation_type: str = "basic",
-    reasoning_style: str = "general",
-) -> type[BaseModel]:
-    """Get the appropriate schema for a conversation type.
+) -> type[Conversation]:
+    """Get the appropriate schema for a conversation configuration.
+
+    With the unified Conversation schema, this now always returns Conversation.
+    The schema's capability fields (reasoning, tool_context, agent_context) are
+    populated based on the configuration during generation.
 
     Args:
-        conversation_type: Type of conversation (basic, structured, tool_calling,
-                          cot_freetext, cot_structured, cot_hybrid,
-                          agent_cot_tools, agent_cot_multi_turn)
-        reasoning_style: Style of reasoning (mathematical, logical, general)
+        conversation_type: Type of conversation (basic, chain_of_thought)
 
     Returns:
-        Pydantic model class for the conversation type
+        Conversation schema (unified for all types)
 
     Raises:
         ValueError: If conversation_type is not supported
@@ -546,15 +552,8 @@ def get_conversation_schema(
         msg = f"Unsupported conversation type: {conversation_type}. Valid types: {valid_types}"
         raise ValueError(msg)
 
-    # Return mathematical variant for CoT types with mathematical reasoning
-    if reasoning_style == "mathematical" and conversation_type.startswith("cot_"):
-        mathematical_schemas = {
-            "cot_freetext": FreeTextCoTMathematical,
-            "cot_structured": StructuredCoTMathematical,
-            "cot_hybrid": HybridCoTMathematical,
-        }
-        return mathematical_schemas.get(conversation_type, CONVERSATION_SCHEMAS[conversation_type])
-
+    # All types now use the unified Conversation schema
+    # Capabilities are populated during generation based on config
     return CONVERSATION_SCHEMAS[conversation_type]
 
 
@@ -594,13 +593,3 @@ class GraphSubtopics(BaseModel):
         description="List of subtopics with their connections",
         min_length=1,
     )
-
-
-# Update the conversation schemas to include agent schemas
-CONVERSATION_SCHEMAS.update(
-    {
-        "agent_cot_tools": SimpleAgentCoT,
-        "agent_cot_hybrid": HybridAgentCoT,
-        "agent_cot_multi_turn": AgentCoTMultiTurn,
-    }
-)

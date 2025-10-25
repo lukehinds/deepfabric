@@ -1,6 +1,6 @@
 # Default values
 DEFAULT_PROVIDER = "ollama"
-DEFAULT_MODEL = "mistral:latest"
+DEFAULT_MODEL = "qwen3:8b"
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_DEGREE = 3
 DEFAULT_DEPTH = 2

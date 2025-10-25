@@ -2,7 +2,7 @@ from typing import Any, Literal
 
 import yaml
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .constants import (
     DEFAULT_MAX_RETRIES,
@@ -141,41 +141,64 @@ class DataEngineConfig(BaseModel):
         description="Rate limiting and retry configuration (uses provider defaults if not specified)",
     )
 
-    # Chain of Thought parameters
-    conversation_type: Literal[
-        "basic",
-        "structured",
-        "tool_calling",
-        "cot_freetext",
-        "cot_structured",
-        "cot_hybrid",
-        "agent_cot_tools",
-        "agent_cot_hybrid",
-        "agent_cot_multi_turn",
-        "xlam_multi_turn",
-    ] = Field(default="basic", description="Type of conversation to generate")
-    reasoning_style: Literal["mathematical", "logical", "general"] = Field(
-        default="general", description="Style of reasoning for CoT generation"
+    # Modular conversation configuration
+    conversation_type: Literal["basic", "chain_of_thought"] = Field(
+        default="basic",
+        description="Base conversation type: basic (simple chat), chain_of_thought (with reasoning traces)",
     )
 
-    # Agent-specific parameters
+    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = Field(
+        default=None,
+        description="Reasoning style for chain_of_thought type: freetext (natural language), structured (step-by-step), hybrid (both)",
+    )
+
+    agent_mode: Literal["single_turn", "multi_turn"] | None = Field(
+        default=None,
+        description="Agent mode: single_turn (one-shot tool use), multi_turn (extended agent conversations). Requires tools to be configured.",
+    )
+
+    # Tool configuration (used when agent_mode is enabled or for tool_calling)
     available_tools: list[str] = Field(
         default_factory=list,
-        description="List of tool names available to the agent (empty means all tools)",
+        description="List of tool names available (empty means all tools from registry)",
     )
     custom_tools: list[dict] = Field(
         default_factory=list, description="Custom tool definitions as dictionaries"
     )
     max_tools_per_query: int = Field(
-        default=3, ge=1, le=10, description="Maximum number of tools an agent can use per query"
+        default=3, ge=1, le=10, description="Maximum number of tools per query/turn"
     )
     tool_registry_path: str | None = Field(
         default=None, description="Path to custom tool definitions file (JSON/YAML)"
     )
-    domain_context: str | None = Field(
-        default=None,
-        description="Domain/scenario context for XLAM multi-turn (becomes 'system' field)",
-    )
+
+    @model_validator(mode="after")
+    def validate_configuration(self):
+        """Validate that configuration combinations are consistent."""
+        # Validate reasoning_style is only used with chain_of_thought
+        if self.reasoning_style is not None and self.conversation_type != "chain_of_thought":
+            raise ValueError(
+                f"reasoning_style can only be set when conversation_type='chain_of_thought', "
+                f"got conversation_type='{self.conversation_type}'"
+            )
+
+        # Validate chain_of_thought has a reasoning_style
+        if self.conversation_type == "chain_of_thought" and self.reasoning_style is None:
+            raise ValueError(
+                "reasoning_style must be specified when conversation_type='chain_of_thought'. "
+                "Choose from: 'freetext', 'structured', 'hybrid'"
+            )
+
+        # Validate agent_mode requires tools
+        if self.agent_mode is not None:
+            has_tools = bool(self.available_tools or self.custom_tools or self.tool_registry_path)
+            if not has_tools:
+                raise ValueError(
+                    "agent_mode requires tools to be configured. "
+                    "Specify at least one of: available_tools, custom_tools, or tool_registry_path"
+                )
+
+        return self
 
 
 class DatasetCreationConfig(BaseModel):
@@ -260,6 +283,108 @@ class DeepFabricConfig(BaseModel):
     dataset: DatasetConfig = Field(..., description="Dataset configuration")
     huggingface: HuggingFaceConfig | None = Field(None, description="Hugging Face configuration")
     kaggle: KaggleConfig | None = Field(None, description="Kaggle configuration")
+
+    @model_validator(mode="after")
+    def validate_formatter_compatibility(self) -> "DeepFabricConfig":
+        """Warn about potentially incompatible conversation types and formatters."""
+        if not self.dataset or not self.dataset.formatters:
+            return self
+
+        conversation_type = self.data_engine.conversation_type
+        agent_mode = self.data_engine.agent_mode
+        reasoning_style = self.data_engine.reasoning_style
+
+        # Define formatter compatibility rules
+        formatter_warnings = {
+            "alpaca": {
+                "incompatible_with": {
+                    "conversation_type": ["chain_of_thought"],
+                    "agent_mode": ["multi_turn"],
+                },
+                "warning": "Alpaca format works best with simple Q&A. Chain-of-thought reasoning and multi-turn conversations may have high rejection rates.",
+            },
+            "chatml": {
+                "incompatible_with": {
+                    "reasoning_style": ["structured", "hybrid"],
+                },
+                "warning": "ChatML format may reject samples with complex reasoning structures. Consider using 'conversations' format for chain-of-thought data.",
+            },
+            "xlam_v2": {
+                "requires": {
+                    "agent_mode": ["single_turn", "multi_turn"],
+                },
+                "warning": "XLAM v2 format requires agent_mode to be set (single_turn or multi_turn) for tool-calling data.",
+            },
+            "tool_calling": {
+                "requires": {
+                    "agent_mode": ["single_turn", "multi_turn"],
+                },
+                "warning": "Tool calling format requires agent_mode to be set for tool-calling data.",
+            },
+            "single_tool_call": {
+                "requires": {
+                    "agent_mode": ["single_turn"],
+                },
+                "warning": "Single tool call format requires agent_mode='single_turn' and will reject multi-turn conversations.",
+            },
+        }
+
+        # Check each formatter
+        for formatter_config in self.dataset.formatters:
+            template = formatter_config.template
+            formatter_name = None
+
+            # Extract formatter name from template (builtin://formatter_name)
+            if isinstance(template, str) and "builtin://" in template:
+                formatter_name = template.replace("builtin://", "").replace(".py", "")
+
+            if not formatter_name or formatter_name not in formatter_warnings:
+                continue
+
+            rules = formatter_warnings[formatter_name]
+
+            # Check incompatibilities
+            if "incompatible_with" in rules:
+                incompatible = rules["incompatible_with"]
+
+                if (
+                    "conversation_type" in incompatible
+                    and conversation_type in incompatible["conversation_type"]
+                ):
+                    print(
+                        f"\n⚠️  Warning: Formatter '{formatter_config.name}' may have high rejection rates with conversation_type='{conversation_type}'"
+                    )
+                    print(f"   {rules['warning']}\n")
+
+                if "agent_mode" in incompatible and agent_mode in incompatible["agent_mode"]:
+                    print(
+                        f"\n⚠️  Warning: Formatter '{formatter_config.name}' may have high rejection rates with agent_mode='{agent_mode}'"
+                    )
+                    print(f"   {rules['warning']}\n")
+
+                if (
+                    "reasoning_style" in incompatible
+                    and reasoning_style in incompatible["reasoning_style"]
+                ):
+                    print(
+                        f"\n⚠️  Warning: Formatter '{formatter_config.name}' may have high rejection rates with reasoning_style='{reasoning_style}'"
+                    )
+                    print(f"   {rules['warning']}\n")
+
+            # Check requirements
+            if "requires" in rules:
+                requirements = rules["requires"]
+
+                if "agent_mode" in requirements and (
+                    not agent_mode or agent_mode not in requirements["agent_mode"]
+                ):
+                    print(
+                        f"\n⚠️  Warning: Formatter '{formatter_config.name}' requires agent_mode to be one of {requirements['agent_mode']}"
+                    )
+                    print(f"   Current: agent_mode={agent_mode}")
+                    print(f"   {rules['warning']}\n")
+
+        return self
 
     @classmethod
     def _migrate_legacy_format(cls, config_dict: dict) -> dict:
