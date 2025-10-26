@@ -4,7 +4,7 @@
     <source media="(prefers-color-scheme: dark)" srcset="./assets/logo-light.png" />
     <img alt="DeepFabric logo" src="./assets/logo-light.png" style="width:70%;max-width:70%;height:auto;display:block;margin:0 auto;" />
   </picture>
-  <h3>Complete pipeline for Training Model Behavior in Agentic Systems</h3>
+  <h3>Training Model Behavior in Agentic Systems</h3>
 
   <!-- CTA Buttons -->
   <p>
