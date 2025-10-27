@@ -436,7 +436,7 @@ requires-dist = [
     { name = "anthropic", specifier = ">=0.67.0" },
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7.10" },
     { name = "click", specifier = ">=8.1.7" },
-    { name = "datasets", specifier = ">=3.0,<5.0" },
+    { name = "datasets", specifier = "==4.2.0" },
     { name = "google-genai", specifier = ">=1.36.0" },
     { name = "huggingface-hub", specifier = "==0.36.0" },
     { name = "kagglehub", specifier = ">=0.3.0" },
