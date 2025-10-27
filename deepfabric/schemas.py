@@ -77,7 +77,8 @@ class ToolDefinition(BaseModel):
     description: str = Field(description="What this tool does")
     parameters: list[ToolParameter] = Field(description="List of parameters this tool accepts")
     returns: str = Field(description="Description of what this tool returns")
-    category: str = Field(default="general", description="Tool category for grouping")
+    # Note: Made required for OpenAI structured output compatibility (OpenAI requires all fields in 'required' array)
+    category: str = Field(description="Tool category for grouping")
 
     def to_signature(self) -> str:
         """Generate a function signature string."""

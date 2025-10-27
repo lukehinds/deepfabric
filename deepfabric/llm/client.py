@@ -102,6 +102,122 @@ def _create_gemini_compatible_schema(schema: type[BaseModel]) -> type[BaseModel]
     return GeminiCompatModel
 
 
+def _add_additional_properties_false(schema_dict: dict) -> dict:
+    """
+    Recursively add additionalProperties: false to all object types in JSON schema.
+
+    OpenAI's structured outputs require additionalProperties to be explicitly set to false
+    for all object types to ensure strict schema validation. However, OpenAI does NOT support
+    truly dynamic objects (dict[str, Any]) that have no defined properties.
+
+    For such fields, we remove them from the required array and convert them to strings.
+
+    Args:
+        schema_dict: JSON schema dictionary
+
+    Returns:
+        Modified schema dict with additionalProperties: false for all objects
+    """
+    if not isinstance(schema_dict, dict):
+        return schema_dict
+
+    # Handle objects with defined properties vs dynamic objects (dict[str, Any])
+    if schema_dict.get("type") == "object":
+        if "properties" in schema_dict and schema_dict.get("properties"):
+            # Object with defined properties: set additionalProperties: false
+            schema_dict["additionalProperties"] = False
+
+            # Convert dynamic dict fields to strings
+            # OpenAI doesn't support objects with no defined properties
+            # This includes dict[str, Any], dict[str, str], etc.
+            properties = schema_dict["properties"]
+            for field_name, field_schema in properties.items():
+                # Check if this is a dict type (object with no defined properties)
+                # These have type="object", no "properties", but may have additionalProperties
+                if (
+                    field_schema.get("type") == "object"
+                    and not field_schema.get("properties")
+                    and "additionalProperties" in field_schema
+                ):
+                    # Convert to string type (JSON-encoded)
+                    properties[field_name] = {
+                        "type": "string",
+                        "description": f"{field_schema.get('description', '')} (JSON-encoded object string)",
+                        "title": field_schema.get("title", field_name),
+                    }
+
+            # Ensure all properties are in required array (OpenAI requirement)
+            if "required" not in schema_dict:
+                schema_dict["required"] = list(properties.keys())
+            else:
+                # Make sure all properties are in required
+                existing_required = set(schema_dict["required"])
+                all_props = set(properties.keys())
+                missing = all_props - existing_required
+                if missing:
+                    schema_dict["required"] = schema_dict["required"] + list(missing)
+        else:
+            # Object with no properties (dict[str, Any]): remove additionalProperties
+            schema_dict.pop("additionalProperties", None)
+
+    # Recursively process nested structures
+    if "$defs" in schema_dict:
+        for def_name, def_schema in schema_dict["$defs"].items():
+            schema_dict["$defs"][def_name] = _add_additional_properties_false(def_schema)
+
+    # Process properties
+    if "properties" in schema_dict:
+        for prop_name, prop_schema in schema_dict["properties"].items():
+            # If a property has $ref, it cannot have other keywords (OpenAI requirement)
+            if "$ref" in prop_schema and len(prop_schema) > 1:
+                # Keep only the $ref
+                schema_dict["properties"][prop_name] = {"$ref": prop_schema["$ref"]}
+            else:
+                schema_dict["properties"][prop_name] = _add_additional_properties_false(prop_schema)
+
+    # Process items (for arrays)
+    if "items" in schema_dict:
+        schema_dict["items"] = _add_additional_properties_false(schema_dict["items"])
+
+    # Process anyOf, allOf, oneOf
+    for key in ["anyOf", "allOf", "oneOf"]:
+        if key in schema_dict:
+            schema_dict[key] = [_add_additional_properties_false(s) for s in schema_dict[key]]
+
+    return schema_dict
+
+
+def _create_openai_compatible_schema(schema: type[BaseModel]) -> type[BaseModel]:
+    """
+    Create an OpenAI-compatible version of a Pydantic schema.
+
+    OpenAI's structured outputs require:
+    1. All object types must have additionalProperties: false
+    2. All properties must be in the required array (no optional fields with defaults)
+
+    Args:
+        schema: Original Pydantic model
+
+    Returns:
+        Wrapper model that generates OpenAI-compatible schemas
+    """
+
+    # Create a new model class that overrides model_json_schema
+    class OpenAICompatModel(schema):  # type: ignore[misc,valid-type]
+        @classmethod
+        def model_json_schema(cls, **kwargs):
+            # Get the original schema
+            original_schema = super().model_json_schema(**kwargs)
+            # Add additionalProperties: false to all object types
+            return _add_additional_properties_false(original_schema)
+
+    # Set name and docstring
+    OpenAICompatModel.__name__ = f"{schema.__name__}OpenAICompat"
+    OpenAICompatModel.__doc__ = schema.__doc__
+
+    return OpenAICompatModel
+
+
 def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
     """Create an Outlines model for the specified provider and model.
 
@@ -273,10 +389,15 @@ class LLMClient:
         # Convert provider-specific parameters
         kwargs = self._convert_generation_params(**kwargs)
 
-        # For Gemini, use compatible schema without additionalProperties
+        # Apply provider-specific schema transformations
         generation_schema = schema
-        if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
-            generation_schema = _create_gemini_compatible_schema(schema)
+        if isinstance(schema, type) and issubclass(schema, BaseModel):
+            if self.provider == "gemini":
+                # Gemini doesn't support additionalProperties
+                generation_schema = _create_gemini_compatible_schema(schema)
+            elif self.provider in ("openai", "ollama"):
+                # OpenAI (and Ollama via OpenAI API) requires additionalProperties: false
+                generation_schema = _create_openai_compatible_schema(schema)
 
         # Generate JSON string with Outlines using the schema as output type
         json_output = self.model(prompt, generation_schema, **kwargs)
@@ -319,12 +440,18 @@ class LLMClient:
         """
         kwargs = self._convert_generation_params(**kwargs)
 
-        # For Gemini, use compatible schema without additionalProperties
+        # Apply provider-specific schema transformations
         generation_schema = schema
-        if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
-            generation_schema = _create_gemini_compatible_schema(schema)
+        if isinstance(schema, type) and issubclass(schema, BaseModel):
+            if self.provider == "gemini":
+                # Gemini doesn't support additionalProperties
+                generation_schema = _create_gemini_compatible_schema(schema)
+            elif self.provider in ("openai", "ollama"):
+                # OpenAI (and Ollama via OpenAI API) requires additionalProperties: false
+                generation_schema = _create_openai_compatible_schema(schema)
 
         json_output = await self.async_model(prompt, generation_schema, **kwargs)
+
         # Validate with original schema to ensure proper validation
         return schema.model_validate_json(json_output)
 
