@@ -22,7 +22,6 @@ dependencies = [
     "packaging>=25.0",
     "transformers>=4.57.1",
     "torch>=2.9.0",
-    "unsloth>=2024.8",
 ]
 
 [project.optional-dependencies]
