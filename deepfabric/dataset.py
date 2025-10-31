@@ -101,7 +101,7 @@ class Dataset:
             >>> formatted = dataset.format(target_model="meta-llama/Llama-3.1-8B")
         """
         try:
-            hf_ds = load_dataset(repo_id, split=split) #  nosec
+            hf_ds = load_dataset(repo_id, split=split)  #  nosec
             samples = list(hf_ds)
 
             # Clean up samples: HuggingFace datasets may convert empty strings to None

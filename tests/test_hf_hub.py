@@ -96,7 +96,7 @@ def test_push_to_hub_success(uploader):
         ) as mock_clean,
     ):
         mock_dataset = Mock()
-        mock_load_dataset.return_value = mock_dataset #  nosec
+        mock_load_dataset.return_value = mock_dataset  #  nosec
 
         result = uploader.push_to_hub("test/repo", "test.jsonl", tags=["test"])
 
