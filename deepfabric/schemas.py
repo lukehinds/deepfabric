@@ -42,7 +42,13 @@ class ReasoningStep(BaseModel):
     step_number: int = Field(description="The step number in the reasoning chain")
     thought: str = Field(description="The reasoning or thought for this step")
     action: str | None = Field(
-        default=None, description="Any action taken as part of this reasoning step"
+        default=None,
+        description=(
+            "Action taken in this reasoning step. For tool-calling, use one of these formats: "
+            "1) Plain function name: 'get_weather' "
+            "2) Function call: 'get_weather(city=\"Paris\")' "
+            "3) Descriptive text (less reliable): 'I will call the get_weather tool'"
+        ),
     )
 
 

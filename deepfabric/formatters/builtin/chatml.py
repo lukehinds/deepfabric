@@ -249,13 +249,17 @@ class ChatmlFormatter(BaseFormatter):
                 # Check if step has an action that matches an execution
                 action = getattr(step, "action", None)
                 if action and isinstance(action, str):
-                    # Extract function name from action string (e.g., "kubectl_config_get_contexts(...)")
-                    func_name = action.split("(")[0].strip() if "(" in action else action.strip()
+                    # Try to extract function name from action string
+                    # This handles multiple formats:
+                    # 1. Function call format: "function_name(...)"
+                    # 2. Plain function name: "function_name"
+                    # 3. Descriptive text containing function name (best-effort)
+                    func_name = self._extract_function_name(action)
 
                     # Check if this matches the next expected execution
                     if execution_idx < len(execution_order):
                         expected_func, expected_turn = execution_order[execution_idx]
-                        if func_name == expected_func:
+                        if func_name and func_name == expected_func:
                             # This step corresponds to the next execution
                             turns[expected_turn]["reasoning_steps"].append(step)
                             current_turn_idx = expected_turn
@@ -274,6 +278,60 @@ class ChatmlFormatter(BaseFormatter):
                     turns[current_turn_idx]["reasoning_steps"].append(step)
 
         return turns
+
+    def _extract_function_name(self, action: str) -> str | None:
+        """
+        Extract function name from action string with robust parsing.
+
+        Handles multiple formats:
+        1. Function call format: "function_name(...)" -> "function_name"
+        2. Plain function name: "function_name" -> "function_name"
+        3. Descriptive text: "I will call get_weather tool" -> "get_weather"
+
+        Args:
+            action: Action string from ReasoningStep
+
+        Returns:
+            Extracted function name, or None if no function name found
+
+        Note:
+            For best results, LLMs should be prompted to use one of these formats in the action field:
+            - Plain function name: "get_weather"
+            - Function call: "get_weather(city='Paris')"
+            Descriptive text parsing is best-effort and may fail for complex sentences.
+        """
+        if not action:
+            return None
+
+        action = action.strip()
+
+        # Format 1: Function call format "function_name(...)"
+        if "(" in action:
+            func_name = action.split("(")[0].strip()
+            # Validate it looks like a function name (alphanumeric + underscore)
+            if func_name and re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", func_name):
+                return func_name
+
+        # Format 2: Check if the entire string is a valid function name
+        if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", action):
+            return action
+
+        # Format 3: Try to extract from descriptive text (best-effort)
+        # Look for patterns like "call X", "use X", "execute X", "run X"
+        # where X is a valid function name (not common words like "the", "a")
+        match = re.search(
+            r"\b(?:call|use|execute|run|invoke)\s+(?:the\s+)?([a-zA-Z_][a-zA-Z0-9_]*)\b",
+            action,
+            re.IGNORECASE,
+        )
+        if match:
+            func_name = match.group(1)
+            # Filter out common English words that aren't function names
+            if func_name.lower() not in {"a", "an", "the", "this", "that", "it", "tool", "function"}:
+                return func_name
+
+        # If all else fails, return None - this reasoning step doesn't clearly reference a tool
+        return None
 
     def _format_multi_turn(self, conversation: Conversation) -> list[dict[str, Any]]:
         """

@@ -759,16 +759,24 @@ Is the user's original task/goal from the scenario fully completed?
         all_reasoning: list[ReasoningStep] = []
         all_executions: list[ToolExecution] = []
 
-        # Add messages from each turn
+        # Add messages from each turn in correct order:
+        # user -> assistant (thinking/tool_calls) -> tool (responses) -> assistant (final answer)
         for turn in turns:
+            # User message
             messages.append(turn.user_message)
-            messages.append(turn.agent_response)
 
-            # Add tool messages
+            # First assistant message (empty content - reasoning and tool calls will be added by formatters)
+            # This represents the assistant's "thinking" phase where it plans tool usage
+            messages.append(ChatMessage(role="assistant", content=""))
+
+            # Tool response messages (results from executed tools)
             for tool_exec in turn.tool_calls:
                 messages.append(ChatMessage(role="tool", content=tool_exec.result))
 
-            # Accumulate reasoning and executions
+            # Final assistant response with the answer
+            messages.append(turn.agent_response)
+
+            # Accumulate reasoning and executions across all turns
             all_reasoning.extend(turn.reasoning_steps)
             all_executions.extend(turn.tool_calls)
 

@@ -45,7 +45,7 @@ nav:
         - Tutorials:
           - Getting Started: guide/instruction-formats/agent-tool-calling/tutorials/getting-started.md
     - Tool Configuration: guide/yaml-tool-configuration.md
-    - Rate Limiting: rate-limiting.md
+    - Rate Limiting: operation/rate-limiting.md
   - SDK Guide:
     - Generator Pattern: guide/generator-pattern.md
   - Formatters:
