@@ -29,8 +29,8 @@ class HarmonyFormatter(BaseFormatter):
     role hierarchy, channels, and tool support for gpt-oss models.
     """
 
-    def __init__(self, config: "dict[str, Any] | None" = None):
-        super().__init__(config)
+    def __init__(self, config: "dict[str, Any] | None" = None, tool_registry=None):
+        super().__init__(config, tool_registry=tool_registry)
 
         # BaseFormatter's __init__ calls get_config_model() and populates self._config_model
         # with a validated HarmonyConfig instance from the config dict

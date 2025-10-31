@@ -48,19 +48,60 @@ def test_update_dataset_card(uploader, mock_dataset_card):
         mock_dataset_card.push_to_hub.assert_called_once_with("test/repo")
 
 
+def test_update_dataset_card_no_duplicate_tags(uploader, mock_dataset_card):
+    """Test that 'deepfabric' tag is never duplicated regardless of source."""
+    with patch("deepfabric.hf_hub.DatasetCard") as mock_card_class:
+        mock_card_class.load.return_value = mock_dataset_card
+
+        # Test 1: User explicitly includes "deepfabric" in custom tags
+        mock_dataset_card.data.tags = []
+        uploader.update_dataset_card("test/repo", tags=["deepfabric", "custom"])
+        assert mock_dataset_card.data.tags.count("deepfabric") == 1
+        assert "custom" in mock_dataset_card.data.tags
+        assert "synthetic" in mock_dataset_card.data.tags
+
+        # Test 2: Dataset card already has "deepfabric" from previous push
+        mock_dataset_card.data.tags = ["deepfabric", "existing"]
+        uploader.update_dataset_card("test/repo", tags=["new_tag"])
+        assert mock_dataset_card.data.tags.count("deepfabric") == 1
+        assert "existing" in mock_dataset_card.data.tags
+        assert "new_tag" in mock_dataset_card.data.tags
+        assert "synthetic" in mock_dataset_card.data.tags
+
+        # Test 3: User includes "deepfabric" AND card already has it
+        mock_dataset_card.data.tags = ["deepfabric"]
+        uploader.update_dataset_card("test/repo", tags=["deepfabric", "another"])
+        assert mock_dataset_card.data.tags.count("deepfabric") == 1
+        assert "another" in mock_dataset_card.data.tags
+        assert "synthetic" in mock_dataset_card.data.tags
+
+        # Test 4: Multiple duplicate tags in custom tags
+        mock_dataset_card.data.tags = []
+        uploader.update_dataset_card(
+            "test/repo", tags=["deepfabric", "custom", "deepfabric", "synthetic"]
+        )
+        assert mock_dataset_card.data.tags.count("deepfabric") == 1
+        assert mock_dataset_card.data.tags.count("synthetic") == 1
+        assert mock_dataset_card.data.tags.count("custom") == 1
+
+
 def test_push_to_hub_success(uploader):
     """Test successful dataset push to hub."""
     with (
         patch("deepfabric.hf_hub.login") as mock_login,
         patch("deepfabric.hf_hub.load_dataset") as mock_load_dataset,
         patch.object(uploader, "update_dataset_card") as mock_update_card,
+        patch.object(
+            uploader, "_clean_dataset_for_upload", return_value="test.jsonl"
+        ) as mock_clean,
     ):
         mock_dataset = Mock()
-        mock_load_dataset.return_value = mock_dataset
+        mock_load_dataset.return_value = mock_dataset #  nosec
 
         result = uploader.push_to_hub("test/repo", "test.jsonl", tags=["test"])
 
         mock_login.assert_called_once_with(token="dummy_token")  # noqa: S106
+        mock_clean.assert_called_once_with("test.jsonl")
         mock_load_dataset.assert_called_once_with("json", data_files={"train": "test.jsonl"})
         mock_dataset.push_to_hub.assert_called_once_with(
             "test/repo",

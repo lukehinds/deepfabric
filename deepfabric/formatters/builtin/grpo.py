@@ -35,8 +35,8 @@ class GrpoFormatter(BaseFormatter):
     with reasoning and solution tags for mathematical reasoning tasks.
     """
 
-    def __init__(self, config: dict | None = None):
-        super().__init__(config)
+    def __init__(self, config: dict | None = None, tool_registry=None):
+        super().__init__(config, tool_registry=tool_registry)
 
         # Access configuration through typed model if available
         if self._config_model:
@@ -108,7 +108,11 @@ Then, provide your solution between {self.solution_start_tag} and {self.solution
             case "qa":
                 return self._format_qa_sample(unified.as_qa())
             case "generic":
-                return self._format_generic_sample(unified.as_generic())
+                # Convert GenericSample (Pydantic model) to a dict before formatting
+                generic = unified.as_generic()
+                return self._format_generic_sample(
+                    generic.model_dump() if hasattr(generic, "model_dump") else generic.dict()
+                )
             case _:
                 return None
 

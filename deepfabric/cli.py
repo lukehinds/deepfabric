@@ -85,6 +85,11 @@ class GenerateOptions(BaseModel):
     debug: bool = False
     topic_only: bool = False
 
+    # Modular conversation configuration
+    conversation_type: Literal["basic", "chain_of_thought"] | None = None
+    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = None
+    agent_mode: Literal["single_turn", "multi_turn"] | None = None
+
     @model_validator(mode="after")
     def validate_mode_constraints(self) -> "GenerateOptions":
         if self.mode == "graph" and self.save_tree:
@@ -148,6 +153,9 @@ def _load_and_prepare_generation_context(options: GenerateOptions) -> Generation
         dataset_save_as=options.dataset_save_as,
         sys_msg=options.sys_msg,
         mode=options.mode,
+        conversation_type=options.conversation_type,
+        reasoning_style=options.reasoning_style,
+        agent_mode=options.agent_mode,
     )
 
     tree_overrides_raw, graph_overrides_raw, engine_overrides_raw = apply_cli_overrides(
@@ -322,6 +330,21 @@ def _run_generation(
     is_flag=True,
     help="Only create topic assets, no dataset",
 )
+@click.option(
+    "--conversation-type",
+    type=click.Choice(["basic", "structured", "chain_of_thought"]),
+    help="Base conversation type: basic (simple chat), structured (with metadata), chain_of_thought (with reasoning)",
+)
+@click.option(
+    "--reasoning-style",
+    type=click.Choice(["freetext", "structured", "hybrid"]),
+    help="Reasoning style for chain_of_thought: freetext (natural language), structured (step-by-step), hybrid (both)",
+)
+@click.option(
+    "--agent-mode",
+    type=click.Choice(["single_turn", "multi_turn"]),
+    help="Agent mode: single_turn (one-shot tool use), multi_turn (extended conversations). Requires tools.",
+)
 def generate(  # noqa: PLR0913
     config_file: str | None,
     dataset_system_prompt: str | None = None,
@@ -345,6 +368,9 @@ def generate(  # noqa: PLR0913
     mode: Literal["tree", "graph"] = "tree",
     debug: bool = False,
     topic_only: bool = False,
+    conversation_type: Literal["basic", "chain_of_thought"] | None = None,
+    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = None,
+    agent_mode: Literal["single_turn", "multi_turn"] | None = None,
 ) -> None:
     """Generate training data from a YAML configuration file or CLI parameters."""
     set_trace_debug(debug)
@@ -377,6 +403,9 @@ def generate(  # noqa: PLR0913
             mode=mode,
             debug=debug,
             topic_only=topic_only,
+            conversation_type=conversation_type,
+            reasoning_style=reasoning_style,
+            agent_mode=agent_mode,
         )
     except PydanticValidationError as error:
         handle_error(click.get_current_context(), ConfigurationError(str(error)))

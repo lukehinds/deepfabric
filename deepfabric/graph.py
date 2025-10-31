@@ -64,9 +64,6 @@ class GraphConfig(BaseModel):
     )
 
 
-# Pydantic Models for strict data representation
-
-
 class NodeModel(BaseModel):
     """Pydantic model for a node in the graph."""
 
@@ -81,9 +78,6 @@ class GraphModel(BaseModel):
 
     nodes: dict[int, NodeModel]
     root_id: int
-
-
-# Core graph implementation
 
 
 class Node:
@@ -133,6 +127,9 @@ class Graph(TopicModel):
             model_name=self.model_name,
             **llm_kwargs,
         )
+
+        # Progress reporter for streaming feedback (set by topic_manager)
+        self.progress_reporter = None
 
         trace(
             "graph_created",
@@ -309,13 +306,28 @@ class Graph(TopicModel):
         graph_prompt = graph_prompt.replace("{{num_subtopics}}", str(num_subtopics))
 
         try:
-            response = await self.llm_client.generate_async(
-                prompt=graph_prompt,
-                schema=GraphSubtopics,
-                max_retries=MAX_RETRY_ATTEMPTS,
-                max_tokens=DEFAULT_MAX_TOKENS,
-                temperature=self.temperature,
-            )
+            # Generate with streaming if progress reporter available
+            response = None
+            if self.progress_reporter:
+                async for chunk, result in self.llm_client.generate_async_stream(
+                    prompt=graph_prompt,
+                    schema=GraphSubtopics,
+                    max_retries=MAX_RETRY_ATTEMPTS,
+                    max_tokens=DEFAULT_MAX_TOKENS,
+                    temperature=self.temperature,
+                ):
+                    if chunk:
+                        self.progress_reporter.emit_chunk("graph_generation", chunk)
+                    if result:
+                        response = result
+            else:
+                response = await self.llm_client.generate_async(
+                    prompt=graph_prompt,
+                    schema=GraphSubtopics,
+                    max_retries=MAX_RETRY_ATTEMPTS,
+                    max_tokens=DEFAULT_MAX_TOKENS,
+                    temperature=self.temperature,
+                )
 
             # Process structured response
             for subtopic_data in response.subtopics:

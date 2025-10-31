@@ -1,0 +1,78 @@
+# Example configuration for generating synthetic datasets with Firecrawl MCP tools
+# This creates training data showing how an AI assistant would use Firecrawl tools
+# without actually making any API calls.
+
+dataset_system_prompt: |
+  You are a helpful AI assistant with access to web scraping and data extraction tools.
+  You can help users gather information from websites, extract structured data, and
+  search the web for relevant content.
+
+topic_tree:
+    topic_prompt: "Web scraping and data extraction tasks"
+    model: "gpt-4o-mini"
+    provider: "openai"
+    degree: 2
+    depth: 2
+    temperature: 0.7
+    save_as: "firecrawl_topics.jsonl"
+
+data_engine:
+  generation_system_prompt: |
+    You are a helpful AI assistant with access to web scraping and data extraction tools.
+    You can help users gather information from websites, extract structured data, and
+    search the web for relevant content.
+
+  dataset_system_prompt: |
+    You are a helpful AI assistant with access to web scraping and data extraction tools.
+    You can help users gather information from websites, extract structured data, and
+    search the web for relevant content.
+
+  provider: "openai"
+  model: "gpt-4o-mini"
+  temperature: 0.8
+  max_tokens: 4000
+
+  # Conversation configuration for agent tool use
+  conversation_type: "chain_of_thought"
+  agent_mode: "single_turn"  # Change to "multi_turn" for multi-step tool interactions
+  reasoning_style: "structured"   # Includes both structured reasoning and natural language
+
+  # Tool configuration
+  tool_registry_path: "examples/mcp/firecrawl_tools.yaml"
+  available_tools: []  # Empty list means use all tools from registry
+  max_tools_per_query: 3
+
+  # Generation settings
+  default_batch_size: 5
+  default_num_examples: 0  # No few-shot examples
+  sys_msg: true
+
+  # Instructions for generating realistic tool usage
+  instructions: |
+    Generate realistic web scraping and data extraction scenarios.
+    The user should have a genuine need for web data, and the assistant should:
+    - Choose the most appropriate Firecrawl tool(s) for the task
+    - Use realistic URLs (can be example.com or real domains)
+    - Provide appropriate parameters like schemas, prompts, and limits
+    - Explain what data will be extracted and why
+
+    Common scenarios to include:
+    - Extracting product information from e-commerce sites
+    - Scraping news articles or blog posts
+    - Gathering data from multiple pages on a website
+    - Searching the web for specific information
+    - Mapping website structures
+    - Extracting structured data using custom schemas
+
+dataset:
+  creation:
+    num_steps: 2  # Number of batches
+    batch_size: 2   # Samples per batch (total: 50 samples)
+
+  save_as: "firecrawl_dataset.jsonl"
+
+# Optional: Upload to Hugging Face Hub
+# huggingface:
+#   repo_id: "your-username/firecrawl-tools-dataset"
+#   private: false
+#   token: null  # Uses HF_TOKEN environment variable

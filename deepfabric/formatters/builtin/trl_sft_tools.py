@@ -45,7 +45,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationError
 
 from ...schemas import ToolDefinition
-from ..base import BaseFormatter
+from ..base import BaseFormatter, get_field, has_field, to_dict
 from ..models import ConversationSample
 
 logger = logging.getLogger(__name__)
@@ -86,33 +86,35 @@ class TRLSFTToolsFormatter(BaseFormatter):
     - Creating datasets compatible with trl.trainer.sft_trainer
     """
 
-    def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config)
+    def __init__(self, config: dict[str, Any] | None = None, tool_registry=None):
+        super().__init__(config, tool_registry=tool_registry)
 
     def get_config_model(self) -> type[BaseModel] | None:
         """Return the configuration model for this formatter."""
         return TRLSFTToolsConfig
 
-    def validate(self, sample: dict) -> bool:
+    def validate(self, sample) -> bool:
         """Validate that sample has required fields for TRL format."""
         # Accept either messages format OR agent_cot_tools format
 
         # Check for messages format
-        if "messages" in sample and isinstance(sample["messages"], list):
-            return len(sample["messages"]) > 0
+        if has_field(sample, "messages"):
+            messages = get_field(sample, "messages")
+            if isinstance(messages, list):
+                return len(messages) > 0
 
         # Check for agent_cot_tools format (question + tool_used + answer/final_answer)
-        if "question" in sample and "tool_used" in sample:
-            return "answer" in sample or "final_answer" in sample
+        if has_field(sample, "question") and has_field(sample, "tool_used"):
+            return has_field(sample, "answer") or has_field(sample, "final_answer")
 
         return False
 
-    def _format_single_sample(self, sample: dict) -> dict | None:
+    def _format_single_sample(self, sample) -> dict | None:
         """
         Format a single sample to TRL SFT tool calling format.
 
         Args:
-            sample: DeepFabric sample with messages and available_tools
+            sample: DeepFabric sample with messages and available_tools (dict or Pydantic model)
 
         Returns:
             Formatted sample with 'tools' field in OpenAI schema format
@@ -128,19 +130,40 @@ class TRLSFTToolsFormatter(BaseFormatter):
         )
 
         # Convert agent_cot_tools format to messages format if needed
-        if "messages" not in sample:
-            sample = self._convert_agent_to_messages(sample, config)
+        if not has_field(sample, "messages"):
+            sample_dict = self._convert_agent_to_messages(to_dict(sample), config)
+        else:
+            sample_dict = to_dict(sample)
 
         # Start with a copy of the sample
-        formatted_sample = sample.copy()
+        formatted_sample = sample_dict.copy()
 
         # Convert available_tools to TRL format if present
-        if "available_tools" in sample and sample["available_tools"]:
+        # Support both legacy format (available_tools) and unified schema (tool_context.available_tools)
+        available_tools = get_field(sample, "available_tools")
+        tool_executions = []
+        if not available_tools and has_field(sample, "tool_context"):
+            tool_context = get_field(sample, "tool_context")
+            if isinstance(tool_context, dict):
+                if "available_tools" in tool_context:
+                    available_tools = tool_context["available_tools"]
+                if "executions" in tool_context:
+                    tool_executions = tool_context["executions"]
+            elif hasattr(tool_context, "available_tools"):
+                available_tools = tool_context.available_tools  # type: ignore
+                if hasattr(tool_context, "executions"):
+                    tool_executions = tool_context.executions  # type: ignore
+
+        if available_tools:
             try:
-                # Convert to ToolDefinition objects and then to OpenAI schema
-                tool_defs = [
-                    ToolDefinition.model_validate(tool) for tool in sample["available_tools"]
-                ]
+                # Convert to ToolDefinition objects
+                tool_defs = [ToolDefinition.model_validate(tool) for tool in available_tools]
+
+                # Filter to only tools actually used (saves tokens)
+                if tool_executions:
+                    tool_defs = self._get_conversation_used_tools(tool_defs, tool_executions)
+
+                # Convert to OpenAI schema
                 formatted_sample["tools"] = [tool.to_openai_schema() for tool in tool_defs]
 
                 # Optionally validate tool schemas
@@ -176,6 +199,13 @@ class TRLSFTToolsFormatter(BaseFormatter):
                     0,
                     {"role": "system", "content": config.system_prompt_override},
                 )
+
+        # Clean up empty fields that shouldn't be in the output
+        # For basic conversations (no CoT), question and final_answer are empty strings
+        if "question" in formatted_sample and not formatted_sample["question"]:
+            del formatted_sample["question"]
+        if "final_answer" in formatted_sample and not formatted_sample["final_answer"]:
+            del formatted_sample["final_answer"]
 
         return formatted_sample
 

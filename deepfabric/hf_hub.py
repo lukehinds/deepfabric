@@ -1,3 +1,8 @@
+import json
+import tempfile
+
+from pathlib import Path
+
 from datasets import load_dataset
 from huggingface_hub import DatasetCard, login
 from huggingface_hub.errors import HfHubHTTPError, RepositoryNotFoundError
@@ -38,6 +43,50 @@ class HFUploader:
         hf_token (str): Hugging Face Hub authentication token.
         """
         self.hf_token = hf_token
+
+    def _clean_dataset_for_upload(self, jsonl_file_path: str) -> str:
+        """
+        Clean dataset by removing empty question/final_answer fields.
+
+        This prevents empty columns from appearing in HuggingFace/Kaggle dataset viewers.
+
+        Parameters:
+        jsonl_file_path (str): Path to the original JSONL file.
+
+        Returns:
+        str: Path to cleaned file (temp file if cleaning was needed, original if not).
+        """
+        # Read the dataset and check if cleaning is needed
+        needs_cleaning = False
+        samples = []
+
+        with open(jsonl_file_path) as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                sample = json.loads(line)
+                samples.append(sample)
+
+                # Check if any sample has empty question/final_answer
+                if sample.get("question") == "" or sample.get("final_answer") == "":
+                    needs_cleaning = True
+
+        # If no cleaning needed, return original file
+        if not needs_cleaning:
+            return jsonl_file_path
+
+        # Create a temporary file with cleaned data
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp_file:
+            for sample in samples:
+                # Remove empty question/final_answer fields
+                if sample.get("question") == "":
+                    sample.pop("question", None)
+                if sample.get("final_answer") == "":
+                    sample.pop("final_answer", None)
+
+                tmp_file.write(json.dumps(sample) + "\n")
+
+            return tmp_file.name
 
     def update_dataset_card(self, repo_id: str, tags: list[str] | None = None):
         """
@@ -92,8 +141,12 @@ class HFUploader:
         """
         try:
             login(token=self.hf_token)
+
+            # Clean empty question/final_answer fields to avoid empty columns in dataset viewers
+            cleaned_file = self._clean_dataset_for_upload(jsonl_file_path)
+
             # Bandit locally produced and sourced
-            dataset = load_dataset("json", data_files={"train": jsonl_file_path})  # nosec
+            dataset = load_dataset("json", data_files={"train": cleaned_file})  # nosec
 
             # Use getattr to safely access push_to_hub method
             push_method = getattr(dataset, "push_to_hub", None)
@@ -104,6 +157,10 @@ class HFUploader:
 
             # Update dataset card with tags
             self.update_dataset_card(hf_dataset_repo, tags)
+
+            # Clean up temp file if we created one
+            if cleaned_file != jsonl_file_path:
+                Path(cleaned_file).unlink(missing_ok=True)
 
         except RepositoryNotFoundError:
             return {

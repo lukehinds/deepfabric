@@ -97,3 +97,4 @@ deepfabric start config.yaml --model gpt-4 --temperature 0.8 --hf-repo user/data
 - Bandit for security analysis
 - Python 3.11+ required
 - Google-style docstrings preferred
+- do not place imports anywhere but the top of the file

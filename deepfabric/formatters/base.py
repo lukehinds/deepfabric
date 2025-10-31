@@ -27,6 +27,56 @@ from .models import (
 )
 
 
+def has_field(obj, field_name: str) -> bool:
+    """
+    Check if object has a field, supporting both dicts and Pydantic models.
+
+    Args:
+        obj: Dictionary or Pydantic model instance
+        field_name: Name of the field to check
+
+    Returns:
+        True if the field exists, False otherwise
+    """
+    if isinstance(obj, dict):
+        return field_name in obj
+    return hasattr(obj, field_name)
+
+
+def get_field(obj, field_name: str, default=None):
+    """
+    Get a field value from object, supporting both dicts and Pydantic models.
+
+    Args:
+        obj: Dictionary or Pydantic model instance
+        field_name: Name of the field to get
+        default: Default value if field doesn't exist
+
+    Returns:
+        Field value or default
+    """
+    if isinstance(obj, dict):
+        return obj.get(field_name, default)
+    return getattr(obj, field_name, default)
+
+
+def to_dict(obj) -> dict:
+    """
+    Convert object to dictionary, supporting both dicts and Pydantic models.
+
+    Args:
+        obj: Dictionary or Pydantic model instance
+
+    Returns:
+        Dictionary representation
+    """
+    if isinstance(obj, dict):
+        return obj.copy()
+    if isinstance(obj, BaseModel):
+        return obj.model_dump()
+    raise TypeError(f"Cannot convert {type(obj)} to dict")
+
+
 class BaseFormatter(ABC):
     """
     Abstract base class for all dataset formatters.
@@ -35,12 +85,13 @@ class BaseFormatter(ABC):
     to training framework-specific formats (e.g., Alpaca, GRPO, DPO).
     """
 
-    def __init__(self, config: dict | BaseModel | None = None):
+    def __init__(self, config: dict | BaseModel | None = None, tool_registry=None):
         """
         Initialize the formatter with configuration.
 
         Args:
             config: Optional configuration dictionary or Pydantic model specific to this formatter
+            tool_registry: Optional tool registry for agent tool-calling formatters
         """
         if isinstance(config, BaseModel):
             self.config = config.model_dump()
@@ -49,6 +100,7 @@ class BaseFormatter(ABC):
             self.config = config or {}
             self._config_model = None
             self._setup_config()
+        self.tool_registry = tool_registry
 
     def _setup_config(self):
         """Set up configuration using Pydantic model if available."""
@@ -59,13 +111,43 @@ class BaseFormatter(ABC):
             except ValidationError as e:
                 raise FormatterError(f"Invalid configuration: {e}") from e
 
+    def _get_conversation_used_tools(self, all_tools: list, executions: list) -> list:
+        """
+        Filter tools to only those actually used in the conversation.
+
+        This is a shared utility method for formatters that need to include only
+        used tools in system messages to save tokens.
+
+        Args:
+            all_tools: All available tool definitions (ToolDefinition objects)
+            executions: List of tool executions from conversation (ToolExecution objects or dicts)
+
+        Returns:
+            Filtered list of only the tools used in this conversation
+        """
+        if not executions:
+            return []
+
+        # Extract tool names that were actually executed (handle both dict and object formats)
+        used_tool_names = set()
+        for execution in executions:
+            if isinstance(execution, dict):
+                used_tool_names.add(execution.get("function_name", ""))
+            else:
+                used_tool_names.add(getattr(execution, "function_name", ""))
+
+        # Filter tools to only those used
+        return [tool for tool in all_tools if tool.name in used_tool_names]
+
     @abstractmethod
-    def _format_single_sample(self, sample: dict) -> dict | None:
+    def _format_single_sample(
+        self, sample: dict | ConversationSample | QASample | InstructionSample | DatasetSample
+    ) -> dict | None:
         """
         Format a single sample. This is the core method that subclasses must implement.
 
         Args:
-            sample: Single sample dictionary to format
+            sample: Single sample to format (dict or Pydantic model)
 
         Returns:
             Formatted sample dictionary or None if formatting fails
@@ -105,9 +187,8 @@ class BaseFormatter(ABC):
 
         for i, sample in enumerate(dataset_input.samples):
             try:
-                # Convert Pydantic model to dict for formatting
-                sample_dict = getattr(sample, "data", None) or sample.model_dump()
-                formatted_sample = self._format_single_sample(sample_dict)
+                sample_to_format = sample.data if isinstance(sample, GenericSample) else sample
+                formatted_sample = self._format_single_sample(sample_to_format)
                 if formatted_sample:
                     formatted_samples.append(FormattedOutput(**formatted_sample))
             except Exception as e:
@@ -146,18 +227,10 @@ class BaseFormatter(ABC):
 
         for i, sample in enumerate(dataset_input.samples):
             try:
-                # Convert Pydantic model to dict for validation
-                sample_dict = (
-                    sample.data if isinstance(sample, GenericSample) else sample.model_dump()
-                )
+                # Extract data from GenericSample, pass everything else as-is
+                sample_to_format = sample.data if isinstance(sample, GenericSample) else sample
 
-                validation_result = self.validate_sample(sample_dict)
-                if not validation_result.is_valid:
-                    skipped_count += 1
-                    errors.extend([f"Sample {i}: {error}" for error in validation_result.errors])
-                    continue
-
-                formatted_sample = self._format_single_sample(sample_dict)
+                formatted_sample = self._format_single_sample(sample_to_format)
                 if formatted_sample:
                     processed_samples.append(formatted_sample)
                 else:
@@ -251,13 +324,14 @@ class BaseFormatter(ABC):
         Custom validation logic. Override in subclasses.
 
         Args:
-            entry: A single dataset entry to validate
+            entry: A single dataset entry to validate (dict or Pydantic model)
 
         Returns:
             True if the entry is valid, False otherwise
         """
-        # Default validation - subclasses can override
-        return isinstance(entry, dict)
+        # Default validation - accept both dict and Pydantic BaseModel objects
+
+        return isinstance(entry, dict | BaseModel)
 
     def get_config_model(self) -> type[BaseModel] | None:
         """

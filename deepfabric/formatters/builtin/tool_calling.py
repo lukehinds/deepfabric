@@ -3,25 +3,27 @@ Tool Calling format formatter.
 
 This formatter transforms agent reasoning datasets into embedded tool execution
 format with proper tool call traces, similar to how real agents execute tools
-during conversations.
+during conversations. Supports multiple tool executions per query.
 
 The formatter converts from:
 {
-  "question": "What's the weather like?",
-  "reasoning": "Need to check weather...",
-  "tool_used": "get_weather",
-  "tool_input": "{'location': 'NYC'}",
-  "tool_output": "72°F, sunny",
-  "answer": "It's sunny and 72°F"
+  "question": "What's the weather like in NYC and London?",
+  "reasoning": "Need to check weather in both cities...",I
+  "tool_executions": [
+    {"function": "get_weather", "arguments": {"location": "NYC"}, "result": "72°F, sunny"},
+    {"function": "get_weather", "arguments": {"location": "London"}, "result": "15°C, rainy"}
+  ],
+  "answer": "NYC is sunny at 72°F, while London is rainy at 15°C"
 }
 
 To:
 {
   "messages": [
-    {"role": "user", "content": "What's the weather like?"},
-    {"role": "assistant", "content": "<think>Need to check weather...</think><tool_call>\n{'name': 'get_weather', 'arguments': {'location': 'NYC'}}\n</tool_call>"},
+    {"role": "user", "content": "What's the weather like in NYC and London?"},
+    {"role": "assistant", "content": "<think>Need to check weather in both cities...</think><tool_call>\n{'name': 'get_weather', 'arguments': {'location': 'NYC'}}\n</tool_call><tool_call>\n{'name': 'get_weather', 'arguments': {'location': 'London'}}\n</tool_call>"},
     {"role": "tool", "content": "<tool_response>\n72°F, sunny\n</tool_response>"},
-    {"role": "assistant", "content": "It's sunny and 72°F"}
+    {"role": "tool", "content": "<tool_response>\n15°C, rainy\n</tool_response>"},
+    {"role": "assistant", "content": "NYC is sunny at 72°F, while London is rainy at 15°C"}
   ]
 }
 """
@@ -32,6 +34,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from ...schemas import Conversation, ToolDefinition
 from ..base import BaseFormatter
 from ..models import ConversationSample
 
@@ -68,153 +71,190 @@ class ToolCallingFormatter(BaseFormatter):
     that shows the actual execution flow of tool calls.
     """
 
-    def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__(config)
+    def __init__(self, config: dict[str, Any] | None = None, tool_registry=None):
+        super().__init__(config, tool_registry=tool_registry)
 
     def get_config_model(self) -> type[BaseModel] | None:
         """Return the configuration model for this formatter."""
         return ToolCallingConfig
 
-    def validate(self, sample: dict) -> bool:
-        """Validate that sample has required fields for tool calling format."""
-        required_fields = ["question", "tool_used"]
-        # Check for either "answer" (SimpleAgentCoT) or "final_answer" (HybridAgentCoT)
-        has_answer = "answer" in sample or "final_answer" in sample
-        return all(field in sample for field in required_fields) and has_answer
+    def validate(self, entry: dict | BaseModel) -> bool:  # type: ignore[override]
+        """Validate that entry has required fields for tool calling format."""
+        # Support both legacy schema and unified Conversation schema
+        if hasattr(entry, "tool_executions"):
+            return len(entry.tool_executions) > 0  # type: ignore[union-attr]
+        if hasattr(entry, "tool_context") and entry.tool_context:  # type: ignore[union-attr]
+            return len(entry.tool_context.executions) > 0  # type: ignore[union-attr]
+        # Dict format
+        if isinstance(entry, dict):
+            if "tool_executions" in entry and entry["tool_executions"]:
+                return True
+            if "tool_context" in entry and entry["tool_context"]:
+                tool_context = entry["tool_context"]
+                if isinstance(tool_context, dict) and "executions" in tool_context:
+                    return bool(tool_context["executions"])
+        return False
 
-    def _format_single_sample(self, sample: dict) -> dict | None:
+    def _format_single_sample(self, sample: Conversation | dict | Any) -> dict | None:
         """
         Format a single agent reasoning sample to tool calling conversation format.
 
+        Uses unified Conversation schema with tool_context.
+
         Args:
-            sample: Agent reasoning sample with tool usage
+            sample: A Conversation Pydantic model, dict, or anything with model_dump()
 
         Returns:
             Formatted conversation sample with embedded tool execution
         """
-        if not self.validate(sample):
+        # Convert to Conversation model
+        if isinstance(sample, Conversation):
+            conversation = sample
+        elif isinstance(sample, dict):
+            try:
+                conversation = Conversation(**sample)
+            except Exception:
+                return None
+        elif hasattr(sample, "model_dump"):
+            try:
+                conversation = Conversation(**sample.model_dump())
+            except Exception:
+                return None
+        else:
             return None
 
-        # Get configuration instance (created by base class _setup_config)
-        config = self._config_model or ToolCallingConfig()
+        # Validate has tool executions
+        if not conversation.tool_context or not conversation.tool_context.executions:
+            return None
 
-        # Extract components from agent reasoning sample
-        question = sample["question"]
-        tool_used = sample["tool_used"]
-        tool_input = sample.get("tool_input", "{}")
-        tool_output = sample.get("tool_output", "Tool execution completed.")
-        answer = sample.get("answer") or sample.get("final_answer", "No answer provided")
-        available_tools = sample.get("available_tools", [])
+        config: ToolCallingConfig = (
+            self._config_model
+            if isinstance(self._config_model, ToolCallingConfig)
+            else ToolCallingConfig()
+        )
 
-        # Build comprehensive reasoning from available fields
-        reasoning_parts = []
+        # Extract data from Conversation model using typed access
+        question = conversation.question if conversation.question else ""
+        tool_executions = conversation.tool_context.executions
+        available_tools = (
+            conversation.tool_context.available_tools
+            if conversation.tool_context.available_tools
+            else []
+        )
 
-        # Check if this is rich agent CoT format (SimpleAgentCoT)
-        if "initial_analysis" in sample:
-            reasoning_parts.append(f"Analysis: {sample['initial_analysis']}")
+        # Filter to only tools actually used in this conversation (saves tokens)
+        used_tools = self._get_conversation_used_tools(available_tools, tool_executions)
 
-            if "reasoning_steps" in sample and sample["reasoning_steps"]:
-                reasoning_parts.append("Step-by-step reasoning:")
-                for i, step in enumerate(sample["reasoning_steps"], 1):
-                    reasoning_parts.append(f"{i}. {step}")
+        # Get answer from final_answer field
+        answer = conversation.final_answer or "No answer provided"
+        reasoning_parts = self._extract_reasoning(conversation)
 
-            if "tool_selection_rationale" in sample:
-                reasoning_parts.append(f"Tool selection: {sample['tool_selection_rationale']}")
-
-            if "parameter_reasoning" in sample:
-                reasoning_parts.append(f"Parameters: {sample['parameter_reasoning']}")
-
-        # Check if this is hybrid agent CoT format (HybridAgentCoT)
-        elif "chain_of_thought" in sample and "reasoning_trace" in sample:
-            reasoning_parts.append(f"Analysis: {sample['chain_of_thought']}")
-
-            if sample["reasoning_trace"]:
-                reasoning_parts.append("Step-by-step reasoning:")
-                for step in sample["reasoning_trace"]:
-                    step_text = f"Step {step['step_number']}: {step['thought']}"
-                    if step.get("action"):
-                        step_text += f" → {step['action']}"
-                    reasoning_parts.append(step_text)
-
-            if "tool_selection_rationale" in sample:
-                reasoning_parts.append(f"Tool selection: {sample['tool_selection_rationale']}")
-
-            if "parameter_reasoning" in sample:
-                reasoning_parts.append(f"Parameters: {sample['parameter_reasoning']}")
-
-        else:
-            # Fallback to simple reasoning field
-            reasoning_parts.append(
-                sample.get("reasoning", "I need to use a tool to help answer this question.")
-            )
-
-        reasoning = "\n\n".join(reasoning_parts)
-
-        # Parse tool input if it's a string
-        if isinstance(tool_input, str):
-            try:
-                # Try to parse as JSON
-                tool_args = json.loads(tool_input.replace("'", '"'))
-            except (json.JSONDecodeError, AttributeError):
-                # If parsing fails, create a simple structure
-                tool_args = {"input": tool_input}
-        else:
-            tool_args = tool_input
+        # Join with single newline - no need for blank lines in training data
+        reasoning = "\n".join(reasoning_parts)
 
         # Create messages list
         messages = []
 
         # Add system message with tools (if configured)
-        if config.include_tools_in_system and available_tools:
-            tools_text = self._format_tools_for_system(available_tools)
+        if config.include_tools_in_system and used_tools:
+            tools_text = self._format_tools_for_system(used_tools)
             system_content = f"{config.system_prompt}\n\nHere are the available tools:\n<tools>\n{tools_text}\n</tools>"
             messages.append({"role": "system", "content": system_content})
 
         # Add user question
         messages.append({"role": "user", "content": question})
 
-        # Add model response with thinking and tool call
+        # Add model response with thinking and tool calls
         thinking = config.thinking_format.format(reasoning=reasoning)
-        tool_call_json = json.dumps({"name": tool_used, "arguments": tool_args})
-        tool_call = config.tool_call_format.format(tool_call=tool_call_json)
-        model_response = f"{thinking}{tool_call}"
+
+        tool_calls_text = ""
+        for execution in tool_executions:
+            try:
+                # Try to get parsed arguments
+                arguments = execution.parsed_arguments
+                tool_call = {"name": execution.function_name, "arguments": arguments}
+                tool_calls_text += config.tool_call_format.format(tool_call=json.dumps(tool_call))
+            except json.JSONDecodeError:
+                # Skip malformed tool calls
+                continue
+
+        model_response = f"{thinking}{tool_calls_text}"
         messages.append({"role": "assistant", "content": model_response})
 
-        # Add tool response
-        tool_response = config.tool_response_format.format(tool_output=tool_output)
-        messages.append({"role": "tool", "content": tool_response})
+        # Add tool responses (one per execution)
+        for execution in tool_executions:
+            result = execution.result
+            tool_response = config.tool_response_format.format(tool_output=result)
+            messages.append({"role": "tool", "content": tool_response})
 
-        # Add final model answer with optional result interpretation
-        final_response = answer
-        if "result_interpretation" in sample:
-            final_response = f"{sample['result_interpretation']}\n\n{answer}"
-
+        # Add final model answer
+        # Check for result_interpretation in structured_data
+        result_interpretation = ""
+        if conversation.structured_data:
+            result_interpretation = conversation.structured_data.get("result_interpretation", "")
+        # Single newline between interpretation and answer - training data doesn't need blank lines
+        final_response = f"{result_interpretation}\n{answer}" if result_interpretation else answer
         messages.append({"role": "assistant", "content": final_response})
 
         return {"messages": messages}
 
-    def _format_tools_for_system(self, available_tools: list[dict]) -> str:
-        """Format available tools for inclusion in system message."""
+    def _extract_reasoning(self, conversation: Conversation) -> list[str]:
+        """Extract reasoning parts from Conversation model."""
+        reasoning_parts = []
+
+        if not conversation.reasoning:
+            return reasoning_parts
+
+        reasoning = conversation.reasoning
+        content = reasoning.content
+
+        if isinstance(content, str):
+            reasoning_parts.append(content)
+        elif isinstance(content, list):
+            reasoning_parts.append("Step-by-step reasoning:")
+            for i, step in enumerate(content, 1):
+                if hasattr(step, "thought"):
+                    step_text = f"{i}. {step.thought}"
+                    if hasattr(step, "action") and step.action:
+                        step_text += f" → {step.action}"
+                    reasoning_parts.append(step_text)
+                else:
+                    reasoning_parts.append(f"{i}. {step}")
+
+        return reasoning_parts
+
+    def _format_tools_for_system(self, available_tools: list) -> str:
+        """
+        Format available tools for inclusion in system message.
+
+        Args:
+            available_tools: List of ToolDefinition Pydantic models
+
+        Returns:
+            JSON string of tools in OpenAI schema format
+        """
         tools_list = []
         for tool in available_tools:
-            # Convert to OpenAI-style function format
+            # Tools should already be ToolDefinition objects from Conversation model
+            if not isinstance(tool, ToolDefinition):
+                continue
+
             tool_def = {
                 "type": "function",
                 "function": {
-                    "name": tool["name"],
-                    "description": tool["description"],
+                    "name": tool.name,
+                    "description": tool.description,
                     "parameters": {"type": "object", "properties": {}, "required": []},
                 },
             }
 
-            # Add parameters
-            for param in tool.get("parameters", []):
-                tool_def["function"]["parameters"]["properties"][param["name"]] = {
-                    "type": param["type"],
-                    "description": param["description"],
+            for param in tool.parameters:
+                tool_def["function"]["parameters"]["properties"][param.name] = {
+                    "type": param.type,
+                    "description": param.description,
                 }
-                if param.get("required", True):
-                    tool_def["function"]["parameters"]["required"].append(param["name"])
+                if param.required:
+                    tool_def["function"]["parameters"]["required"].append(param.name)
 
             tools_list.append(tool_def)
 

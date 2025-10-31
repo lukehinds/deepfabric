@@ -21,7 +21,7 @@ class FormatterRegistry:
         self._cache: dict[str, type[BaseFormatter]] = {}
 
     def load_formatter(
-        self, template: str, config: "dict[str, Any] | None" = None
+        self, template: str, config: "dict[str, Any] | None" = None, tool_registry=None
     ) -> BaseFormatter:
         """
         Load and instantiate a formatter from a template string.
@@ -29,6 +29,7 @@ class FormatterRegistry:
         Args:
             template: Template string like "builtin://grpo.py" or "file://./my_formatter.py"
             config: Configuration dictionary to pass to the formatter
+            tool_registry: Optional tool registry for agent tool-calling formatters
 
         Returns:
             Instantiated formatter instance
@@ -43,7 +44,7 @@ class FormatterRegistry:
             self._cache[template] = formatter_class
 
         try:
-            return formatter_class(config)
+            return formatter_class(config, tool_registry=tool_registry)
         except Exception as e:
             raise FormatterError(f"Failed to instantiate formatter {template}: {str(e)}") from e
 

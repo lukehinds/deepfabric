@@ -8,13 +8,20 @@ ChatML format uses special tokens to mark conversation boundaries:
 - <|im_start|>role
 - <|im_end|>
 
+Supports tool calling via <tool_call> and <tool_response> XML tags.
+Supports reasoning via <think> tags.
+
 Reference: https://github.com/openai/openai-python/blob/main/chatml.md
 """
+
+import json
+import re
 
 from typing import Any
 
 from pydantic import BaseModel
 
+from ...schemas import Conversation, ToolDefinition
 from ..base import BaseFormatter
 from ..models import ChatmlConfig, ChatmlStructuredOutput, ChatmlTextOutput
 
@@ -27,8 +34,8 @@ class ChatmlFormatter(BaseFormatter):
     role delineation and conversation structure.
     """
 
-    def __init__(self, config: "dict[str, Any] | None" = None):
-        super().__init__(config)
+    def __init__(self, config: "dict[str, Any] | None" = None, tool_registry=None):
+        super().__init__(config, tool_registry=tool_registry)
 
         # Access configuration through typed model if available
         if self._config_model:
@@ -41,139 +48,542 @@ class ChatmlFormatter(BaseFormatter):
             self.output_format = chatml_config.output_format
             self.default_system_message = chatml_config.default_system_message
             self.require_system_message = chatml_config.require_system_message
-        else:
-            # Fallback to dict-based config for backward compatibility
-            self.start_token = self.config.get("start_token", "<|im_start|>")
-            self.end_token = self.config.get("end_token", "<|im_end|>")
-            self.output_format = self.config.get("output_format", "structured")
-            self.default_system_message = self.config.get(
-                "default_system_message", "You are a helpful assistant."
-            )
-            self.require_system_message = self.config.get("require_system_message", False)
 
-    def _format_single_sample(self, sample: dict) -> dict | None:
+    def _format_single_sample(self, sample: Conversation | dict | Any) -> dict | None:
         """
         Format a single sample to ChatML format.
 
         Args:
-            sample: A single dataset sample
+            sample: A Conversation Pydantic model, dict, or anything with model_dump()
 
         Returns:
             Formatted sample in ChatML format or None if formatting fails
         """
-        if not self.validate(sample):
+        # Convert to Conversation model
+        if isinstance(sample, Conversation):
+            conversation = sample
+        elif isinstance(sample, dict):
+            # Convert dict to Conversation
+            try:
+                conversation = Conversation(**sample)
+            except Exception:
+                return None
+        elif hasattr(sample, "model_dump"):
+            # Convert from other Pydantic models
+            try:
+                conversation = Conversation(**sample.model_dump())
+            except Exception:
+                return None
+        else:
             return None
 
-        # Handle different input formats
-        if "messages" in sample:
-            return self._format_messages_sample(sample)
-        if "question" in sample and ("answer" in sample or "final_answer" in sample):
-            return self._format_qa_sample(sample)
-        return self._format_generic_sample(sample)
+        # Format using Pydantic model
+        return self._format_conversation(conversation)
 
-    def _format_messages_sample(self, sample: dict[str, Any]) -> dict[str, Any]:
-        """Format a sample that already has messages structure."""
-        messages = sample["messages"].copy()
+    def _format_conversation(self, conversation: Conversation) -> dict[str, Any]:
+        """
+        Format a Conversation model to ChatML format.
 
-        # Ensure we have a system message if required
-        if self.require_system_message:
-            has_system = any(msg["role"] == "system" for msg in messages)
-            if not has_system:
-                messages.insert(0, {"role": "system", "content": self.default_system_message})
+        Args:
+            conversation: Pydantic Conversation model
 
-        # Validate and clean up messages
-        cleaned_messages = []
-        for msg in messages:
-            if self._is_valid_message(msg):
-                cleaned_messages.append({"role": msg["role"], "content": msg["content"]})
+        Returns:
+            Formatted ChatML output
+        """
+        # Check if this is a multi-turn agent conversation
+        # Only use multi-turn formatting if mode is multi_turn AND there are multiple user messages
+        user_message_count = sum(1 for msg in conversation.messages if msg.role == "user")
+        is_multi_turn = (
+            conversation.agent_context
+            and hasattr(conversation.agent_context, "mode")
+            and conversation.agent_context.mode == "multi_turn"
+            and user_message_count > 1
+        )
 
+        if is_multi_turn:
+            messages = self._format_multi_turn(conversation)
+        else:
+            messages = self._format_single_turn(conversation)
+
+        # Return in requested format
         if self.output_format == "text":
-            return {"text": self._messages_to_chatml_text(cleaned_messages)}
-        return {"messages": cleaned_messages}
+            return {"text": self._messages_to_chatml_text(messages)}
+        return {"messages": messages}
 
-    def _format_qa_sample(self, sample: dict[str, Any]) -> dict[str, Any]:
-        """Format a Q&A sample to ChatML format."""
-        question = sample["question"]
-        answer = sample.get("answer") or sample.get("final_answer", "")
+    def _format_single_turn(self, conversation: Conversation) -> list[dict[str, Any]]:
+        """
+        Format a single-turn conversation (original logic).
 
-        # Build messages list
+        Args:
+            conversation: Pydantic Conversation model
+
+        Returns:
+            List of formatted messages
+        """
+        # Build messages list from conversation
         messages = []
 
-        # Add system message if required or if context is available
-        system_content = None
-        if self.require_system_message:
-            system_content = self.default_system_message
+        # Get conversation-used tools only (same as multi-turn)
+        used_tools = []
+        if conversation.tool_context and conversation.tool_context.available_tools:
+            used_tools = self._get_conversation_used_tools(
+                conversation.tool_context.available_tools,
+                conversation.tool_context.executions or [],
+            )
 
-        # Check for additional context that could be system message
-        context_fields = ["context", "background", "instructions", "system_prompt"]
-        for field in context_fields:
-            if field in sample and sample[field]:
-                system_content = sample[field]
-                break
-
+        # Add system message with filtered tools
+        system_content = self._build_system_message(conversation, tools_override=used_tools)
         if system_content:
             messages.append({"role": "system", "content": system_content})
 
-        # Add user question
-        messages.append({"role": "user", "content": question})
+        # Track if we've added reasoning and tool calls to first assistant message
+        first_assistant_processed = False
 
-        # Add assistant answer (include reasoning if available)
-        output_content = answer
-        if "chain_of_thought" in sample and sample["chain_of_thought"]:
-            output_content = f"{sample['chain_of_thought']}\n\n{answer}"
+        # Process conversation messages with tool calls and reasoning
+        for msg in conversation.messages:
+            # Skip system messages - already handled above
+            if msg.role == "system":
+                continue
 
-        messages.append({"role": "assistant", "content": output_content})
+            if msg.role == "assistant":
+                if not first_assistant_processed:
+                    # First assistant message: add reasoning and tool calls
+                    content = self._build_assistant_content(msg, conversation)
+                    messages.append({"role": "assistant", "content": content})
+                    first_assistant_processed = True
+                else:
+                    # Subsequent assistant messages: just use content as-is
+                    messages.append({"role": "assistant", "content": msg.content})
+            elif msg.role == "tool":
+                # Tool messages are already in the conversation, just format them
+                if not msg.content.startswith("<tool_response>"):
+                    tool_response = f"<tool_response>\n{msg.content}\n</tool_response>"
+                    messages.append({"role": "tool", "content": tool_response})
+                else:
+                    messages.append({"role": "tool", "content": msg.content})
+            else:
+                # Regular user messages (not system, not assistant, not tool)
+                messages.append({"role": msg.role, "content": msg.content})
 
-        if self.output_format == "text":
-            return {"text": self._messages_to_chatml_text(messages)}
-        return {"messages": messages}
+        return messages
 
-    def _format_generic_sample(self, sample: dict[str, Any]) -> dict[str, Any] | None:
-        """Try to format any sample by detecting conversation patterns."""
-        # Look for instruction-like fields for user messages
-        user_fields = ["instruction", "prompt", "question", "input", "query"]
-        assistant_fields = ["output", "response", "answer", "solution", "final_answer"]
-        system_fields = ["system", "context", "background", "instructions"]
+    def _detect_turns(self, conversation: Conversation) -> list[dict[str, Any]]:
+        """
+        Detect turn boundaries in multi-turn agent conversations.
 
-        user_content = None
-        assistant_content = None
-        system_content = None
+        A turn consists of:
+        1. User message
+        2. Assistant message(s) (may include reasoning and tool calls)
+        3. Tool response messages (if tools were called)
+        4. Optional final assistant message (summary/response)
 
-        # Find user content
-        for field in user_fields:
-            if field in sample and sample[field]:
-                user_content = sample[field]
-                break
+        Args:
+            conversation: Conversation model
 
-        # Find assistant content
-        for field in assistant_fields:
-            if field in sample and sample[field]:
-                assistant_content = sample[field]
-                break
+        Returns:
+            List of turn dictionaries, each containing:
+            - user_msg: ChatMessage
+            - assistant_msgs: list[ChatMessage]
+            - reasoning_steps: list[ReasoningStep] for this turn
+            - tool_executions: list[ToolExecution] for this turn
+        """
+        turns = []
+        current_turn = None
+        execution_index = 0
 
-        # Find system content
-        for field in system_fields:
-            if field in sample and sample[field]:
-                system_content = sample[field]
-                break
+        # Get total executions and reasoning steps
+        total_executions = conversation.tool_context.executions if conversation.tool_context else []
+        total_reasoning_steps = (
+            conversation.reasoning.content
+            if conversation.reasoning and isinstance(conversation.reasoning.content, list)
+            else []
+        )
 
-        if not user_content or not assistant_content:
-            return None
+        for msg in conversation.messages:
+            if msg.role == "system":
+                continue
 
-        # Build messages
+            if msg.role == "user":
+                # Start a new turn when we see a user message
+                if current_turn is not None:
+                    turns.append(current_turn)
+
+                current_turn = {
+                    "user_msg": msg,
+                    "assistant_msgs": [],
+                    "reasoning_steps": [],
+                    "tool_executions": [],
+                }
+
+            elif msg.role == "assistant" and current_turn is not None:
+                current_turn["assistant_msgs"].append(msg)
+
+            elif msg.role == "tool" and current_turn is not None:
+                # Tool messages can be either "calls" (intent) or "responses" (results)
+                # Responses contain " -> " pattern indicating execution result
+                # Only count actual responses (with results) for execution mapping
+                if (
+                    " -> " in msg.content or "successfully" in msg.content.lower()
+                ) and execution_index < len(total_executions):
+                    # This is a tool response message
+                    current_turn["tool_executions"].append(total_executions[execution_index])
+                    execution_index += 1
+
+        # Add the last turn
+        if current_turn is not None:
+            turns.append(current_turn)
+
+        # Distribute reasoning steps across turns by matching actions to executions sequentially
+        if total_reasoning_steps and turns:
+            # Build a sequential list of (function_name, turn_idx) pairs
+            execution_order = []
+            for turn_idx, turn in enumerate(turns):
+                for execution in turn["tool_executions"]:
+                    execution_order.append((execution.function_name, turn_idx))
+
+            # Track which execution we're on
+            execution_idx = 0
+            current_turn_idx = 0
+
+            for step in total_reasoning_steps:
+                # Check if step has an action that matches an execution
+                action = getattr(step, "action", None)
+                if action and isinstance(action, str):
+                    # Extract function name from action string (e.g., "kubectl_config_get_contexts(...)")
+                    func_name = action.split("(")[0].strip() if "(" in action else action.strip()
+
+                    # Check if this matches the next expected execution
+                    if execution_idx < len(execution_order):
+                        expected_func, expected_turn = execution_order[execution_idx]
+                        if func_name == expected_func:
+                            # This step corresponds to the next execution
+                            turns[expected_turn]["reasoning_steps"].append(step)
+                            current_turn_idx = expected_turn
+                            execution_idx += 1
+                        # Step mentions a function but doesn't match next execution
+                        # (e.g., it's explaining previous turn or planning ahead)
+                        # Assign to current turn
+                        elif current_turn_idx < len(turns):
+                            turns[current_turn_idx]["reasoning_steps"].append(step)
+                    # No more executions, assign to current turn
+                    elif current_turn_idx < len(turns):
+                        turns[current_turn_idx]["reasoning_steps"].append(step)
+                # No action field (e.g., conclusion or planning step)
+                # Assign to current turn
+                elif current_turn_idx < len(turns):
+                    turns[current_turn_idx]["reasoning_steps"].append(step)
+
+        return turns
+
+    def _format_multi_turn(self, conversation: Conversation) -> list[dict[str, Any]]:
+        """
+        Format multi-turn agent conversation with proper turn boundaries.
+
+        Creates structure:
+        - Single system message with conversation-used tools only
+        - Per-turn: user → assistant (with turn reasoning & tool calls) → tool responses
+
+        Args:
+            conversation: Conversation model with agent_context.mode == "multi_turn"
+
+        Returns:
+            List of formatted messages
+        """
         messages = []
 
-        if system_content or self.require_system_message:
-            messages.append(
-                {"role": "system", "content": system_content or self.default_system_message}
+        # Get conversation-used tools only
+        used_tools = []
+        if conversation.tool_context and conversation.tool_context.available_tools:
+            used_tools = self._get_conversation_used_tools(
+                conversation.tool_context.available_tools,
+                conversation.tool_context.executions or [],
             )
 
-        messages.append({"role": "user", "content": user_content})
-        messages.append({"role": "assistant", "content": assistant_content})
+        # Build system message with filtered tools
+        system_content = self._build_system_message(conversation, tools_override=used_tools)
+        if system_content:
+            messages.append({"role": "system", "content": system_content})
 
-        if self.output_format == "text":
-            return {"text": self._messages_to_chatml_text(messages)}
-        return {"messages": messages}
+        # Detect turns and format each one
+        turns = self._detect_turns(conversation)
+
+        for turn in turns:
+            # Add user message
+            messages.append({"role": "user", "content": turn["user_msg"].content})
+
+            # Build assistant message with turn-specific reasoning and tool calls
+            # Use the first assistant message as the base
+            if turn["assistant_msgs"]:
+                assistant_msg = turn["assistant_msgs"][0]
+                content = self._build_assistant_content(
+                    assistant_msg,
+                    conversation,
+                    reasoning_steps=turn["reasoning_steps"],
+                    tool_executions=turn["tool_executions"],
+                )
+                messages.append({"role": "assistant", "content": content})
+
+                # Add tool response messages for this turn
+                for execution in turn["tool_executions"]:
+                    tool_response = f"<tool_response>\n{execution.result}\n</tool_response>"
+                    messages.append({"role": "tool", "content": tool_response})
+
+                # Add final assistant response if there's more than one assistant message
+                if len(turn["assistant_msgs"]) > 1:
+                    for additional_msg in turn["assistant_msgs"][1:]:
+                        messages.append({"role": "assistant", "content": additional_msg.content})
+
+        return messages
+
+    def _build_system_message(
+        self, conversation: Conversation, tools_override: list[ToolDefinition] | None = None
+    ) -> str:
+        """
+        Build system message with optional tools section.
+
+        Args:
+            conversation: Conversation model
+            tools_override: Optional list of tools to use instead of all available tools.
+                          Used for multi-turn to include only conversation-used tools.
+
+        Returns:
+            System message content
+        """
+        # Get base system message from conversation
+        system_content = ""
+        for msg in conversation.messages:
+            if msg.role == "system":
+                system_content = msg.content
+                break
+
+        # If no system message and required, use default
+        if not system_content and self.require_system_message:
+            system_content = self.default_system_message
+
+        # Determine which tools to include
+        tools_to_include = (
+            tools_override
+            if tools_override is not None
+            else (conversation.tool_context.available_tools if conversation.tool_context else None)
+        )
+
+        # Add tools section if present
+        if tools_to_include:
+            tools_json = self._format_tools_as_json(tools_to_include)
+
+            tools_header = (
+                "\n\nYou are provided with function signatures within <tools></tools> XML tags. "
+                "You may call one or more functions to assist with the user query. "
+                "For each function call return a json object with function name and arguments "
+                "within <tool_call></tool_call> XML tags.\n\n"
+                f"Here are the available tools:\n<tools>\n{tools_json}\n</tools>"
+            )
+
+            if system_content:
+                # Append to existing system message (preserves dataset_system_prompt)
+                system_content = f"{system_content}{tools_header}"
+            else:
+                # Create new system message with tools
+                system_content = (
+                    "You are a function calling AI model. You are provided with function signatures\n"
+                    "within <tools></tools> XML tags. You may call one or more functions to assist\n"
+                    "with the user query. For each function call return a json object with function\n"
+                    "name and arguments within <tool_call></tool_call> XML tags.\n\n"
+                    f"Here are the available tools:\n<tools>\n{tools_json}\n</tools>"
+                )
+
+        return system_content
+
+    def _build_assistant_content(
+        self,
+        message: Any,
+        conversation: Conversation,
+        reasoning_steps: list[Any] | None = None,
+        tool_executions: list[Any] | None = None,
+    ) -> str:
+        """
+        Build assistant message content with reasoning and tool calls.
+
+        Args:
+            message: ChatMessage from conversation
+            conversation: Parent Conversation model
+            reasoning_steps: Optional list of reasoning steps for this specific turn.
+                           If None, uses all reasoning from conversation (single-turn behavior).
+            tool_executions: Optional list of tool executions for this specific turn.
+                           If None, uses all executions from conversation (single-turn behavior).
+
+        Returns:
+            Formatted assistant content with <think> and <tool_call> tags
+        """
+        content_parts = []
+        reasoning_extracted = False
+
+        # Determine which reasoning to use
+        if reasoning_steps is not None:
+            # Multi-turn: use turn-specific reasoning
+            if reasoning_steps:
+                reasoning_text = self._format_reasoning_steps(
+                    reasoning_steps,
+                    conversation.reasoning.style if conversation.reasoning else "structured",
+                )
+                if reasoning_text:
+                    content_parts.append(f"<think>\n{reasoning_text}\n</think>\n")
+                    reasoning_extracted = True
+        # Single-turn: use all reasoning from conversation
+        elif conversation.reasoning:
+            reasoning_text = self._format_reasoning(conversation.reasoning)
+            if reasoning_text:
+                content_parts.append(f"<think>\n{reasoning_text}\n</think>\n")
+                reasoning_extracted = True
+
+        # For chain-of-thought datasets: if reasoning was extracted and final_answer exists,
+        # use final_answer instead of full message content to avoid duplication
+        if reasoning_extracted and conversation.final_answer:
+            content_parts.append(conversation.final_answer)
+        # Otherwise, use original message content
+        elif message.content:
+            content_parts.append(message.content)
+
+        # Determine which tool executions to use
+        executions_to_format = (
+            tool_executions
+            if tool_executions is not None
+            else (conversation.tool_context.executions if conversation.tool_context else [])
+        )
+
+        # Add tool calls if present
+        if executions_to_format:
+            for execution in executions_to_format:
+                try:
+                    # Parse arguments if string, otherwise use as-is
+                    if isinstance(execution.arguments, str):
+                        arguments = json.loads(execution.arguments)
+                    else:
+                        arguments = execution.arguments
+
+                    tool_call_json = {"name": execution.function_name, "arguments": arguments}
+                    content_parts.append(
+                        f"\n<tool_call>\n{json.dumps(tool_call_json)}\n</tool_call>"
+                    )
+                except json.JSONDecodeError:
+                    # Skip malformed tool calls - log warning but continue formatting
+                    continue
+
+        return "".join(content_parts)
+
+    def _format_reasoning(self, reasoning: Any) -> str:
+        """
+        Format reasoning trace for <think> tags.
+
+        Args:
+            reasoning: ReasoningTrace from Conversation
+
+        Returns:
+            Formatted reasoning text with normalized whitespace
+        """
+        if not reasoning:
+            return ""
+
+        if reasoning.style == "freetext":
+            content = reasoning.content if isinstance(reasoning.content, str) else ""
+            # Normalize whitespace: replace blank lines with single space
+            return self._normalize_whitespace(content)
+        if reasoning.style in ("structured", "hybrid") and isinstance(reasoning.content, list):
+            # Format structured reasoning steps
+            return self._format_reasoning_steps(reasoning.content, reasoning.style)
+        return ""
+
+    def _normalize_whitespace(self, text: str) -> str:
+        """
+        Normalize whitespace in reasoning text for training efficiency.
+
+        Replaces multiple newlines (blank lines) with single spaces while
+        preserving single line breaks between sentences.
+
+        Args:
+            text: Raw reasoning text
+
+        Returns:
+            Text with normalized whitespace
+        """
+        # Replace multiple newlines (blank lines) with single space
+        # Pattern: \n\n+ matches two or more consecutive newlines
+        normalized = re.sub(r"\n\n+", " ", text)
+
+        # Replace remaining single newlines with spaces
+        normalized = normalized.replace("\n", " ")
+
+        # Collapse multiple spaces into single space
+        normalized = re.sub(r" +", " ", normalized)
+
+        return normalized.strip()
+
+    def _format_reasoning_steps(self, steps: list[Any], _style: str) -> str:
+        """
+        Format a list of reasoning steps.
+
+        Args:
+            steps: List of ReasoningStep objects
+            _style: Reasoning style ("structured", "hybrid", etc.) - unused but kept for compatibility
+
+        Returns:
+            Formatted reasoning text
+        """
+        if not steps:
+            return ""
+
+        formatted_steps = []
+        for step in steps:
+            if hasattr(step, "thought"):
+                thought = step.thought
+                action = getattr(step, "action", None)
+                # Format thought and action naturally without prefixes
+                if action:
+                    # Combine thought and action in a natural flow
+                    formatted_steps.append(f"{thought} → {action}")
+                else:
+                    formatted_steps.append(thought)
+        # Join steps with single space instead of newlines
+        return " ".join(formatted_steps)
+
+    def _format_tools_as_json(self, tools: list[ToolDefinition]) -> str:
+        """
+        Format tools as JSON array for ChatML <tools> section.
+
+        Args:
+            tools: List of ToolDefinition models
+
+        Returns:
+            JSON string of tools in OpenAI format
+        """
+        formatted_tools = []
+
+        for tool in tools:
+            formatted_tool = {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": {"type": "object", "properties": {}, "required": []},
+                },
+            }
+
+            # Add parameters
+            if tool.parameters:
+                properties = {}
+                required = []
+
+                for param in tool.parameters:
+                    properties[param.name] = {"type": param.type, "description": param.description}
+                    if param.required:
+                        required.append(param.name)
+
+                formatted_tool["function"]["parameters"]["properties"] = properties
+                formatted_tool["function"]["parameters"]["required"] = required
+
+            formatted_tools.append(formatted_tool)
+
+        return json.dumps(formatted_tools, indent=1)
 
     def _messages_to_chatml_text(self, messages: list[dict[str, str]]) -> str:
         """Convert messages list to ChatML text format."""
@@ -181,7 +591,7 @@ class ChatmlFormatter(BaseFormatter):
 
         for message in messages:
             role = message["role"]
-            content = message["content"]
+            content = message["content"].rstrip()  # Remove trailing whitespace
 
             chatml_parts.append(f"{self.start_token}{role}")
             chatml_parts.append(content)
@@ -208,41 +618,34 @@ class ChatmlFormatter(BaseFormatter):
         # Content should be a non-empty string
         return isinstance(content, str) and bool(content.strip())
 
-    def validate(self, entry: dict[str, Any]) -> bool:
+    def validate(self, entry: Conversation | Any) -> bool:
         """
-        Validate that an entry can be formatted for ChatML.
+        Validate that a Conversation can be formatted for ChatML.
 
         Args:
-            entry: Dataset entry to validate
+            entry: Conversation Pydantic model
 
         Returns:
             True if the entry can be formatted, False otherwise
         """
-        if not super().validate(entry):
+        # Try to convert to Conversation if not already
+        if isinstance(entry, Conversation):
+            conversation = entry
+        elif hasattr(entry, "model_dump"):
+            try:
+                conversation = Conversation(**entry.model_dump())
+            except Exception:
+                return False
+        else:
             return False
 
-        # Check for messages format
-        if "messages" in entry:
-            messages = entry["messages"]
-            if not isinstance(messages, list):
-                return False
+        # Must have at least one message
+        if not conversation.messages or len(conversation.messages) == 0:
+            return False
 
-            # Should have at least one user and one assistant message
-            roles = [msg.get("role") for msg in messages if isinstance(msg, dict)]
-            return "user" in roles and "assistant" in roles
-
-        # Check for Q&A format
-        if "question" in entry and ("answer" in entry or "final_answer" in entry):
-            return True
-
-        # Check for any conversation pattern
-        user_fields = ["instruction", "prompt", "question", "input", "query"]
-        assistant_fields = ["output", "response", "answer", "solution", "final_answer"]
-
-        has_user_content = any(field in entry for field in user_fields)
-        has_assistant_content = any(field in entry for field in assistant_fields)
-
-        return has_user_content and has_assistant_content
+        # Should have at least one user and one assistant message
+        roles = [msg.role for msg in conversation.messages]
+        return "user" in roles and "assistant" in roles
 
     def validate_output(self, entry: dict[str, Any]) -> bool:  # noqa: PLR0911
         """

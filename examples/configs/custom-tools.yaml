@@ -1,0 +1,272 @@
+# ============================================================================
+# CUSTOM TOOLS - Tool registry format and examples
+# ============================================================================
+# Purpose: Reference for defining custom tools
+# Usage: Include custom_tools in your data_engine config
+# ============================================================================
+#
+# This file shows how to define custom tools for agent modes
+# You can define tools inline in your config or reference this file
+#
+# Tools are automatically converted to proper schemas for LLM function calling
+# ============================================================================
+
+# ============================================================================
+# BASIC TOOL DEFINITION
+# ============================================================================
+# Minimal required fields for a custom tool
+# ============================================================================
+
+- name: "database_query"
+  description: "Execute a SQL query on a database"
+  parameters:
+    - name: "query"
+      type: "str"
+      description: "The SQL query to execute"
+      required: true
+    - name: "database"
+      type: "str"
+      description: "The database name to query"
+      required: true
+  returns: "Query results as JSON array"
+
+# ============================================================================
+# TOOL WITH OPTIONAL PARAMETERS
+# ============================================================================
+# Shows how to define optional parameters with defaults
+# ============================================================================
+
+- name: "send_email"
+  description: "Send an email message"
+  parameters:
+    - name: "to"
+      type: "str"
+      description: "Recipient email address"
+      required: true
+    - name: "subject"
+      type: "str"
+      description: "Email subject line"
+      required: true
+    - name: "body"
+      type: "str"
+      description: "Email body content"
+      required: true
+    - name: "cc"
+      type: "str"
+      description: "CC email addresses (comma-separated)"
+      required: false
+    - name: "priority"
+      type: "str"
+      description: "Email priority (low, normal, high)"
+      required: false
+      default: "normal"
+  returns: "Email sent confirmation with message ID"
+
+# ============================================================================
+# TOOL WITH COMPLEX PARAMETERS
+# ============================================================================
+# Shows different parameter types and structures
+# ============================================================================
+
+- name: "create_calendar_event"
+  description: "Create a new calendar event"
+  parameters:
+    - name: "title"
+      type: "str"
+      description: "Event title"
+      required: true
+
+    - name: "start_time"
+      type: "str"
+      description: "Event start time in ISO 8601 format"
+      required: true
+
+    - name: "end_time"
+      type: "str"
+      description: "Event end time in ISO 8601 format"
+      required: true
+
+    - name: "attendees"
+      type: "list"
+      description: "List of attendee email addresses"
+      required: false
+
+    - name: "location"
+      type: "str"
+      description: "Event location"
+      required: false
+
+    - name: "reminder_minutes"
+      type: "int"
+      description: "Minutes before event to send reminder"
+      required: false
+      default: 15
+
+    - name: "all_day"
+      type: "bool"
+      description: "Whether this is an all-day event"
+      required: false
+      default: false
+
+  returns: "Created event ID and details"
+
+# ============================================================================
+# API INTEGRATION TOOL
+# ============================================================================
+# Example of a tool that calls an external API
+# ============================================================================
+
+- name: "github_create_issue"
+  description: "Create a GitHub issue in a repository"
+  parameters:
+    - name: "repository"
+      type: "str"
+      description: "Repository in format 'owner/repo'"
+      required: true
+
+    - name: "title"
+      type: "str"
+      description: "Issue title"
+      required: true
+
+    - name: "body"
+      type: "str"
+      description: "Issue description"
+      required: true
+
+    - name: "labels"
+      type: "list"
+      description: "List of label names to apply"
+      required: false
+
+    - name: "assignees"
+      type: "list"
+      description: "List of GitHub usernames to assign"
+      required: false
+
+  returns: "Created issue number and URL"
+
+# ============================================================================
+# DATA PROCESSING TOOL
+# ============================================================================
+# Example of a tool for data manipulation
+# ============================================================================
+
+- name: "analyze_csv"
+  description: "Analyze a CSV file and return statistics"
+  parameters:
+    - name: "file_path"
+      type: "str"
+      description: "Path to the CSV file"
+      required: true
+
+    - name: "columns"
+      type: "list"
+      description: "Columns to analyze (all if not specified)"
+      required: false
+
+    - name: "operations"
+      type: "list"
+      description: "Statistical operations to perform: mean, median, std, min, max, count"
+      required: false
+      default: ["mean", "count"]
+
+  returns: "Statistical analysis results as JSON"
+
+# ============================================================================
+# CODE EXECUTION TOOL
+# ============================================================================
+# Example for executing code safely
+# ============================================================================
+
+- name: "execute_python"
+  description: "Execute Python code in a sandboxed environment"
+  parameters:
+    - name: "code"
+      type: "str"
+      description: "Python code to execute"
+      required: true
+
+    - name: "timeout"
+      type: "int"
+      description: "Execution timeout in seconds"
+      required: false
+      default: 5
+
+    - name: "allowed_imports"
+      type: "list"
+      description: "List of allowed module imports"
+      required: false
+      default: ["math", "datetime", "json"]
+
+  returns: "Execution output or error message"
+
+# ============================================================================
+# USING CUSTOM TOOLS IN YOUR CONFIG
+# ============================================================================
+# Example of how to include custom tools in data_engine configuration:
+#
+# data_engine:
+#   conversation_type: "chain_of_thought"
+#   reasoning_style: "structured"
+#   agent_mode: "single_turn"
+#
+#   # Option 1: Reference this file
+#   tool_registry_path: "examples/configs/custom-tools.yaml"
+#
+#   # Option 2: Use built-in tools AND custom tools
+#   available_tools: ["get_weather", "calculate"]  # Built-in
+#   custom_tools:  # Inline custom tools
+#     - name: "my_custom_tool"
+#       description: "..."
+#       parameters: [...]
+#       returns: "..."
+#
+#   # Option 3: Mix of both
+#   available_tools: ["get_weather"]
+#   tool_registry_path: "examples/configs/custom-tools.yaml"
+# ============================================================================
+
+# ============================================================================
+# PARAMETER TYPES
+# ============================================================================
+# Supported parameter types:
+#
+# - str: String values
+# - int: Integer values
+# - float: Floating-point numbers
+# - bool: Boolean (true/false)
+# - list: List/array of values
+# - dict: Dictionary/object with key-value pairs
+# - any: Any type (use sparingly)
+#
+# ============================================================================
+
+# ============================================================================
+# BEST PRACTICES
+# ============================================================================
+#
+# 1. Clear descriptions:
+#    - Describe what the tool does
+#    - Explain parameters clearly
+#    - Specify return value format
+#
+# 2. Required vs optional:
+#    - Mark essential parameters as required: true
+#    - Provide sensible defaults for optional parameters
+#
+# 3. Type safety:
+#    - Use specific types (str, int) over generic (any)
+#    - Use list for arrays, dict for objects
+#
+# 4. Validation:
+#    - Tools are validated when loaded
+#    - Missing required fields will cause errors
+#    - Invalid types will be caught early
+#
+# 5. Realistic examples:
+#    - Define tools that agents can actually use
+#    - Make parameter names intuitive
+#    - Provide helpful descriptions for LLM understanding
+#
+# ============================================================================

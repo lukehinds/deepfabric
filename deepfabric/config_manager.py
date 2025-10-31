@@ -21,7 +21,7 @@ from .exceptions import ConfigurationError
 from .tui import get_tui
 
 
-def load_config(
+def load_config(  # noqa: PLR0913
     config_file: str | None,
     topic_prompt: str | None = None,
     dataset_system_prompt: str | None = None,
@@ -38,6 +38,10 @@ def load_config(
     dataset_save_as: str | None = None,
     sys_msg: bool | None = None,
     mode: str = "tree",
+    # Modular conversation configuration
+    conversation_type: str | None = None,
+    reasoning_style: str | None = None,
+    agent_mode: str | None = None,
 ) -> DeepFabricConfig:
     """
     Load configuration from YAML file or create minimal config from CLI arguments.
@@ -59,6 +63,9 @@ def load_config(
         dataset_save_as: Path to save dataset
         sys_msg: Include system message in dataset
         mode: Topic generation mode (tree or graph)
+        conversation_type: Base conversation type (basic, chain_of_thought)
+        reasoning_style: Reasoning style for chain_of_thought (freetext, structured, hybrid)
+        agent_mode: Agent mode (single_turn, multi_turn)
 
     Returns:
         DeepFabricConfig object
@@ -94,6 +101,10 @@ def load_config(
             "model": model or DEFAULT_MODEL,
             "temperature": temperature or ENGINE_DEFAULT_TEMPERATURE,
             "max_retries": DEFAULT_MAX_RETRIES,
+            # Add modular conversation config if provided
+            **({"conversation_type": conversation_type} if conversation_type else {}),
+            **({"reasoning_style": reasoning_style} if reasoning_style else {}),
+            **({"agent_mode": agent_mode} if agent_mode else {}),
         },
         "dataset": {
             "creation": {

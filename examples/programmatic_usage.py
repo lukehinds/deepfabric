@@ -1,356 +1,472 @@
 """
-DeepFabric Programmatic Usage Examples
+DeepFabric Programmatic API Examples
 
-Demonstrates all programmatic patterns:
-- Tree vs Graph comparison
-- Custom topic creation
-- Progress monitoring and event handling
-- Loading/saving existing models
-- Error handling best practices
+This file demonstrates how to use DeepFabric as a Python library
+instead of via YAML configs and CLI.
 """
 
 import asyncio
-import json
-import os
-import sys
 
-# Add the parent directory to sys.path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pathlib import Path
 
-from deepfabric import DataSetGenerator
-from deepfabric.dataset import Dataset
-from deepfabric.graph import Graph
-from deepfabric.tree import Tree
+from deepfabric import (
+    Dataset,
+    DataSetGenerator,
+    DataSetGeneratorConfig,
+    Tree,
+    TreeConfig,
+)
+from deepfabric.formatters import FormatterRegistry
+
+# ==============================================================================
+# EXAMPLE 1: Basic Q&A Dataset Generation
+# ==============================================================================
 
 
-def example_tree_vs_graph():
-    """Compare Tree and Graph generation side-by-side."""
-    print("=" * 60)
-    print("Example 1: Tree vs Graph Comparison")
-    print("=" * 60)
+async def example_basic_qa():
+    """Generate a simple Q&A dataset programmatically."""
+    print("\n=== Example 1: Basic Q&A ===\n")
 
-    # Tree: Hierarchical structure
-    print("\n🌳 Building Tree (hierarchical)...")
-    tree = Tree(
-        topic_prompt="Web Development Technologies",
-        provider="ollama",
-        model_name="qwen3:8b",
+    # Step 1: Generate topic tree
+    tree_config = TreeConfig(
+        topic_prompt="Python programming fundamentals",
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.8,
+        depth=2,
         degree=2,
-        depth=2,
-        temperature=0.7,
     )
 
-    tree_events: list[dict] = []
+    tree = Tree(tree_config)
+    topics = await tree.generate()
+    print(f"Generated {len(topics)} topics")
 
-    async def _build_tree() -> None:
-        async for event in tree.build_async():
-            tree_events.append(event)
-            if event["event"] == "build_complete":
-                print(f"   Tree: {event['total_paths']} paths")
+    # Step 2: Generate dataset
+    generator_config = DataSetGeneratorConfig(
+        generation_system_prompt="Generate clear, educational Q&A pairs about Python.",
+        dataset_system_prompt="You are a helpful AI assistant for learning Python programming.",
+        instructions="Create diverse questions and detailed answers.",
+        conversation_type="basic",  # Simple Q&A
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.7,
+        max_retries=3,
+        sys_msg=True,
+    )
 
-    asyncio.run(_build_tree())
+    generator = DataSetGenerator(generator_config)
 
-    # Graph: Interconnected structure
-    print("\n🕸️  Building Graph (interconnected)...")
-    graph = Graph(
-        topic_prompt="Web Development Technologies",
-        provider="ollama",
-        model_name="qwen3:8b",
+    # Generate 4 samples (2 steps × 2 batch_size)
+    dataset = await generator.generate(
+        topics=topics,
+        num_steps=2,
+        batch_size=2,
+    )
+
+    # Save to file
+    output_path = Path("programmatic_basic_qa.jsonl")
+    dataset.save(output_path)
+    print(f"Saved {len(dataset)} samples to {output_path}")
+
+    return dataset
+
+
+# ==============================================================================
+# EXAMPLE 2: Chain-of-Thought with Freetext Reasoning
+# ==============================================================================
+
+
+async def example_cot_freetext():
+    """Generate chain-of-thought dataset with natural language reasoning."""
+    print("\n=== Example 2: Chain-of-Thought (Freetext) ===\n")
+
+    # Generate topics
+    tree_config = TreeConfig(
+        topic_prompt="Math word problems requiring reasoning",
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.7,
+        depth=2,
         degree=2,
-        depth=2,
-        temperature=0.7,
     )
 
-    graph_events: list[dict] = []
+    tree = Tree(tree_config)
+    topics = await tree.generate()
 
-    async def _build_graph() -> None:
-        async for event in graph.build_async():
-            graph_events.append(event)
-            if event["event"] == "build_complete":
-                print(f"   Graph: {event['nodes_count']} nodes")
-
-    asyncio.run(_build_graph())
-
-    # Compare paths
-    tree_paths = tree.get_all_paths()
-    graph_paths = graph.get_all_paths()
-
-    print("\n📊 Comparison:")
-    print(f"   Tree paths:  {len(tree_paths)}")
-    print(f"   Graph paths: {len(graph_paths)}")
-    print(f"   Graph creates {'more' if len(graph_paths) > len(tree_paths) else 'fewer'} paths due to cross-connections")
-
-    # Save both
-    tree.save("web_dev_tree.jsonl")
-    graph.save("web_dev_graph.json")
-    print("   💾 Saved: web_dev_tree.jsonl, web_dev_graph.json")
-
-    return tree, graph
-
-
-def example_custom_topics():
-    """Demonstrate manual topic creation."""
-    print("\n" + "=" * 60)
-    print("Example 2: Custom Topic Creation")
-    print("=" * 60)
-
-    # Create tree with manual topics
-    tree = Tree(
-        topic_prompt="Data Science",
-        provider="ollama",
-        model_name="qwen3:8b",
-        degree=3,
-        depth=2,
+    # Generate dataset with chain-of-thought
+    generator_config = DataSetGeneratorConfig(
+        generation_system_prompt="Generate math problems with clear reasoning.",
+        dataset_system_prompt="You are a helpful AI assistant for learning math.",
+        instructions="Create problems showing step-by-step thinking.",
+        conversation_type="chain_of_thought",  # Enable reasoning
+        reasoning_style="freetext",  # Natural language reasoning
+        provider="openai",
+        model_name="gpt-4o-mini",
         temperature=0.7,
+        max_retries=3,
+        sys_msg=True,
     )
 
-    # Define custom topic paths
-    custom_topics = [
-        {"path": ["Data Science", "Machine Learning", "Supervised Learning"]},
-        {"path": ["Data Science", "Machine Learning", "Unsupervised Learning"]},
-        {"path": ["Data Science", "Deep Learning", "Neural Networks"]},
-        {"path": ["Data Science", "Data Engineering", "ETL Pipelines"]},
-        {"path": ["Data Science", "Statistics", "Hypothesis Testing"]},
+    generator = DataSetGenerator(generator_config)
+    dataset = await generator.generate(topics=topics, num_steps=2, batch_size=2)
+
+    output_path = Path("programmatic_cot_freetext.jsonl")
+    dataset.save(output_path)
+    print(f"Saved {len(dataset)} samples to {output_path}")
+
+    return dataset
+
+
+# ==============================================================================
+# EXAMPLE 3: Chain-of-Thought with Structured Reasoning
+# ==============================================================================
+
+
+async def example_cot_structured():
+    """Generate chain-of-thought with explicit step-by-step traces."""
+    print("\n=== Example 3: Chain-of-Thought (Structured) ===\n")
+
+    tree_config = TreeConfig(
+        topic_prompt="Logical reasoning and problem-solving",
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.7,
+        depth=2,
+        degree=2,
+    )
+
+    tree = Tree(tree_config)
+    topics = await tree.generate()
+
+    generator_config = DataSetGeneratorConfig(
+        generation_system_prompt="Generate problems with structured reasoning.",
+        dataset_system_prompt="You are a helpful AI assistant for logical reasoning.",
+        instructions="Create problems with clear step-by-step solutions.",
+        conversation_type="chain_of_thought",
+        reasoning_style="structured",  # Explicit step-by-step
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.7,
+        max_retries=3,
+        sys_msg=True,
+    )
+
+    generator = DataSetGenerator(generator_config)
+    dataset = await generator.generate(topics=topics, num_steps=2, batch_size=2)
+
+    output_path = Path("programmatic_cot_structured.jsonl")
+    dataset.save(output_path)
+    print(f"Saved {len(dataset)} samples to {output_path}")
+
+    return dataset
+
+
+# ==============================================================================
+# EXAMPLE 4: Single-Turn Agent with Tools
+# ==============================================================================
+
+
+async def example_single_turn_agent():
+    """Generate single-turn agent conversations with tool calling."""
+    print("\n=== Example 4: Single-Turn Agent ===\n")
+
+    tree_config = TreeConfig(
+        topic_prompt="Tasks requiring weather, calculations, and web search",
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.8,
+        depth=2,
+        degree=2,
+    )
+
+    tree = Tree(tree_config)
+    topics = await tree.generate()
+
+    generator_config = DataSetGeneratorConfig(
+        generation_system_prompt="Generate tool-using agent examples.",
+        instructions="Create realistic scenarios requiring tool usage.",
+        dataset_system_prompt="You are a helpful AI assistant for task completion.",
+        conversation_type="chain_of_thought",
+        reasoning_style="structured",
+        agent_mode="single_turn",  # Single-turn agent
+        available_tools=[  # Built-in tools
+            "get_weather",
+            "calculate",
+            "search_web",
+            "get_time",
+        ],
+        max_tools_per_query=3,
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.8,
+        max_retries=3,
+        sys_msg=True,
+    )
+
+    generator = DataSetGenerator(generator_config)
+    dataset = await generator.generate(topics=topics, num_steps=2, batch_size=2)
+
+    output_path = Path("programmatic_single_turn_agent.jsonl")
+    dataset.save(output_path)
+    print(f"Saved {len(dataset)} samples to {output_path}")
+
+    return dataset
+
+
+# ==============================================================================
+# EXAMPLE 5: Multi-Turn Agent Conversations
+# ==============================================================================
+
+
+async def example_multi_turn_agent():
+    """Generate multi-turn agent conversations."""
+    print("\n=== Example 5: Multi-Turn Agent ===\n")
+
+    tree_config = TreeConfig(
+        topic_prompt="Complex multi-step tasks requiring multiple tools",
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.8,
+        depth=2,
+        degree=2,
+    )
+
+    tree = Tree(tree_config)
+    topics = await tree.generate()
+
+    generator_config = DataSetGeneratorConfig(
+        generation_system_prompt="Generate multi-turn agent conversations.",
+        instructions="Create complex scenarios with multiple interaction turns.",
+        dataset_system_prompt="You are a helpful AI assistant for complex tasks.",
+        conversation_type="chain_of_thought",
+        reasoning_style="hybrid",  # Both freetext and structured
+        agent_mode="multi_turn",  # Multi-turn agent
+        min_turns=2,  # Minimum conversation turns
+        max_turns=6,  # Maximum conversation turns
+        available_tools=[
+            "get_weather",
+            "calculate",
+            "search_web",
+            "get_time",
+        ],
+        max_tools_per_query=5,
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.8,
+        max_retries=3,
+        sys_msg=True,
+    )
+
+    generator = DataSetGenerator(generator_config)
+    dataset = await generator.generate(topics=topics, num_steps=2, batch_size=1)
+
+    output_path = Path("programmatic_multi_turn_agent.jsonl")
+    dataset.save(output_path)
+    print(f"Saved {len(dataset)} samples to {output_path}")
+
+    return dataset
+
+
+# ==============================================================================
+# EXAMPLE 6: Custom Tools
+# ==============================================================================
+
+
+async def example_custom_tools():
+    """Generate agent conversations with custom tools."""
+    print("\n=== Example 6: Custom Tools ===\n")
+
+    tree_config = TreeConfig(
+        topic_prompt="Database queries and data analysis tasks",
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.8,
+        depth=2,
+        degree=2,
+    )
+
+    tree = Tree(tree_config)
+    topics = await tree.generate()
+
+    # Define custom tools
+    custom_tools = [
+        {
+            "name": "database_query",
+            "description": "Execute a SQL query on a database",
+            "parameters": [
+                {
+                    "name": "query",
+                    "type": "str",
+                    "description": "SQL query to execute",
+                    "required": True,
+                },
+                {
+                    "name": "database",
+                    "type": "str",
+                    "description": "Database name",
+                    "required": True,
+                },
+            ],
+            "returns": "Query results as JSON",
+        },
+        {
+            "name": "analyze_csv",
+            "description": "Analyze a CSV file and return statistics",
+            "parameters": [
+                {
+                    "name": "file_path",
+                    "type": "str",
+                    "description": "Path to CSV file",
+                    "required": True,
+                },
+                {
+                    "name": "operations",
+                    "type": "list",
+                    "description": "Statistical operations: mean, median, std, etc.",
+                    "required": False,
+                },
+            ],
+            "returns": "Statistical analysis results",
+        },
     ]
 
-    # Load custom topics
-    tree.from_dict_list(custom_topics)
-    tree.save("custom_data_science_tree.jsonl")
-
-    print(f"📝 Created tree with {len(custom_topics)} custom topics:")
-    for topic in custom_topics:
-        print(f"   - {' → '.join(topic['path'])}")
-
-    return tree
-
-
-def example_progress_monitoring():
-    """Demonstrate detailed progress monitoring."""
-    print("\n" + "=" * 60)
-    print("Example 3: Progress Monitoring & Event Handling")
-    print("=" * 60)
-
-    tree = Tree(
-        topic_prompt="Software Architecture Patterns",
-        provider="ollama",
-        model_name="qwen3:8b",
-        degree=3,
-        depth=2,
-        temperature=0.7,
+    generator_config = DataSetGeneratorConfig(
+        generation_system_prompt="Generate data analysis agent examples.",
+        instructions="Create scenarios using database and CSV tools.",
+        dataset_system_prompt="You are a helpful AI assistant for data analysis tasks.",
+        conversation_type="chain_of_thought",
+        reasoning_style="structured",
+        agent_mode="single_turn",
+        available_tools=["calculate"],  # Mix built-in and custom
+        custom_tools=custom_tools,  # Add custom tools
+        max_tools_per_query=3,
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.8,
+        max_retries=3,
+        sys_msg=True,
     )
 
-    # Track all event types
-    events_by_type = {}
-    failed_count = 0
+    generator = DataSetGenerator(generator_config)
+    dataset = await generator.generate(topics=topics, num_steps=2, batch_size=2)
 
-    print("🔄 Building with detailed monitoring...")
+    output_path = Path("programmatic_custom_tools.jsonl")
+    dataset.save(output_path)
+    print(f"Saved {len(dataset)} samples to {output_path}")
 
-    async def _monitor_build() -> None:
-        nonlocal failed_count
-        async for event in tree.build_async():
-            event_type = event["event"]
-
-            # Track events
-            events_by_type.setdefault(event_type, []).append(event)
-
-            # Handle different event types
-            if event_type == "build_start":
-                print(f"   🚀 Started: {event['model_name']}, depth={event['depth']}")
-            elif event_type == "subtopics_generated":
-                status = "✅" if event["success"] else "❌"
-                if not event["success"]:
-                    failed_count += 1
-                print(f"   {status} Generated {event['count']} subtopics")
-            elif event_type == "build_complete":
-                print(
-                    f"   🎉 Complete: {event['total_paths']} paths, {event['failed_generations']} failures"
-                )
-
-    asyncio.run(_monitor_build())
-
-    # Print event summary
-    print("\n📈 Event Summary:")
-    for event_type, events in events_by_type.items():
-        print(f"   {event_type}: {len(events)} occurrences")
-
-    return tree
+    return dataset
 
 
-def example_load_existing():
-    """Demonstrate loading and extending existing models."""
-    print("\n" + "=" * 60)
-    print("Example 4: Loading & Extending Existing Models")
-    print("=" * 60)
-
-    # Load the graph we created earlier
-    try:
-        print("📂 Loading existing graph...")
-        graph_params = {
-            "topic_prompt": "Web Development Technologies",
-            "provider": "ollama",
-            "model_name": "qwen3:8b",
-            "temperature": 0.7,
-            "degree": 2,
-            "depth": 2,
-        }
-
-        loaded_graph = Graph.from_json("web_dev_graph.json", graph_params)
-        print(f"   ✅ Loaded graph with {len(loaded_graph.nodes)} nodes")
-
-        # Extend the graph
-        print("🔧 Extending graph...")
-        new_node = loaded_graph.add_node("Progressive Web Apps")
-        loaded_graph.add_edge(loaded_graph.root.id, new_node.id)
-
-        # Save extended version
-        loaded_graph.save("web_dev_graph_extended.json")
-        print(f"   💾 Extended graph saved with {len(loaded_graph.nodes)} nodes")
-
-    except FileNotFoundError:
-        print("   ⚠️  Graph file not found, skipping load example")
-        return None
-    else:
-        return loaded_graph
+# ==============================================================================
+# EXAMPLE 7: Applying Formatters Programmatically
+# ==============================================================================
 
 
-def example_error_handling():
-    """Demonstrate proper error handling patterns."""
-    print("\n" + "=" * 60)
-    print("Example 5: Error Handling Best Practices")
-    print("=" * 60)
+async def example_formatters():
+    """Generate dataset and apply multiple formatters."""
+    print("\n=== Example 7: Formatters ===\n")
 
-    try:
-        # Use a tree with limited paths
-        tree = Tree(
-            topic_prompt="Small Topic",
-            provider="ollama",
-            model_name="qwen3:8b",
-            degree=1,  # Very small tree
-            depth=1,
-            temperature=0.7,
-        )
+    # Generate a basic dataset
+    tree_config = TreeConfig(
+        topic_prompt="Customer support scenarios",
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.7,
+        depth=2,
+        degree=2,
+    )
 
-        async def _build_small_tree() -> None:
-            async for event in tree.build_async():
-                if event["event"] == "build_complete":
-                    total_paths = event["total_paths"]
-                    print(f"🌳 Built tree with {total_paths} paths")
+    tree = Tree(tree_config)
+    topics = await tree.generate()
 
-        asyncio.run(_build_small_tree())
+    generator_config = DataSetGeneratorConfig(
+        generation_system_prompt="Generate customer support conversations.",
+        dataset_system_prompt="You are a helpful AI assistant for customer support.",
+        instructions="Create realistic support scenarios.",
+        conversation_type="basic",
+        provider="openai",
+        model_name="gpt-4o-mini",
+        temperature=0.7,
+        max_retries=3,
+        sys_msg=True,
+    )
 
-        # Create engine
-        engine = DataSetGenerator(
-            instructions="Create examples",
-            generation_system_prompt="You are a helpful assistant.",
-            provider="ollama",
-            model_name="qwen3:8b",
-            temperature=0.7,
-        )
+    generator = DataSetGenerator(generator_config)
+    dataset = await generator.generate(topics=topics, num_steps=2, batch_size=2)
 
-        # Try to generate more samples than paths available
-        print("⚠️  Attempting to generate more samples than available paths...")
-        try:
-            dataset = engine.create_data(
-                num_steps=10,  # This will likely exceed available paths
-                batch_size=1,
-                topic_model=tree,
-            )
+    # Save raw dataset
+    raw_path = Path("programmatic_raw.jsonl")
+    dataset.save(raw_path)
+    print(f"Saved raw dataset to {raw_path}")
 
-            if dataset is None:
-                print("   ❌ Dataset generation returned None")
-                return
+    registry = FormatterRegistry()
 
-            if not isinstance(dataset, Dataset):
-                print(f"   ❌ Expected Dataset, got {type(dataset)}")
-                return
+    # Format to ChatML (text mode)
+    chatml_formatter = registry.get_formatter(
+        "chatml",
+        config={
+            "output_format": "text",
+            "normalize_whitespace": True,
+        },
+    )
 
-            print(f"   ✅ Successfully generated {len(dataset.samples)} samples")
+    chatml_output = []
+    for sample in dataset.samples:
+        formatted = chatml_formatter.format(sample)
+        if formatted:
+            chatml_output.append(formatted)
 
-        except Exception as e:
-            print(f"   ❌ Generation failed as expected: {e}")
-            print("   💡 This demonstrates path validation working correctly")
+    # Save ChatML formatted
+    chatml_dataset = Dataset.from_list(chatml_output)
+    chatml_path = Path("programmatic_chatml.jsonl")
+    chatml_dataset.save(chatml_path)
+    print(f"Saved ChatML formatted to {chatml_path}")
 
-    except Exception as e:
-        print(f"   ❌ Unexpected error: {e}")
+    # Format to Alpaca
+    alpaca_formatter = registry.load_formatter(
+        template="builtin://alpaca",
+        config={}
+    )
 
+    alpaca_output = []
+    for sample in dataset.samples:
+        formatted = alpaca_formatter.format(sample)
+        if formatted:
+            alpaca_output.append(formatted)
 
-def example_dataset_generation():
-    """Generate dataset using one of our topic models."""
-    print("\n" + "=" * 60)
-    print("Example 6: Dataset Generation")
-    print("=" * 60)
+    alpaca_dataset = Dataset.from_list(alpaca_output)
+    alpaca_path = Path("programmatic_alpaca.jsonl")
+    alpaca_dataset.save(alpaca_path)
+    print(f"Saved Alpaca formatted to {alpaca_path}")
 
-    # Load custom topics tree
-    try:
-        with open("custom_data_science_tree.jsonl") as f:
-            topic_data = [json.loads(line) for line in f]
-
-        tree = Tree(
-            topic_prompt="Data Science",
-            provider="ollama",
-            model_name="qwen3:8b",
-            degree=3,
-            depth=2,
-            temperature=0.7,
-        )
-        tree.from_dict_list(topic_data)
-
-        # Create engine
-        engine = DataSetGenerator(
-            instructions="Create comprehensive tutorials with code examples",
-            generation_system_prompt="You are a data science educator creating practical tutorials.",
-            provider="ollama",
-            model_name="qwen3:8b",
-            temperature=0.3,
-        )
-
-        # Generate dataset
-        print("🔄 Generating dataset...")
-        dataset = engine.create_data(
-            num_steps=3,  # Generate 3 examples
-            batch_size=1,
-            topic_model=tree,
-        )
-
-        if dataset and isinstance(dataset, Dataset):
-            dataset.save("data_science_tutorials.jsonl")
-            print(f"✅ Generated {len(dataset.samples)} tutorials")
-            print("📁 Saved to data_science_tutorials.jsonl")
-        else:
-            print("❌ Dataset generation failed")
-
-    except FileNotFoundError:
-        print("⚠️  Custom topics file not found, skipping dataset generation")
+    return dataset
 
 
-def main():
-    """Run all programmatic usage examples."""
-    print("🚀 DeepFabric Programmatic Usage Examples")
-    print("=" * 60)
+# ==============================================================================
+# Main Entry Point
+# ==============================================================================
 
-    try:
-        # Run all examples
-        tree, graph = example_tree_vs_graph()
-        _custom_tree = example_custom_topics()
-        _progress_tree = example_progress_monitoring()
-        _loaded_graph = example_load_existing()
-        example_error_handling()
-        example_dataset_generation()
 
-        print("\n" + "=" * 60)
-        print("🎉 All examples completed successfully!")
-        print("=" * 60)
-        print("📁 Files created:")
-        print("   - web_dev_tree.jsonl")
-        print("   - web_dev_graph.json")
-        print("   - custom_data_science_tree.jsonl")
-        print("   - web_dev_graph_extended.json (if load example ran)")
-        print("   - data_science_tutorials.jsonl (if dataset example ran)")
+async def main():
+    """Run all examples."""
+    print("=" * 70)
+    print("DeepFabric Programmatic API Examples")
+    print("=" * 70)
 
-    except Exception as e:
-        print(f"\n❌ Error running examples: {e}")
-        raise
+    # Run examples (comment out any you don't want to run)
+    await example_basic_qa()
+    await example_cot_freetext()
+    await example_cot_structured()
+    await example_single_turn_agent()
+    await example_multi_turn_agent()
+    await example_custom_tools()
+    await example_formatters()
+
+    print("\n" + "=" * 70)
+    print("All examples completed!")
+    print("=" * 70)
 
 
 if __name__ == "__main__":
-    main()
+    # Run the async main function
+    asyncio.run(main())

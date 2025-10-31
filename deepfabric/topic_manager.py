@@ -37,7 +37,15 @@ def _ensure_not_running_loop(func_name: str) -> None:
 
 
 async def _process_graph_events(graph: Graph) -> dict | None:
+    from .progress import ProgressReporter  # noqa: PLC0415
+
     tui = get_graph_tui()
+
+    # Create and attach progress reporter for streaming
+    progress_reporter = ProgressReporter()
+    progress_reporter.attach(tui)
+    graph.progress_reporter = progress_reporter
+
     tui_started = False
 
     final_event = None
@@ -85,7 +93,14 @@ async def _process_graph_events(graph: Graph) -> dict | None:
 
 
 async def _process_tree_events(tree: Tree, debug: bool = False) -> dict | None:
+    from .progress import ProgressReporter  # noqa: PLC0415
+
     tui = get_tree_tui()
+
+    # Create and attach progress reporter for streaming
+    progress_reporter = ProgressReporter()
+    progress_reporter.attach(tui)
+    tree.progress_reporter = progress_reporter
 
     final_event = None
     try:

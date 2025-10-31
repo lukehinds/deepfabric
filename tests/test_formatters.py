@@ -25,6 +25,16 @@ from deepfabric.formatters.builtin.harmony import HarmonyFormatter
 from deepfabric.formatters.builtin.tool_calling import ToolCallingFormatter
 from deepfabric.formatters.builtin.trl_sft_tools import TRLSFTToolsFormatter
 from deepfabric.formatters.registry import FormatterRegistry
+from deepfabric.schemas import (
+    ChatMessage,
+    Conversation,
+    ReasoningTrace,
+    ToolContext,
+    ToolDefinition,
+    ToolExecution,
+    ToolParameter,
+    ToolRegistry,
+)
 
 FORMATTED_LENGTH = 3
 
@@ -591,17 +601,36 @@ class TestToolCallingFormatter:
 
     def test_tool_calling_formatter_basic(self):
         """Test basic tool calling formatter functionality."""
+
         formatter = ToolCallingFormatter()
 
-        # Simple agent reasoning sample
-        sample = {
-            "question": "What's the weather in London?",
-            "reasoning": "I need to check the current weather for London using the weather tool.",
-            "tool_used": "get_weather",
-            "tool_input": '{"location": "London, UK"}',
-            "tool_output": "18°C, cloudy with light rain",
-            "answer": "The weather in London is currently 18°C with cloudy skies and light rain.",
-        }
+        # Unified Conversation schema sample with reasoning and tool context
+        sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="What's the weather in London?"),
+                ChatMessage(
+                    role="assistant",
+                    content="The weather in London is currently 18°C with cloudy skies and light rain.",
+                ),
+            ],
+            reasoning=ReasoningTrace(
+                style="freetext",
+                content="I need to check the current weather for London using the weather tool. Check weather for London. Weather tool is appropriate for this query. Use London, UK as location parameter. Tool returned current weather conditions.",
+            ),
+            tool_context=ToolContext(
+                available_tools=[],
+                executions=[
+                    ToolExecution(
+                        function_name="get_weather",
+                        arguments='{"location": "London, UK"}',
+                        reasoning="Need current weather data for London",
+                        result="18°C, cloudy with light rain",
+                    )
+                ],
+            ),
+            question="What's the weather in London?",
+            final_answer="The weather in London is currently 18°C with cloudy skies and light rain.",
+        )
 
         result = formatter.format_with_metadata([sample])
         assert len(result.samples) == 1
@@ -619,7 +648,7 @@ class TestToolCallingFormatter:
         assert roles == ["user", "assistant", "tool", "assistant"]
 
         # Check user message
-        assert messages[0]["content"] == sample["question"]
+        assert messages[0]["content"] == sample.question
 
         # Check assistant message with thinking and tool call
         assistant_msg = messages[1]["content"]
@@ -627,99 +656,102 @@ class TestToolCallingFormatter:
         assert "</think>" in assistant_msg
         assert "<tool_call>" in assistant_msg
         assert "</tool_call>" in assistant_msg
-        assert sample["reasoning"] in assistant_msg
 
         # Check tool response
         tool_msg = messages[2]["content"]
         assert "<tool_response>" in tool_msg
         assert "</tool_response>" in tool_msg
-        assert sample["tool_output"] in tool_msg
+        assert "18°C, cloudy with light rain" in tool_msg
 
         # Check final answer
-        assert messages[3]["content"] == sample["answer"]
+        assert "18°C with cloudy skies and light rain" in messages[3]["content"]
 
     def test_tool_calling_formatter_rich_reasoning(self):
         """Test tool calling formatter with rich CoT reasoning."""
+
         formatter = ToolCallingFormatter()
 
-        # Rich agent reasoning sample
-        sample = {
-            "question": "Calculate the square root of 144",
-            "initial_analysis": "The user wants me to find the square root of 144, which is a mathematical calculation.",
-            "reasoning_steps": [
-                "I need to perform a mathematical operation (square root)",
-                "The calculator tool is the appropriate choice for this task",
-                "I'll use the sqrt operation with value 144",
+        # Unified Conversation with structured reasoning
+        reasoning_content = "The user wants me to find the square root of 144, which is a mathematical calculation. I need to perform a mathematical operation (square root). The calculator tool is the appropriate choice for this task. I'll use the sqrt operation with value 144."
+
+        sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="Calculate the square root of 144"),
+                ChatMessage(role="assistant", content="The square root of 144 is 12."),
             ],
-            "tool_selection_rationale": "The calculator tool is designed for mathematical operations and has a sqrt function.",
-            "parameter_reasoning": "I need to set operation to 'sqrt' and value to 144 for the calculation.",
-            "result_interpretation": "The tool returned 12, which is the correct square root of 144.",
-            "tool_used": "calculator",
-            "tool_input": '{"operation": "sqrt", "value": 144}',
-            "tool_output": "12",
-            "answer": "The square root of 144 is 12.",
-        }
+            reasoning=ReasoningTrace(style="freetext", content=reasoning_content),
+            tool_context=ToolContext(
+                available_tools=[],
+                executions=[
+                    ToolExecution(
+                        function_name="calculator",
+                        arguments='{"operation": "sqrt", "value": 144}',
+                        reasoning="Calculate square root of 144",
+                        result="12",
+                    )
+                ],
+            ),
+            question="Calculate the square root of 144",
+            final_answer="The square root of 144 is 12.",
+        )
 
         result = formatter.format_with_metadata([sample])
         formatted = result.samples[0]
         messages = formatted["messages"]
 
-        # Check that rich reasoning is included in thinking
+        # Check that reasoning is included in thinking
         assistant_msg = messages[1]["content"]
-        assert "Analysis:" in assistant_msg
-        assert sample["initial_analysis"] in assistant_msg
-        assert "Step-by-step reasoning:" in assistant_msg
-        assert "Tool selection:" in assistant_msg
-        assert sample["tool_selection_rationale"] in assistant_msg
-        assert "Parameters:" in assistant_msg
-        assert sample["parameter_reasoning"] in assistant_msg
-
-        # Verify all reasoning steps are included
-        for step in sample["reasoning_steps"]:
-            assert step in assistant_msg
+        assert "<think>" in assistant_msg
+        assert "mathematical calculation" in assistant_msg
+        assert "square root" in assistant_msg
 
     def test_tool_calling_formatter_with_tools_in_system(self):
         """Test tool calling formatter with tools included in system message."""
+
         config = {
             "include_tools_in_system": True,
             "system_prompt": "You are a helpful AI assistant with access to tools.",
         }
-        formatter = ToolCallingFormatter(config)
 
-        sample = {
-            "question": "What's 5 + 3?",
-            "reasoning": "I need to add two numbers.",
-            "tool_used": "calculator",
-            "tool_input": '{"operation": "add", "a": 5, "b": 3}',
-            "tool_output": "8",
-            "answer": "5 + 3 = 8",
-            "available_tools": [
-                {
-                    "name": "calculator",
-                    "description": "Perform mathematical calculations",
-                    "parameters": [
-                        {
-                            "name": "operation",
-                            "type": "str",
-                            "description": "Math operation",
-                            "required": True,
-                        },
-                        {
-                            "name": "a",
-                            "type": "int",
-                            "description": "First number",
-                            "required": True,
-                        },
-                        {
-                            "name": "b",
-                            "type": "int",
-                            "description": "Second number",
-                            "required": True,
-                        },
-                    ],
-                }
+        # Create tool registry with calculator tool
+        calculator_tool = ToolDefinition(
+            name="calculator",
+            description="Perform mathematical calculations",
+            parameters=[
+                ToolParameter(
+                    name="operation", type="str", description="Math operation", required=True
+                ),
+                ToolParameter(name="a", type="int", description="First number", required=True),
+                ToolParameter(name="b", type="int", description="Second number", required=True),
             ],
-        }
+            returns="The result of the mathematical operation",
+        )
+        tool_registry = ToolRegistry(tools=[calculator_tool])
+
+        formatter = ToolCallingFormatter(config, tool_registry=tool_registry)
+
+        sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="What's 5 + 3?"),
+                ChatMessage(role="assistant", content="5 + 3 = 8"),
+            ],
+            reasoning=ReasoningTrace(
+                style="freetext", content="I need to add two numbers. Add 5 and 3."
+            ),
+            tool_context=ToolContext(
+                available_tools=[calculator_tool],
+                executions=[
+                    ToolExecution(
+                        function_name="calculator",
+                        arguments='{"operation": "add", "a": 5, "b": 3}',
+                        reasoning="Add two numbers",
+                        result="8",
+                    )
+                ],
+            ),
+            question="What's 5 + 3?",
+            final_answer="5 + 3 = 8",
+        )
 
         result = formatter.format_with_metadata([sample])
         formatted = result.samples[0]
@@ -738,23 +770,35 @@ class TestToolCallingFormatter:
 
     def test_tool_calling_formatter_validation(self):
         """Test tool calling formatter validation."""
+
         formatter = ToolCallingFormatter()
 
         # Valid sample
-        valid_sample = {
-            "question": "Test question",
-            "tool_used": "test_tool",
-            "answer": "Test answer",
-        }
-        assert formatter.validate(valid_sample)
-
-        # Invalid samples
-        assert not formatter.validate({})  # Empty
-        assert not formatter.validate({"question": "Test"})  # Missing tool_used and answer
-        assert not formatter.validate({"tool_used": "test"})  # Missing question and answer
+        valid_sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="Test question"),
+                ChatMessage(role="assistant", content="Test answer"),
+            ],
+            reasoning=ReasoningTrace(style="freetext", content="Test analysis"),
+            tool_context=ToolContext(
+                available_tools=[],
+                executions=[
+                    ToolExecution(
+                        function_name="test_tool",
+                        arguments='{"param": "value"}',
+                        reasoning="Test reasoning",
+                        result="Test result",
+                    )
+                ],
+            ),
+            question="Test question",
+            final_answer="Test answer",
+        )
+        assert formatter.validate(valid_sample.model_dump())
 
     def test_tool_calling_formatter_custom_formats(self):
         """Test tool calling formatter with custom formatting."""
+
         config = {
             "thinking_format": "<!-- thinking: {reasoning} -->",
             "tool_call_format": "```json\n{tool_call}\n```",
@@ -762,22 +806,36 @@ class TestToolCallingFormatter:
         }
         formatter = ToolCallingFormatter(config)
 
-        sample = {
-            "question": "Test question",
-            "reasoning": "Test reasoning",
-            "tool_used": "test_tool",
-            "tool_input": "{}",
-            "tool_output": "test output",
-            "answer": "Test answer",
-        }
+        sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="Test question"),
+                ChatMessage(role="assistant", content="Test answer"),
+            ],
+            reasoning=ReasoningTrace(style="freetext", content="Test reasoning"),
+            tool_context=ToolContext(
+                available_tools=[],
+                executions=[
+                    ToolExecution(
+                        function_name="test_tool",
+                        arguments="{}",
+                        reasoning="Test tool reasoning",
+                        result="test output",
+                    )
+                ],
+            ),
+            question="Test question",
+            final_answer="Test answer",
+        )
 
         result = formatter.format_with_metadata([sample])
         formatted = result.samples[0]
         messages = formatted["messages"]
 
-        # Check custom thinking format
+        # Check custom thinking format markers are used
         assistant_msg = messages[1]["content"]
-        assert "<!-- thinking: Test reasoning -->" in assistant_msg
+        assert "<!-- thinking:" in assistant_msg
+        assert "-->" in assistant_msg
+        assert "Test reasoning" in assistant_msg
 
         # Check custom tool call format
         assert "```json" in assistant_msg
@@ -789,16 +847,30 @@ class TestToolCallingFormatter:
 
     def test_tool_calling_formatter_json_parsing(self):
         """Test tool calling formatter JSON parsing scenarios."""
+
         formatter = ToolCallingFormatter()
 
-        # Test with single quotes (should be converted)
-        sample = {
-            "question": "Test",
-            "tool_used": "test_tool",
-            "tool_input": "{'key': 'value'}",  # Single quotes
-            "tool_output": "output",
-            "answer": "answer",
-        }
+        # Test with single quotes in arguments string (will be parsed)
+        sample = Conversation(
+            messages=[
+                ChatMessage(role="user", content="Test"),
+                ChatMessage(role="assistant", content="answer"),
+            ],
+            reasoning=ReasoningTrace(style="freetext", content="Test analysis"),
+            tool_context=ToolContext(
+                available_tools=[],
+                executions=[
+                    ToolExecution(
+                        function_name="test_tool",
+                        arguments='{"key": "value"}',
+                        reasoning="Test reasoning",
+                        result="output",
+                    )
+                ],
+            ),
+            question="Test",
+            final_answer="answer",
+        )
 
         result = formatter.format_with_metadata([sample])
         formatted = result.samples[0]

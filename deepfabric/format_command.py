@@ -5,6 +5,205 @@ from .dataset import Dataset
 from .tui import get_tui
 
 
+def _detect_dataset_characteristics(dataset: Dataset) -> dict[str, str | None]:
+    """
+    Detect dataset characteristics by inspecting sample fields.
+
+    Args:
+        dataset: Dataset to inspect
+
+    Returns:
+        Dict with conversation_type, agent_mode, and reasoning_style
+    """
+    # Sample a few items to detect characteristics
+    max_samples = 10
+    min_multi_turn_messages = 3
+    samples = (
+        dataset.samples[:max_samples] if len(dataset.samples) > max_samples else dataset.samples
+    )
+
+    if not samples:
+        return {
+            "conversation_type": None,
+            "agent_mode": None,
+            "reasoning_style": None,
+        }
+
+    # Detect characteristics from samples
+    has_reasoning = False
+    has_tool_context = False
+    has_agent_context = False
+    reasoning_style = None
+    is_multi_turn = False
+
+    for sample in samples:
+        # Check for reasoning (chain_of_thought indicator)
+        if "reasoning" in sample and sample["reasoning"]:
+            has_reasoning = True
+            # Try to detect reasoning style from structure
+            reasoning_data = sample["reasoning"]
+            if isinstance(reasoning_data, dict):
+                style = reasoning_data.get("style")
+                if style:
+                    reasoning_style = style
+
+        # Check for tool context (agent indicator)
+        if "tool_context" in sample and sample["tool_context"]:
+            has_tool_context = True
+
+        # Check for agent context (multi-turn indicator)
+        if "agent_context" in sample and sample["agent_context"]:
+            has_agent_context = True
+            agent_data = sample["agent_context"]
+            if isinstance(agent_data, dict):
+                turns = agent_data.get("turns", 0)
+                if turns > 1:
+                    is_multi_turn = True
+
+        # Check messages length as fallback for multi-turn detection
+        # More than 3 messages (system, user, assistant) suggests multi-turn
+        if (
+            "messages" in sample
+            and isinstance(sample["messages"], list)
+            and len(sample["messages"]) > min_multi_turn_messages
+        ):
+            is_multi_turn = True
+
+    # Determine conversation_type
+    conversation_type = "chain_of_thought" if has_reasoning else "basic"
+
+    # Determine agent_mode
+    if has_tool_context or has_agent_context:
+        agent_mode = "multi_turn" if is_multi_turn else "single_turn"
+    else:
+        agent_mode = None
+
+    return {
+        "conversation_type": conversation_type,
+        "agent_mode": agent_mode,
+        "reasoning_style": reasoning_style,
+    }
+
+
+def _warn_formatter_incompatibilities(dataset: Dataset, formatter_configs: list[dict], tui) -> bool:
+    """
+    Warn about potential incompatibilities between dataset and formatters.
+
+    Args:
+        dataset: Dataset to check
+        formatter_configs: List of formatter configurations
+        tui: TUI instance for displaying warnings
+
+    Returns:
+        True if fatal incompatibility detected (should abort), False otherwise
+    """
+    # Detect dataset characteristics
+    characteristics = _detect_dataset_characteristics(dataset)
+    conversation_type = characteristics["conversation_type"]
+    agent_mode = characteristics["agent_mode"]
+    reasoning_style = characteristics["reasoning_style"]
+
+    # Define formatter compatibility rules (same as config.py)
+    formatter_warnings = {
+        "alpaca": {
+            "incompatible_with": {
+                "conversation_type": ["chain_of_thought"],
+                "agent_mode": ["multi_turn"],
+            },
+            "warning": "Alpaca format works best with simple Q&A. Chain-of-thought reasoning and multi-turn conversations may have high rejection rates.",
+        },
+        "chatml": {
+            "incompatible_with": {
+                "reasoning_style": ["structured", "hybrid"],
+            },
+            "warning": "ChatML format may reject samples with complex reasoning structures. Consider using 'conversations' format for chain-of-thought data.",
+        },
+        "xlam_v2": {
+            "requires": {
+                "agent_mode": ["single_turn", "multi_turn"],
+            },
+            "warning": "XLAM v2 format requires agent_mode to be set (single_turn or multi_turn) for tool-calling data.",
+            "fatal": True,  # Fatal incompatibility - will fail all samples
+        },
+        "tool_calling": {
+            "requires": {
+                "agent_mode": ["single_turn", "multi_turn"],
+            },
+            "warning": "Tool calling format requires agent_mode to be set for tool-calling data.",
+            "fatal": True,
+        },
+        "single_tool_call": {
+            "requires": {
+                "agent_mode": ["single_turn"],
+            },
+            "warning": "Single tool call format requires agent_mode='single_turn' and will reject multi-turn conversations.",
+            "fatal": True,
+        },
+    }
+
+    has_fatal_error = False
+
+    # Check each formatter
+    for formatter_config in formatter_configs:
+        template = formatter_config.get("template", "")
+        formatter_name = None
+
+        # Extract formatter name from template (builtin://formatter_name)
+        if isinstance(template, str) and "builtin://" in template:
+            formatter_name = template.replace("builtin://", "").replace(".py", "")
+
+        if not formatter_name or formatter_name not in formatter_warnings:
+            continue
+
+        rules = formatter_warnings[formatter_name]
+        is_fatal = rules.get("fatal", False)
+
+        # Check incompatibilities
+        if "incompatible_with" in rules:
+            incompatible = rules["incompatible_with"]
+
+            if (
+                "conversation_type" in incompatible
+                and conversation_type in incompatible["conversation_type"]
+            ):
+                tui.warning(
+                    f"Formatter '{formatter_config['name']}' may have high rejection rates with conversation_type='{conversation_type}'"
+                )
+                tui.info(f"  {rules['warning']}")
+
+            if "agent_mode" in incompatible and agent_mode in incompatible["agent_mode"]:
+                tui.warning(
+                    f"Formatter '{formatter_config['name']}' may have high rejection rates with agent_mode='{agent_mode}'"
+                )
+                tui.info(f"  {rules['warning']}")
+
+            if (
+                "reasoning_style" in incompatible
+                and reasoning_style in incompatible["reasoning_style"]
+            ):
+                tui.warning(
+                    f"Formatter '{formatter_config['name']}' may have high rejection rates with reasoning_style='{reasoning_style}'"
+                )
+                tui.info(f"  {rules['warning']}")
+
+        # Check requirements
+        if "requires" in rules:
+            requirements = rules["requires"]
+
+            if "agent_mode" in requirements and (
+                not agent_mode or agent_mode not in requirements["agent_mode"]
+            ):
+                tui.warning(
+                    f"Formatter '{formatter_config['name']}' requires agent_mode to be one of {requirements['agent_mode']}"
+                )
+                tui.info(f"  Detected: agent_mode={agent_mode}")
+                tui.info(f"  {rules['warning']}")
+                if is_fatal:
+                    has_fatal_error = True
+
+    return has_fatal_error
+
+
 def format_command(
     input_file: str | None = None,
     *,
@@ -12,6 +211,8 @@ def format_command(
     split: str | None = None,
     config_file: str | None = None,
     formatter: str | None = None,
+    target_model: str | None = None,
+    model_config: str | None = None,
     output: str | None = None,
 ) -> None:
     """
@@ -23,6 +224,8 @@ def format_command(
         split: Optional split to load from the Hugging Face dataset (default: train)
         config_file: Optional YAML config file with formatter settings
         formatter: Optional formatter name (e.g., 'chatml')
+        target_model: Optional HuggingFace model ID to format for (e.g., 'meta-llama/Llama-3.1-8B')
+        model_config: Optional path to custom model mappings YAML for --target-model
         output: Optional output file path
     """
     tui = get_tui()
@@ -35,37 +238,42 @@ def format_command(
         tui.info(f"Loading dataset from {input_file}...")
         dataset = Dataset.from_jsonl(input_file)
         tui.success(f"Loaded {len(dataset)} samples")
-    else:
-        # Lazy import to avoid overhead when not needed
-        try:
-            from datasets import load_dataset  # type: ignore  # noqa: PLC0415
-            from datasets.exceptions import (  # type: ignore  # noqa: PLC0415
-                DatasetNotFoundError,
-                UnexpectedSplitsError,
-            )
-        except ImportError as e:  # pragma: no cover - import path
-            raise RuntimeError(
-                "The 'datasets' library is required to load from --repo. Please install it."
-            ) from e
-
+    elif repo:
+        # Use Dataset.from_hub instead of loading manually
         hf_split = split or "train"
         tui.info(f"Loading dataset from Hugging Face repo '{repo}' (split: {hf_split})...")
         try:
-            # Bandit nosec, as no digest is set.
-            hf_ds = load_dataset(str(repo), split=hf_split)  #  nosec
-        except (DatasetNotFoundError, UnexpectedSplitsError) as e:
-            msg = (
-                "Failed to load dataset from Hugging Face repo "
-                f"'{repo}' with split '{hf_split}': {e}"
-            )
-            raise RuntimeError(msg) from e
+            dataset = Dataset.from_hub(repo, split=hf_split)
+            tui.success(f"Loaded {len(dataset)} samples from {repo}:{hf_split}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to load dataset from HuggingFace: {e}") from e
+    else:
+        raise ValueError("Must specify either INPUT_FILE or --repo")
 
-        # Convert to DeepFabric Dataset from list of dicts
-        samples = list(hf_ds)
-        dataset = Dataset.from_list(samples)
-        tui.success(f"Loaded {len(dataset)} samples from {repo}:{hf_split}")
+    # Handle --target-model (HF chat template formatter)
+    if target_model:
+        tui.info(f"Formatting for target model: {target_model}")
 
-    # Determine formatter configuration
+        # Determine output file
+        if output:
+            output_file = output
+        elif input_file:
+            output_file = f"{input_file.rsplit('.', 1)[0]}_{target_model.split('/')[-1]}.jsonl"
+        else:
+            output_file = f"{target_model.split('/')[-1]}-formatted.jsonl"
+
+        # Format using HF chat template
+        formatted_dataset = dataset.format(
+            target_model=target_model, model_config=model_config, use_transformers=True
+        )
+
+        # Save formatted dataset
+        formatted_dataset.save(output_file)
+        tui.success(f"✓ Formatted dataset saved to {output_file}")
+        tui.info(f"  Samples: {len(formatted_dataset)}")
+        return
+
+    # Determine formatter configuration (legacy builtin formatters)
     formatter_configs = []
 
     if config_file:
@@ -138,6 +346,13 @@ def format_command(
     else:
         raise ValueError("Either --config-file or --formatter must be specified")
 
+    # Detect dataset characteristics and warn about potential incompatibilities
+    has_fatal_error = _warn_formatter_incompatibilities(dataset, formatter_configs, tui)
+
+    # Abort if fatal incompatibility detected
+    if has_fatal_error:
+        return
+
     # Apply formatters
     tui.info("Applying formatters...")
     formatted_datasets = dataset.apply_formatters(formatter_configs)
@@ -148,9 +363,18 @@ def format_command(
         output_path = formatter_config.get("output", f"{name}.jsonl")
         if name in formatted_datasets:
             formatted_dataset = formatted_datasets[name]
-            tui.success(f"✓ Formatter '{name}' applied successfully")
-            tui.info(f"  Output: {output_path}")
-            tui.info(f"  Samples: {len(formatted_dataset)}")
+            num_samples = len(formatted_dataset)
+
+            if num_samples == 0:
+                tui.error(f"✗ Formatter '{name}' failed - no samples were successfully formatted")
+                tui.info(
+                    "  This is likely due to incompatibility between the dataset and formatter."
+                )
+                tui.info("  See warnings above for details.")
+            else:
+                tui.success(f"✓ Formatter '{name}' applied successfully")
+                tui.info(f"  Output: {output_path}")
+                tui.info(f"  Samples: {num_samples}")
 
 
 @click.command(name="format")
@@ -180,11 +404,20 @@ def format_command(
             "grpo",
             "harmony",
             "trl",
-            "trl_sft_tools",
             "xlam_v2",
         ]
     ),
     help="Formatter to apply",
+)
+@click.option(
+    "--target-model",
+    "-m",
+    help="HuggingFace model ID to format for (e.g., 'meta-llama/Llama-3.1-8B-Instruct')",
+)
+@click.option(
+    "--model-config",
+    type=click.Path(exists=True),
+    help="Path to custom model mappings YAML for --target-model",
 )
 @click.option(
     "--output",
@@ -199,6 +432,8 @@ def format_cli(
     split: str | None,
     config_file: str | None,
     formatter: str | None,
+    target_model: str | None,
+    model_config: str | None,
     output: str | None,
 ) -> None:
     """Apply formatters to an existing dataset."""
@@ -209,6 +444,8 @@ def format_cli(
             split=split,
             config_file=config_file,
             formatter=formatter,
+            target_model=target_model,
+            model_config=model_config,
             output=output,
         )
     except FileNotFoundError as e:
