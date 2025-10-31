@@ -34,6 +34,11 @@ class ChatmlFormatter(BaseFormatter):
     role delineation and conversation structure.
     """
 
+    # Common English words that are unlikely to be function names
+    # Used as a heuristic filter in function name extraction
+    # Note: This blacklist may filter out legitimate functions named 'tool' or 'function'
+    _COMMON_WORDS_BLACKLIST = {"a", "an", "the", "this", "that", "it", "tool", "function"}
+
     def __init__(self, config: "dict[str, Any] | None" = None, tool_registry=None):
         super().__init__(config, tool_registry=tool_registry)
 
@@ -299,6 +304,12 @@ class ChatmlFormatter(BaseFormatter):
             - Plain function name: "get_weather"
             - Function call: "get_weather(city='Paris')"
             Descriptive text parsing is best-effort and may fail for complex sentences.
+
+        Limitations:
+            The common words blacklist (_COMMON_WORDS_BLACKLIST) filters out words like
+            'tool' and 'function', which could prevent extraction if a function is
+            legitimately named 'tool' or 'function'. This is an accepted trade-off to
+            reduce false positives from natural language text.
         """
         if not action:
             return None
@@ -327,7 +338,7 @@ class ChatmlFormatter(BaseFormatter):
         if match:
             func_name = match.group(1)
             # Filter out common English words that aren't function names
-            if func_name.lower() not in {"a", "an", "the", "this", "that", "it", "tool", "function"}:
+            if func_name.lower() not in self._COMMON_WORDS_BLACKLIST:
                 return func_name
 
         # If all else fails, return None - this reasoning step doesn't clearly reference a tool

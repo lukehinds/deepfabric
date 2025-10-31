@@ -111,7 +111,7 @@ class HFChatTemplateFormatter:
             try:
                 from transformers import AutoTokenizer  # noqa: PLC0415
 
-                self.tokenizer = AutoTokenizer.from_pretrained(self.model_id) #  nosec
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_id)  #  nosec
             except ImportError:
                 logger.warning("transformers not installed, falling back to manual mode")
                 self.use_transformers = False

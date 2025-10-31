@@ -447,7 +447,7 @@ requires-dist = [
     { name = "mkdocs-material", marker = "extra == 'docs'", specifier = ">=9.0.0" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'docs'", specifier = ">=0.30.0" },
     { name = "openai", specifier = ">=1.107.2" },
-    { name = "outlines", specifier = "==1.2.7" },
+    { name = "outlines", specifier = "==1.2.8" },
     { name = "packaging", specifier = ">=25.0" },
     { name = "posthog", specifier = ">=3.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
@@ -1441,7 +1441,7 @@ wheels = [
 
 [[package]]
 name = "outlines"
-version = "1.2.7"
+version = "1.2.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cloudpickle" },
@@ -1455,9 +1455,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e5/72/70cbde9680d810fa140486512adccedfc7369fe993a963150835699900a7/outlines-1.2.7.tar.gz", hash = "sha256:1b588e7a6c789deae29dc212037089f4fc9f954b1d7d23f223d5451db45bb5b7", size = 2833655, upload-time = "2025-10-14T16:27:27.577Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b1/11/e2a0d3c3a8b79a9dd7f69060927e91d6ffa3e9b9a3f6b05ba3501f2a2d63/outlines-1.2.8.tar.gz", hash = "sha256:acd479f440f8e14ceb98bf453ac39ca25d338a7540b72eb1ab93710e3514a64c", size = 2883833, upload-time = "2025-10-27T11:00:59.78Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1d/c4/e9e0f12c04b2c12132b806ba8a1aefb382f162804182e03548af2ac78860/outlines-1.2.7-py3-none-any.whl", hash = "sha256:5d1cb695cb14213e64e632b742090880094877440bc292c5fd4ebb4a912d8c02", size = 98114, upload-time = "2025-10-14T16:27:26.396Z" },
+    { url = "https://files.pythonhosted.org/packages/35/7f/f5a517105a8367245f6286a3fd42ddc5fe7e7b6cb650a3fe7c7590b71c7a/outlines-1.2.8-py3-none-any.whl", hash = "sha256:d88a479346c7af4ba26a2d3743a3d95a11e1b013d68603a37f2da414af47248f", size = 98306, upload-time = "2025-10-27T11:00:58.443Z" },
 ]
 
 [[package]]

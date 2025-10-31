@@ -45,7 +45,7 @@ class TokenizerConfig:
             Exception: If config cannot be downloaded
         """
         try:
-            config_path = hf_hub_download( #  nosec
+            config_path = hf_hub_download(  #  nosec
                 repo_id=model_id, filename="tokenizer_config.json", repo_type="model"
             )
             with open(config_path) as f:
