@@ -1,0 +1,93 @@
+# ============================================================================
+# OPENROUTER EXAMPLE - Using OpenRouter's unified API
+# ============================================================================
+# Purpose: Generate a dataset using OpenRouter's unified API for multiple LLM providers
+# Usage:
+#   1. Set OPENROUTER_API_KEY environment variable
+#   2. Run: deepfabric start examples/configs/openrouter-example.yaml
+# Output: dataset.jsonl with conversation examples
+# ============================================================================
+#
+# OpenRouter provides access to multiple LLM providers through a unified API.
+# Benefits:
+# - Access to 100+ models from different providers
+# - Pay-as-you-go pricing across all models
+# - Automatic fallback and load balancing
+# - Structured outputs support (json_schema)
+#
+# Note: OpenRouter requires models to support structured outputs.
+# Recommended models: openai/gpt-4o, openai/gpt-4o-mini, anthropic/claude-3-5-sonnet
+# ============================================================================
+
+# Define the overall purpose of your dataset
+dataset_system_prompt: |
+  You are a helpful AI assistant that provides accurate and informative responses.
+
+# Topic generation - creates a tree of related topics
+topic_graph:
+  topic_prompt: "Machine learning fundamentals"
+  provider: "openrouter"
+  model: "x-ai/grok-4-fast"  # OpenRouter model format: provider/model-name
+  temperature: 0.8
+  degree: 3  # Number of subtopics per branch
+  depth: 2   # Tree depth (2-3 is usually sufficient)
+  save_as: "topics.jsonl"
+
+# Data generation - creates the actual training examples
+data_engine:
+  generation_system_prompt: "Generate clear, educational Q&A pairs about machine learning."
+  instructions: "Create diverse questions and detailed answers suitable for learning machine learning concepts."
+
+  # Conversation configuration
+  conversation_type: "basic"  # Simple Q&A format
+
+  # Model configuration
+  provider: "openrouter"
+  model: "x-ai/grok-4-fast"  # Use same model or switch to a different one
+  temperature: 0.7
+  max_retries: 3  # Retry on API failures (includes 402 payment errors)
+
+# Dataset configuration
+dataset:
+  save_as: "dataset.jsonl"
+
+  creation:
+    num_steps: 4      # Number of examples to generate
+    batch_size: 2      # Parallel generation batch size
+    sys_msg: true      # Include system message in output
+
+# ============================================================================
+# OpenRouter Configuration Notes:
+#
+# 1. API Key Setup:
+#    export OPENROUTER_API_KEY="your-key-here"
+#
+# 2. Model Selection:
+#    - Browse available models: https://openrouter.ai/models
+#    - Format: provider/model-name (e.g., "openai/gpt-4o", "anthropic/claude-3-5-sonnet")
+#    - Ensure the model supports structured outputs (json_schema)
+#
+# 3. Pricing:
+#    - Each model has different pricing per token
+#    - Check pricing at: https://openrouter.ai/models
+#    - Monitor usage at: https://openrouter.ai/activity
+#
+# 4. Rate Limiting:
+#    - Varies by model and account tier
+#    - Free models have daily limits
+#    - Paid accounts have higher limits
+#    - HTTP 402 errors indicate insufficient credits
+#
+# 5. Advanced Options:
+#    - Custom base_url: Set if using a proxy or custom endpoint
+#    - Rate limit config: Customize retry behavior for your use case
+#
+# Example with custom rate limiting:
+# data_engine:
+#   provider: "openrouter"
+#   model: "openai/gpt-4o-mini"
+#   rate_limit_config:
+#     max_retries: 5
+#     base_delay: 2.0
+#     max_delay: 60.0
+# ============================================================================

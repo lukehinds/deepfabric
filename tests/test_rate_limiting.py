@@ -14,6 +14,7 @@ from deepfabric.llm.rate_limit_config import (
     BackoffStrategy,
     GeminiRateLimitConfig,
     OpenAIRateLimitConfig,
+    OpenRouterRateLimitConfig,
     RateLimitConfig,
     create_rate_limit_config,
     get_default_rate_limit_config,
@@ -57,6 +58,13 @@ class TestRateLimitConfig:
         assert config.parse_quota_details is True
         assert config.daily_quota_aware is True
 
+    def test_openrouter_config_defaults(self):
+        """Test OpenRouter-specific configuration."""
+        config = OpenRouterRateLimitConfig()
+        assert 402 in config.retry_on_status_codes  # Payment required
+        assert 429 in config.retry_on_status_codes  # Rate limit
+        assert config.check_credits is False  # Off by default
+
     def test_config_validation(self):
         """Test configuration validation."""
         # max_delay must be >= base_delay
@@ -86,6 +94,9 @@ class TestRateLimitConfig:
 
         gemini_config = get_default_rate_limit_config("gemini")
         assert isinstance(gemini_config, GeminiRateLimitConfig)
+
+        openrouter_config = get_default_rate_limit_config("openrouter")
+        assert isinstance(openrouter_config, OpenRouterRateLimitConfig)
 
         # Unknown provider should return base config
         unknown_config = get_default_rate_limit_config("unknown")

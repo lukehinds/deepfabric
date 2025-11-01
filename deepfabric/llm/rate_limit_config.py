@@ -193,11 +193,30 @@ class OllamaRateLimitConfig(RateLimitConfig):
     )
 
 
+class OpenRouterRateLimitConfig(RateLimitConfig):
+    """OpenRouter-specific rate limit configuration.
+
+    OpenRouter aggregates multiple LLM providers and uses OpenAI-compatible API.
+    It uses credit-based quotas with model-specific rate limits. Different models
+    have different RPM limits, and free model variants have daily limits.
+    Returns 402 Payment Required when account balance is negative.
+    """
+
+    retry_on_status_codes: set[int] = Field(
+        default_factory=lambda: {402, 429, 500, 502, 503, 504},
+        description="HTTP status codes that trigger retry (includes 402 for payment issues)",
+    )
+    check_credits: bool = Field(
+        default=False,
+        description="Monitor credit balance via /api/v1/key endpoint",
+    )
+
+
 def get_default_rate_limit_config(provider: str) -> RateLimitConfig:
     """Get the default rate limit configuration for a provider.
 
     Args:
-        provider: Provider name (openai, anthropic, gemini, ollama)
+        provider: Provider name (openai, anthropic, gemini, ollama, openrouter)
 
     Returns:
         Provider-specific rate limit configuration with sensible defaults
@@ -207,6 +226,7 @@ def get_default_rate_limit_config(provider: str) -> RateLimitConfig:
         "anthropic": AnthropicRateLimitConfig(),
         "gemini": GeminiRateLimitConfig(),
         "ollama": OllamaRateLimitConfig(),
+        "openrouter": OpenRouterRateLimitConfig(),
     }
     return configs.get(provider, RateLimitConfig())
 
@@ -218,7 +238,7 @@ def create_rate_limit_config(
     """Create a rate limit configuration from a dictionary.
 
     Args:
-        provider: Provider name (openai, anthropic, gemini, ollama)
+        provider: Provider name (openai, anthropic, gemini, ollama, openrouter)
         config_dict: Configuration parameters as dictionary
 
     Returns:
@@ -235,6 +255,7 @@ def create_rate_limit_config(
         "anthropic": AnthropicRateLimitConfig,
         "gemini": GeminiRateLimitConfig,
         "ollama": OllamaRateLimitConfig,
+        "openrouter": OpenRouterRateLimitConfig,
     }
 
     config_class = config_classes.get(provider, RateLimitConfig)
