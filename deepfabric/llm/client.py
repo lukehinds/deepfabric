@@ -36,6 +36,80 @@ def _raise_generation_error(max_retries: int, error: Exception) -> None:
     raise DataSetGeneratorError(msg) from error
 
 
+def _create_openai_compatible_client(
+    api_key_env_var: str | None,
+    default_base_url: str | None,
+    dummy_key: str | None = None,
+    **kwargs,
+) -> openai.OpenAI:
+    """Create an OpenAI-compatible client for providers that use OpenAI's API format.
+
+    Args:
+        api_key_env_var: Environment variable name for API key (None to skip check)
+        default_base_url: Default base URL if not provided in kwargs (None for OpenAI default)
+        dummy_key: Dummy API key to use if api_key_env_var is None (e.g., for Ollama)
+        **kwargs: Additional client configuration (may include base_url override)
+
+    Returns:
+        Configured OpenAI client instance
+
+    Raises:
+        DataSetGeneratorError: If required API key is missing
+    """
+    # Get API key from environment or use dummy key
+    if api_key_env_var:
+        api_key = os.getenv(api_key_env_var)
+        if not api_key:
+            _raise_api_key_error(api_key_env_var)
+    else:
+        api_key = dummy_key
+
+    # Set up base_url if provided
+    client_kwargs = {k: v for k, v in kwargs.items() if k != "base_url"}
+    if default_base_url:
+        base_url = kwargs.get("base_url", default_base_url)
+        client_kwargs["base_url"] = base_url
+
+    return openai.OpenAI(api_key=api_key, **client_kwargs)
+
+
+def _create_async_openai_compatible_client(
+    api_key_env_var: str | None,
+    default_base_url: str | None,
+    dummy_key: str | None = None,
+    **kwargs,
+) -> openai.AsyncOpenAI:
+    """Create an async OpenAI-compatible client for providers that use OpenAI's API format.
+
+    Args:
+        api_key_env_var: Environment variable name for API key (None to skip check)
+        default_base_url: Default base URL if not provided in kwargs (None for OpenAI default)
+        dummy_key: Dummy API key to use if api_key_env_var is None (e.g., for Ollama)
+        **kwargs: Additional client configuration (may include base_url override)
+
+    Returns:
+        Configured AsyncOpenAI client instance
+
+    Raises:
+        DataSetGeneratorError: If required API key is missing
+    """
+    # Get API key from environment or use dummy key
+    if api_key_env_var:
+        api_key = os.getenv(api_key_env_var)
+        if not api_key:
+            _raise_api_key_error(api_key_env_var)
+    else:
+        api_key = dummy_key
+
+    # Set up base_url if provided
+    client_kwargs = {k: v for k, v in kwargs.items() if k != "base_url"}
+    if default_base_url:
+        base_url = kwargs.get("base_url", default_base_url)
+        client_kwargs["base_url"] = base_url
+
+    return openai.AsyncOpenAI(api_key=api_key, **client_kwargs)
+
+
 def _strip_additional_properties(schema_dict: dict) -> dict:
     """
     Recursively remove additionalProperties from JSON schema and handle dict[str, Any] fields.
@@ -282,11 +356,28 @@ def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
     """
     try:
         if provider == "openai":
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                _raise_api_key_error("OPENAI_API_KEY")
+            client = _create_openai_compatible_client(
+                api_key_env_var="OPENAI_API_KEY",
+                default_base_url=None,  # Use OpenAI's default
+                **kwargs,
+            )
+            return outlines.from_openai(client, model_name)
 
-            client = openai.OpenAI(api_key=api_key, **kwargs)
+        if provider == "ollama":
+            client = _create_openai_compatible_client(
+                api_key_env_var=None,  # No API key required
+                default_base_url="http://localhost:11434/v1",
+                dummy_key="ollama",
+                **kwargs,
+            )
+            return outlines.from_openai(client, model_name)
+
+        if provider == "openrouter":
+            client = _create_openai_compatible_client(
+                api_key_env_var="OPENROUTER_API_KEY",
+                default_base_url="https://openrouter.ai/api/v1",
+                **kwargs,
+            )
             return outlines.from_openai(client, model_name)
 
         if provider == "anthropic":
@@ -310,30 +401,6 @@ def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
             client = genai.Client(api_key=api_key)
             return outlines.from_gemini(client, model_name, **kwargs)
 
-        if provider == "ollama":
-            # Use OpenAI-compatible endpoint for Ollama
-            base_url = kwargs.get("base_url", "http://localhost:11434/v1")
-            client = openai.OpenAI(
-                base_url=base_url,
-                api_key="ollama",  # Dummy key for Ollama
-                **{k: v for k, v in kwargs.items() if k != "base_url"},
-            )
-            return outlines.from_openai(client, model_name)
-
-        if provider == "openrouter":
-            # Use OpenAI-compatible endpoint for OpenRouter
-            api_key = os.getenv("OPENROUTER_API_KEY")
-            if not api_key:
-                _raise_api_key_error("OPENROUTER_API_KEY")
-
-            base_url = kwargs.get("base_url", "https://openrouter.ai/api/v1")
-            client = openai.OpenAI(
-                base_url=base_url,
-                api_key=api_key,
-                **{k: v for k, v in kwargs.items() if k != "base_url"},
-            )
-            return outlines.from_openai(client, model_name)
-
         _raise_unsupported_provider_error(provider)
 
     except DataSetGeneratorError:
@@ -352,32 +419,27 @@ def make_async_outlines_model(provider: str, model_name: str, **kwargs) -> Any |
 
     try:
         if provider == "openai":
-            api_key = os.getenv("OPENAI_API_KEY")
-            if not api_key:
-                _raise_api_key_error("OPENAI_API_KEY")
-
-            client = openai.AsyncOpenAI(api_key=api_key, **kwargs)
+            client = _create_async_openai_compatible_client(
+                api_key_env_var="OPENAI_API_KEY",
+                default_base_url=None,  # Use OpenAI's default
+                **kwargs,
+            )
             return outlines.from_openai(client, model_name)
 
         if provider == "ollama":
-            base_url = kwargs.get("base_url", "http://localhost:11434/v1")
-            client = openai.AsyncOpenAI(
-                base_url=base_url,
-                api_key="ollama",
-                **{k: v for k, v in kwargs.items() if k != "base_url"},
+            client = _create_async_openai_compatible_client(
+                api_key_env_var=None,  # No API key required
+                default_base_url="http://localhost:11434/v1",
+                dummy_key="ollama",
+                **kwargs,
             )
             return outlines.from_openai(client, model_name)
 
         if provider == "openrouter":
-            api_key = os.getenv("OPENROUTER_API_KEY")
-            if not api_key:
-                _raise_api_key_error("OPENROUTER_API_KEY")
-
-            base_url = kwargs.get("base_url", "https://openrouter.ai/api/v1")
-            client = openai.AsyncOpenAI(
-                base_url=base_url,
-                api_key=api_key,
-                **{k: v for k, v in kwargs.items() if k != "base_url"},
+            client = _create_async_openai_compatible_client(
+                api_key_env_var="OPENROUTER_API_KEY",
+                default_base_url="https://openrouter.ai/api/v1",
+                **kwargs,
             )
             return outlines.from_openai(client, model_name)
 
