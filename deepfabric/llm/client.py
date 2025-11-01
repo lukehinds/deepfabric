@@ -320,6 +320,20 @@ def make_outlines_model(provider: str, model_name: str, **kwargs) -> Any:
             )
             return outlines.from_openai(client, model_name)
 
+        if provider == "openrouter":
+            # Use OpenAI-compatible endpoint for OpenRouter
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            if not api_key:
+                _raise_api_key_error("OPENROUTER_API_KEY")
+
+            base_url = kwargs.get("base_url", "https://openrouter.ai/api/v1")
+            client = openai.OpenAI(
+                base_url=base_url,
+                api_key=api_key,
+                **{k: v for k, v in kwargs.items() if k != "base_url"},
+            )
+            return outlines.from_openai(client, model_name)
+
         _raise_unsupported_provider_error(provider)
 
     except DataSetGeneratorError:
@@ -350,6 +364,19 @@ def make_async_outlines_model(provider: str, model_name: str, **kwargs) -> Any |
             client = openai.AsyncOpenAI(
                 base_url=base_url,
                 api_key="ollama",
+                **{k: v for k, v in kwargs.items() if k != "base_url"},
+            )
+            return outlines.from_openai(client, model_name)
+
+        if provider == "openrouter":
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            if not api_key:
+                _raise_api_key_error("OPENROUTER_API_KEY")
+
+            base_url = kwargs.get("base_url", "https://openrouter.ai/api/v1")
+            client = openai.AsyncOpenAI(
+                base_url=base_url,
+                api_key=api_key,
                 **{k: v for k, v in kwargs.items() if k != "base_url"},
             )
             return outlines.from_openai(client, model_name)
@@ -438,12 +465,14 @@ class LLMClient:
         kwargs = self._convert_generation_params(**kwargs)
 
         # For Gemini, use compatible schema without additionalProperties
-        # For OpenAI, ensure all properties are in required array
+        # For OpenAI and OpenRouter, ensure all properties are in required array
         generation_schema = schema
         if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
             generation_schema = _create_gemini_compatible_schema(schema)
         elif (
-            self.provider == "openai" and isinstance(schema, type) and issubclass(schema, BaseModel)
+            self.provider in ("openai", "openrouter")
+            and isinstance(schema, type)
+            and issubclass(schema, BaseModel)
         ):
             generation_schema = _create_openai_compatible_schema(schema)
 
@@ -489,12 +518,14 @@ class LLMClient:
         kwargs = self._convert_generation_params(**kwargs)
 
         # For Gemini, use compatible schema without additionalProperties
-        # For OpenAI, ensure all properties are in required array
+        # For OpenAI and OpenRouter, ensure all properties are in required array
         generation_schema = schema
         if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
             generation_schema = _create_gemini_compatible_schema(schema)
         elif (
-            self.provider == "openai" and isinstance(schema, type) and issubclass(schema, BaseModel)
+            self.provider in ("openai", "openrouter")
+            and isinstance(schema, type)
+            and issubclass(schema, BaseModel)
         ):
             generation_schema = _create_openai_compatible_schema(schema)
 
@@ -548,7 +579,9 @@ class LLMClient:
         if self.provider == "gemini" and isinstance(schema, type) and issubclass(schema, BaseModel):
             generation_schema = _create_gemini_compatible_schema(schema)
         elif (
-            self.provider == "openai" and isinstance(schema, type) and issubclass(schema, BaseModel)
+            self.provider in ("openai", "openrouter")
+            and isinstance(schema, type)
+            and issubclass(schema, BaseModel)
         ):
             generation_schema = _create_openai_compatible_schema(schema)
 

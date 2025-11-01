@@ -102,7 +102,7 @@ dataset = load_dataset("json", data_files="math_reasoning_grpo.jsonl")
 - **Conversation Templates**: Support for various dialogue patterns and reasoning styles
 - **Tool Calling Support**: Generate function-calling and agent interaction datasets
 - **Structured Output**: Pydantic & Outlines enforced schemas for consistent, high-quality data
-- **Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Ollama, and more
+- **Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Ollama, OpenRouter and more
 - **HuggingFace Integration**: Direct dataset upload with auto-generated cards
 
 ## Why Train SLMs for Agents?
@@ -265,7 +265,7 @@ There are lots more [examples](./examples/README.md) to get you going.
 | **Google** | Gemini 2.0, 1.5 | Cost-effective at scale | Cloud |
 | **Ollama** | Llama, Mistral, Qwen, etc. | Privacy, unlimited generation | Local |
 | **Together** | Open models | Fast inference | Cloud |
-| **Groq** | Llama, Mixtral | Ultra-fast generation | Cloud |
+| **OpenRouter** | Many Models! | Flexible model choice | Cloud |
 
 ## Configuration System
 
