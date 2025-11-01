@@ -55,7 +55,7 @@
 
 Built by engineers behind production-grade open source projects used by **NVIDIA, Google, GitHub, and more.**
 
-DeepFabric streamlines the entire agent training pipeline: from hierarchical topic generation to structured reasoning templates to model-ready formats across all major training frameworks. Whether you're building MCP-compatible agents, distilling capabilities into smaller models, or creating specialized tool-calling systems, DeepFabric provides the high-quality, diverse training data you need at scale.
+DeepFabric plans to streamline the entire agent training pipeline and drag AI/ML development into the modern age: By allow the quick production of training ready structured reasoning templates to multi architecture model-ready formats across all major training frameworks. Whether you're building MCP-compatible agents, distilling capabilities into smaller models, or creating specialized tool-calling systems, DeepFabric provides the high-quality, diverse training data you need at scale.
 
 ## Generation to Training
 
