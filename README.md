@@ -57,6 +57,12 @@ Built by engineers behind production-grade open source projects used by **NVIDIA
 
 DeepFabric plans to streamline the entire agent training pipeline and drag AI/ML development into the modern age: By allow the quick production of training ready structured reasoning templates to multi architecture model-ready formats across all major training frameworks. Whether you're building MCP-compatible agents, distilling capabilities into smaller models, or creating specialized tool-calling systems, DeepFabric provides the high-quality, diverse training data you need at scale.
 
+## Stay Updated
+
+Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way to follow the project and to be instantly notified of new releases, **Star the repo**.
+
+<img src="/assets/star.gif" width="40%" height="40%"/>
+
 ## Generation to Training
 
 DeepFabric datasets are ready for immediate training, multi-format capable with no conversion scripts needed, no preprocessing pipelines, just generate and train:
@@ -405,12 +411,6 @@ data_engine:
 | **Examples** | Ready-to-use configurations | [examples/](./examples/README.md) |
 | **Discord** | Community support | [Join Discord](https://discord.gg/pPcjYzGvbS) |
 | **Issues** | Bug reports & features | [GitHub Issues](https://github.com/lukehinds/deepfabric/issues) |
-
-## Stay Updated
-
-Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way to follow the project and to be instantly notified of new releases, **Star the repo**.
-
-<img src="/assets/star.gif" width="40%" height="40%"/>
 
 ## Contributing
 
