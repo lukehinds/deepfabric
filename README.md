@@ -35,7 +35,6 @@
       <img src="https://img.shields.io/discord/1384081906773131274?color=7289da&label=Discord&logo=discord&logoColor=white" alt="Discord"/>
     </a>
   </p>
-  <br/>
 
   <div align="center">
    <table>
