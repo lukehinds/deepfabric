@@ -28,7 +28,7 @@ async def example_basic_qa():
     print("\n=== Example 1: Basic Q&A ===\n")
 
     # Step 1: Generate topic tree
-    tree_config = TreeConfig(
+    tree = Tree(
         topic_prompt="Python programming fundamentals",
         provider="openai",
         model_name="gpt-4o-mini",
@@ -37,12 +37,11 @@ async def example_basic_qa():
         degree=2,
     )
 
-    tree = Tree(tree_config)
-    topics = await tree.generate()
-    print(f"Generated {len(topics)} topics")
+    topics = [t async for t in tree.build_async()]
+    print(f"✓ Generated {len(topics)} topics")
 
     # Step 2: Generate dataset
-    generator_config = DataSetGeneratorConfig(
+    generator = DataSetGenerator(
         generation_system_prompt="Generate clear, educational Q&A pairs about Python.",
         dataset_system_prompt="You are a helpful AI assistant for learning Python programming.",
         instructions="Create diverse questions and detailed answers.",
@@ -54,19 +53,16 @@ async def example_basic_qa():
         sys_msg=True,
     )
 
-    generator = DataSetGenerator(generator_config)
-
     # Generate 4 samples (2 steps × 2 batch_size)
-    dataset = await generator.generate(
-        topics=topics,
+    dataset = await generator.create_data_async(
         num_steps=2,
         batch_size=2,
     )
 
     # Save to file
     output_path = Path("programmatic_basic_qa.jsonl")
-    dataset.save(output_path)
-    print(f"Saved {len(dataset)} samples to {output_path}")
+    dataset.save(str(output_path))
+    print(f"✓ Saved {len(dataset)} samples to {output_path}")
 
     return dataset
 
@@ -111,7 +107,7 @@ async def example_cot_freetext():
     dataset = await generator.generate(topics=topics, num_steps=2, batch_size=2)
 
     output_path = Path("programmatic_cot_freetext.jsonl")
-    dataset.save(output_path)
+    dataset.save(str(output_path))
     print(f"Saved {len(dataset)} samples to {output_path}")
 
     return dataset
@@ -155,7 +151,7 @@ async def example_cot_structured():
     dataset = await generator.generate(topics=topics, num_steps=2, batch_size=2)
 
     output_path = Path("programmatic_cot_structured.jsonl")
-    dataset.save(output_path)
+    dataset.save(str(output_path))
     print(f"Saved {len(dataset)} samples to {output_path}")
 
     return dataset
@@ -207,7 +203,7 @@ async def example_single_turn_agent():
     dataset = await generator.generate(topics=topics, num_steps=2, batch_size=2)
 
     output_path = Path("programmatic_single_turn_agent.jsonl")
-    dataset.save(output_path)
+    dataset.save(str(output_path))
     print(f"Saved {len(dataset)} samples to {output_path}")
 
     return dataset
@@ -261,7 +257,7 @@ async def example_multi_turn_agent():
     dataset = await generator.generate(topics=topics, num_steps=2, batch_size=1)
 
     output_path = Path("programmatic_multi_turn_agent.jsonl")
-    dataset.save(output_path)
+    dataset.save(str(output_path))
     print(f"Saved {len(dataset)} samples to {output_path}")
 
     return dataset
@@ -351,7 +347,7 @@ async def example_custom_tools():
     dataset = await generator.generate(topics=topics, num_steps=2, batch_size=2)
 
     output_path = Path("programmatic_custom_tools.jsonl")
-    dataset.save(output_path)
+    dataset.save(str(output_path))
     print(f"Saved {len(dataset)} samples to {output_path}")
 
     return dataset
@@ -396,7 +392,7 @@ async def example_formatters():
 
     # Save raw dataset
     raw_path = Path("programmatic_raw.jsonl")
-    dataset.save(raw_path)
+    dataset.save(str(raw_path))
     print(f"Saved raw dataset to {raw_path}")
 
     registry = FormatterRegistry()
@@ -419,7 +415,7 @@ async def example_formatters():
     # Save ChatML formatted
     chatml_dataset = Dataset.from_list(chatml_output)
     chatml_path = Path("programmatic_chatml.jsonl")
-    chatml_dataset.save(chatml_path)
+    chatml_dataset.save(str(chatml_path))
     print(f"Saved ChatML formatted to {chatml_path}")
 
     # Format to Alpaca
@@ -436,7 +432,7 @@ async def example_formatters():
 
     alpaca_dataset = Dataset.from_list(alpaca_output)
     alpaca_path = Path("programmatic_alpaca.jsonl")
-    alpaca_dataset.save(alpaca_path)
+    alpaca_dataset.save(str(alpaca_path))
     print(f"Saved Alpaca formatted to {alpaca_path}")
 
     return dataset

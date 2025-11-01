@@ -32,8 +32,8 @@ topic_tree:
   provider: "openai"
   model: "gpt-4o"
   temperature: 0.8
-  degree: 2
-  depth: 2
+  degree: 3
+  depth: 3
   save_as: "topics.jsonl"
 
 # ============================================================================
@@ -79,8 +79,8 @@ data_engine:
 dataset:
   save_as: "dataset_single_turn.jsonl"
   creation:
-    num_steps: 2
-    batch_size: 2
+    num_steps: 6
+    batch_size: 4
     sys_msg: true
 
   # Format for training (tool calling format)

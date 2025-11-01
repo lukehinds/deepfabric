@@ -36,7 +36,7 @@ def main():
     # Uncomment to load model for actual training:
     # model = AutoModelForCausalLM.from_pretrained(
     #     model_id,
-    #     torch_dtype="auto",
+    #     dtype="auto",
     #     device_map="auto"
     # )
 

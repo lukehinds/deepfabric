@@ -384,6 +384,22 @@ class Dataset:
         """
         Format dataset for a specific model using HuggingFace chat templates.
 
+        ⚠️  WARNING: Most users don't need this method!
+
+        If you're using TRL, Axolotl, or other modern HuggingFace training frameworks,
+        they automatically call apply_chat_template() during training - DO NOT pre-format
+        your dataset. The DeepFabric evaluator also handles formatting automatically.
+
+        Only use this method for:
+        - Debugging/inspecting formatted prompts before training
+        - Exporting to llama.cpp, MLX, or other non-HuggingFace inference tools
+        - Custom training scripts that don't use TRL/HuggingFace Trainer
+        - Manual quality review of how training samples will look
+        - OpenAI/Anthropic API fine-tuning (requires pre-formatted text)
+
+        For TRL training: Use the raw dataset with 'messages' and 'tools' columns.
+        For DeepFabric evaluation: The evaluator calls apply_chat_template() directly.
+
         This is the universal formatting method that works with any HuggingFace model
         that has a chat template. It automatically detects model capabilities and
         applies correct formatting.
