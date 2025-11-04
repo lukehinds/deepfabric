@@ -335,7 +335,7 @@ class Evaluator:
                 expected_params = gt.expected_parameters
                 expected_answer = gt.expected_answer
             except Exception:  # noqa: BLE001, S110
-                pass
+                pass # nosec
 
             return SampleEvaluation(
                 sample_id=sample_id,

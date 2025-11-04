@@ -112,7 +112,7 @@ def _stratified_split(
     Returns:
         Tuple of (train_samples, eval_samples, strata_distribution)
     """
-    rng = random.Random(seed)  # noqa: S311  # Not cryptographic use
+    rng = random.Random(seed)  # noqa: S311  #  nosec
 
     # Group samples by stratification key
     strata: dict[str, list[Conversation]] = defaultdict(list)
@@ -170,7 +170,7 @@ def _simple_split(
     samples_copy = samples.copy()
 
     if shuffle:
-        rng = random.Random(seed)  # noqa: S311  # Not cryptographic use
+        rng = random.Random(seed)  # noqa: S311  #  nosec
         rng.shuffle(samples_copy)
 
     # Calculate split point

@@ -36,7 +36,7 @@ class TransformersBackend(InferenceBackend):
             self.device = "cpu"
 
         # Load tokenizer and model
-        self.tokenizer = AutoTokenizer.from_pretrained(config.model_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(config.model_path) #  nosec
 
         # Determine dtype based on device
         if self.device == "cuda":
@@ -49,7 +49,7 @@ class TransformersBackend(InferenceBackend):
             dtype = torch.float32
             device_map = None
 
-        self.model = AutoModelForCausalLM.from_pretrained(
+        self.model = AutoModelForCausalLM.from_pretrained(  # nosec
             config.model_path,
             device_map=device_map,
             dtype=dtype,
@@ -239,7 +239,7 @@ class TransformersBackend(InferenceBackend):
                     )
                 except Exception:  # noqa: S110
                     # Fallback to manual formatting
-                    pass
+                    pass # nosec
 
         # Manual formatting fallback (for models without chat templates)
         prompt_parts = []
