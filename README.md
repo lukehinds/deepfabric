@@ -35,12 +35,30 @@
       <img src="https://img.shields.io/discord/1384081906773131274?color=7289da&label=Discord&logo=discord&logoColor=white" alt="Discord"/>
     </a>
   </p>
-  <br/>
+
+  <div align="center">
+   <table>
+    <tr>
+      <td align="center">
+        <strong>🚀 Active Development</strong>
+        <br/>
+        <sub>🏃‍♂️ We are moving fast, things may break!</sub>
+        <br/>
+      </td>
+    </tr>
+  </table>
+</div>
 </div>
 
 **DeepFabric** is a specialised dataset generation and model fine-tuning framework designed for training small language models (SLMs) to become capable agents. By combining reasoning traces with tool calling patterns, and enforcement of type based structured outputs - DeepFabric enables you to fine-tune models that make intelligent decisions, select appropriate tools, and execute multi-step workflows efficiently and with accuracy.
 
-Built for ML engineers, researchers, and AI developers, DeepFabric streamlines the entire agent training pipeline: from hierarchical topic generation to structured reasoning templates to model-ready formats across all major training frameworks. Whether you're building MCP-compatible agents, distilling capabilities into smaller models, or creating specialized tool-calling systems, DeepFabric provides the high-quality, diverse training data you need at scale.
+Built by engineers behind production-grade open source projects used by **NVIDIA, Google, GitHub, and more.**
+
+DeepFabric plans to streamline the entire agent training pipeline and drag AI/ML development into the modern age: By allow the quick production of training ready structured reasoning templates to multi architecture model-ready formats across all major training frameworks. Whether you're building MCP-compatible agents, distilling capabilities into smaller models, or creating specialized tool-calling systems, DeepFabric provides the high-quality, diverse training data you need at scale.
+
+Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way to follow the project and to be instantly notified of new releases, **Star the repo**.
+
+<img src="/assets/star.gif" width="40%" height="40%"/>
 
 ## Generation to Training
 
@@ -102,7 +120,7 @@ dataset = load_dataset("json", data_files="math_reasoning_grpo.jsonl")
 - **Conversation Templates**: Support for various dialogue patterns and reasoning styles
 - **Tool Calling Support**: Generate function-calling and agent interaction datasets
 - **Structured Output**: Pydantic & Outlines enforced schemas for consistent, high-quality data
-- **Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Ollama, and more
+- **Multi-Provider Support**: Works with OpenAI, Anthropic, Google, Ollama, OpenRouter and more
 - **HuggingFace Integration**: Direct dataset upload with auto-generated cards
 
 ## Why Train SLMs for Agents?
@@ -265,7 +283,7 @@ There are lots more [examples](./examples/README.md) to get you going.
 | **Google** | Gemini 2.0, 1.5 | Cost-effective at scale | Cloud |
 | **Ollama** | Llama, Mistral, Qwen, etc. | Privacy, unlimited generation | Local |
 | **Together** | Open models | Fast inference | Cloud |
-| **Groq** | Llama, Mixtral | Ultra-fast generation | Cloud |
+| **OpenRouter** | Many Models! | Flexible model choice | Cloud |
 
 ## Configuration System
 
@@ -390,12 +408,6 @@ data_engine:
 | **Examples** | Ready-to-use configurations | [examples/](./examples/README.md) |
 | **Discord** | Community support | [Join Discord](https://discord.gg/pPcjYzGvbS) |
 | **Issues** | Bug reports & features | [GitHub Issues](https://github.com/lukehinds/deepfabric/issues) |
-
-## Stay Updated
-
-Deepfabric development is moving at a fast pace 🏃‍♂️, for a great way to follow the project and to be instantly notified of new releases, **Star the repo**.
-
-<img src="/assets/star.gif" width="40%" height="40%"/>
 
 ## Contributing
 
