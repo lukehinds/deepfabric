@@ -142,7 +142,7 @@ class SingleTurnAgentBuilder(ConversationBuilder):
 
         # Assemble into Conversation
         return self._build_conversation(
-            user_message, reasoning, tool_calls, tool_results, agent_response
+            user_message, reasoning, tool_calls, tool_results, agent_response, topic_prompt
         )
 
     async def _generate_user_question(self, topic_prompt: str) -> ChatMessage:
@@ -361,6 +361,7 @@ Based on these results, provide a clear, helpful response to the user."""
         _tool_calls: list[ToolExecution],
         tool_results: list[ToolExecution],
         agent_response: ChatMessage,
+        topic_prompt: str = "",
     ) -> Conversation:
         """Assemble all components into a Conversation.
 
@@ -370,17 +371,16 @@ Based on these results, provide a clear, helpful response to the user."""
             _tool_calls: Tool calls made (unused, kept for interface consistency)
             tool_results: Tool execution results (contains completed tool calls with results)
             agent_response: Agent's final response
+            topic_prompt: Topic used to generate this conversation (for metadata)
 
         Returns:
             Complete Conversation object
         """
         messages = []
 
-        # Add system message if configured
-        if self.config.sys_msg:
-            messages.append(
-                ChatMessage(role="system", content=self.config.dataset_system_prompt or "")
-            )
+        # Don't add system message for agent mode - it interferes with tool calling
+        # The system prompt teaches models to explain tool usage instead of executing tools
+        # For tool calling, the tool definitions themselves serve as instructions
 
         # Add user message
         messages.append(user_message)
@@ -411,6 +411,12 @@ Based on these results, provide a clear, helpful response to the user."""
         # Build agent context
         agent_context = AgentContext(mode="single_turn")
 
+        # Build metadata
+        metadata = {
+            "conversation_type": "chain_of_thought" if reasoning_trace else "basic",
+            "topic": topic_prompt if topic_prompt else "general",
+        }
+
         return Conversation(
             messages=messages,
             reasoning=reasoning_trace,
@@ -418,6 +424,7 @@ Based on these results, provide a clear, helpful response to the user."""
             agent_context=agent_context,
             question=user_message.content,  # Set question field for formatters
             final_answer=agent_response.content,  # Set final_answer field for formatters
+            metadata=metadata,
         )
 
     def _format_tools_for_prompt(self) -> str:
@@ -484,7 +491,7 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
                 break
 
         # Assemble into complete conversation
-        return self._build_multi_turn_conversation(turns, scenario)
+        return self._build_multi_turn_conversation(turns, scenario, topic_prompt)
 
     async def _generate_scenario(self, topic_prompt: str, num_turns: int) -> str:
         """Generate a multi-turn scenario description.
@@ -736,24 +743,23 @@ Is the user's original task/goal from the scenario fully completed?
         return "\n".join(lines)
 
     def _build_multi_turn_conversation(
-        self, turns: list[AgentTurnData], scenario: str
+        self, turns: list[AgentTurnData], scenario: str, topic_prompt: str = ""
     ) -> Conversation:
         """Assemble multi-turn conversation from turn data.
 
         Args:
             turns: List of turn data
             scenario: Scenario description
+            topic_prompt: Topic used to generate this conversation (for metadata)
 
         Returns:
             Complete Conversation object
         """
         messages = []
 
-        # Add system message if configured
-        if self.config.sys_msg:
-            messages.append(
-                ChatMessage(role="system", content=self.config.dataset_system_prompt or "")
-            )
+        # Don't add system message for agent mode - it interferes with tool calling
+        # The system prompt teaches models to explain tool usage instead of executing tools
+        # For tool calling, the tool definitions themselves serve as instructions
 
         # Collect all reasoning steps and tool executions
         all_reasoning: list[ReasoningStep] = []
@@ -799,9 +805,16 @@ Is the user's original task/goal from the scenario fully completed?
             execution_summary=f"Completed {len(turns)}-turn conversation",
         )
 
+        # Build metadata
+        metadata = {
+            "conversation_type": "chain_of_thought" if reasoning_trace else "basic",
+            "topic": topic_prompt if topic_prompt else "general",
+        }
+
         return Conversation(
             messages=messages,
             reasoning=reasoning_trace,
             tool_context=tool_context,
             agent_context=agent_context,
+            metadata=metadata,
         )

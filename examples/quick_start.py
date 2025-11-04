@@ -23,7 +23,8 @@ async def quick_start():
         degree=2,
     )
 
-    topics = await tree.build_async()
+    # build_async returns an async generator; collect items into a list
+    topics = [t async for t in tree.build_async()]
     print(f"✓ Generated {len(topics)} topics")
 
     # 2. Configure dataset generator
@@ -49,7 +50,6 @@ async def quick_start():
 
     # 3. Generate dataset
     dataset = await generator.create_data_async(
-        topics=topics,
         num_steps=2,  # Number of generation batches
         batch_size=2,  # Samples per batch
     )

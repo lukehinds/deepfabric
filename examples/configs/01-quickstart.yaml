@@ -39,7 +39,7 @@ dataset:
   save_as: "dataset.jsonl"
 
   creation:
-    num_steps: 2      # Number of examples to generate
+    num_steps: 4      # Number of examples to generate
     batch_size: 2      # Parallel generation batch size
     sys_msg: true      # Include system message in output
 

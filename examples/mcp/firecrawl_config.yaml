@@ -8,12 +8,25 @@ dataset_system_prompt: |
   search the web for relevant content.
 
 topic_tree:
-    topic_prompt: "Web scraping and data extraction tasks"
+    topic_prompt: |
+      Diverse web scraping and data extraction scenarios across multiple domains:
+      - E-commerce: product data, pricing, reviews, inventory, specifications
+      - Documentation: API references, technical guides, changelogs, code examples
+      - Research: academic papers, datasets, citations, publications
+      - Monitoring: price tracking, content changes, availability alerts
+      - Competitive analysis: feature comparisons, market research, benchmarking
+      - Content aggregation: news articles, blog posts, social media
+      - Structured extraction: tables, forms, metadata, JSON schemas
+      - Website mapping: sitemaps, navigation structure, link discovery
+      - Real estate: property listings, market trends, neighborhood data
+      - Job boards: postings, salary data, requirements, company info
+      - Legal/compliance: terms of service, privacy policies, regulations
+      - Financial data: stock prices, market data, company filings
     model: "gpt-4o-mini"
     provider: "openai"
-    degree: 2
-    depth: 2
-    temperature: 0.7
+    degree: 5
+    depth: 4
+    temperature: 0.9
     save_as: "firecrawl_topics.jsonl"
 
 data_engine:
@@ -29,8 +42,8 @@ data_engine:
 
   provider: "openai"
   model: "gpt-4o-mini"
-  temperature: 0.8
-  max_tokens: 4000
+  temperature: 1.0
+  max_tokens: 5000
 
   # Conversation configuration for agent tool use
   conversation_type: "chain_of_thought"
@@ -49,25 +62,137 @@ data_engine:
 
   # Instructions for generating realistic tool usage
   instructions: |
-    Generate realistic web scraping and data extraction scenarios.
-    The user should have a genuine need for web data, and the assistant should:
-    - Choose the most appropriate Firecrawl tool(s) for the task
-    - Use realistic URLs (can be example.com or real domains)
-    - Provide appropriate parameters like schemas, prompts, and limits
-    - Explain what data will be extracted and why
+    Generate HIGHLY DIVERSE web scraping scenarios. CRITICAL: Never repeat similar queries.
+    Each sample must be UNIQUE in domain, task type, and tool combination.
 
-    Common scenarios to include:
-    - Extracting product information from e-commerce sites
-    - Scraping news articles or blog posts
-    - Gathering data from multiple pages on a website
-    - Searching the web for specific information
-    - Mapping website structures
-    - Extracting structured data using custom schemas
+    VARY ACROSS SAMPLES:
+    - Task types: extraction, monitoring, comparison, aggregation, mapping, search, tracking
+    - Domains: e-commerce, documentation, research, jobs, real estate, news, legal, financial, social media
+    - Data formats: tables, lists, JSON schemas, structured metadata, unstructured text
+    - Scope: single URL, multiple pages, site-wide crawls, filtered searches
+    - Tools: Use different tool combinations - not just search → scrape
+
+    TOOL USAGE PATTERNS:
+
+    **firecrawl_search** - Finding and discovering content:
+    - "Find recent blog posts about Kubernetes best practices"
+    - "Search for API documentation on GraphQL implementations"
+    - "Locate privacy policy pages across competitor sites"
+
+    **firecrawl_scrape** - Single page extraction:
+    - "Extract the main content from this product page"
+    - "Get the changelog from this GitHub release"
+    - "Scrape the job requirements from this listing"
+
+    **firecrawl_batch_scrape** - Multi-page parallel processing:
+    - "Scrape product details from these 10 Amazon URLs"
+    - "Extract content from all pages in this documentation section"
+    - "Get pricing data from competitor homepages"
+
+    **firecrawl_extract** - Structured data with schemas:
+    - "Extract product specs (name, price, rating, reviews) from this page"
+    - "Get API endpoint details (method, params, returns) from docs"
+    - "Extract job data (title, salary, location, remote) from listing"
+
+    **firecrawl_map** - Site structure and discovery:
+    - "Map all API endpoints in the Stripe documentation"
+    - "Find all blog post URLs on this website"
+    - "Discover downloadable PDF resources across the site"
+
+    EXAMPLE SCENARIOS BY DOMAIN (DO NOT REPEAT - USE AS INSPIRATION):
+
+    E-COMMERCE:
+    - "Extract laptop specifications and prices from Best Buy product pages"
+    - "Monitor iPhone pricing across Amazon, Walmart, and Target"
+    - "Compare shipping policies on these 5 online furniture stores"
+    - "Get customer review ratings for gaming headsets under $100"
+    - "Track inventory availability for PS5 consoles"
+
+    DOCUMENTATION:
+    - "Map all REST API endpoints from the Twilio documentation"
+    - "Extract Python code examples from FastAPI docs"
+    - "Find deprecated methods in React 18 documentation"
+    - "Scrape CLI command references from AWS docs"
+    - "Get migration guides from Angular version updates"
+
+    RESEARCH:
+    - "Extract paper titles and abstracts from arXiv for machine learning"
+    - "Scrape citation counts from Google Scholar for specific authors"
+    - "Get dataset download links from Papers With Code"
+    - "Extract methodology sections from recent NLP papers"
+    - "Find conference proceedings for CVPR 2024"
+
+    JOB BOARDS:
+    - "Find remote senior engineer positions paying $150k+"
+    - "Extract technical requirements from Meta job postings"
+    - "Monitor new data scientist openings in biotech"
+    - "Compare benefits across FAANG company listings"
+    - "Get salary ranges for DevOps roles in Austin"
+
+    REAL ESTATE:
+    - "Scrape 3-bedroom homes under $500k in Austin, TX"
+    - "Extract property features from Zillow listings"
+    - "Monitor price changes on specific rental properties"
+    - "Compare HOA fees across condos in Miami"
+    - "Get school ratings for neighborhoods in Denver"
+
+    LEGAL/COMPLIANCE:
+    - "Extract data retention policies from SaaS terms of service"
+    - "Compare GDPR compliance statements across websites"
+    - "Monitor changes to privacy policies on social platforms"
+    - "Scrape cookie consent implementations"
+    - "Get refund policy details from e-commerce sites"
+
+    FINANCIAL:
+    - "Extract stock prices and market cap from Yahoo Finance"
+    - "Monitor SEC filings for specific companies"
+    - "Scrape earnings call transcripts"
+    - "Get dividend history from financial sites"
+    - "Track cryptocurrency prices across exchanges"
+
+    MONITORING:
+    - "Alert me when product becomes available on this page"
+    - "Track price changes for airline tickets to Europe"
+    - "Monitor blog for new posts about AI regulations"
+    - "Watch for updates to software release notes"
+    - "Track when 'Apply' button appears on job posting"
+
+    COMPETITIVE ANALYSIS:
+    - "Compare feature tables from competing CRM products"
+    - "Extract pricing tiers from SaaS competitor sites"
+    - "Monitor competitor blog posting frequency"
+    - "Scrape customer testimonials from similar services"
+    - "Get integration lists from competing platforms"
+
+    STRUCTURED SCHEMAS TO USE:
+
+    Product schema:
+    {"name": "string", "price": "number", "currency": "string", "inStock": "boolean", "rating": "number", "reviews": "number", "features": "array"}
+
+    API Documentation schema:
+    {"endpoint": "string", "method": "string", "parameters": "array", "returns": "string", "authentication": "string", "examples": "array"}
+
+    Job Listing schema:
+    {"title": "string", "company": "string", "location": "string", "salary": "string", "remote": "boolean", "experience": "string", "posted_date": "string"}
+
+    Real Estate schema:
+    {"address": "string", "price": "number", "beds": "number", "baths": "number", "sqft": "number", "year_built": "number", "hoa": "number"}
+
+    Paper/Research schema:
+    {"title": "string", "authors": "array", "abstract": "string", "published": "string", "citations": "number", "venue": "string"}
+
+    REQUIREMENTS:
+    - Use specific, realistic URLs or domain names (not generic example.com)
+    - Vary query phrasing significantly - no templates
+    - Include business context (why this data is needed)
+    - Use appropriate tool for the task complexity
+    - Chain tools when logical (map → batch_scrape, search → extract)
+    - Include edge cases (pagination, authentication mentions, rate limits)
 
 dataset:
   creation:
-    num_steps: 2  # Number of batches
-    batch_size: 2   # Samples per batch (total: 50 samples)
+    num_steps: 50   # Number of batches
+    batch_size: 10  # Samples per batch (total: 500 samples)
 
   save_as: "firecrawl_dataset.jsonl"
 

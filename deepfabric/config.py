@@ -270,6 +270,89 @@ class KaggleConfig(BaseModel):
     version_notes: str | None = Field(None, description="Version notes for dataset update")
 
 
+class EvaluationConfig(BaseModel):
+    """Configuration for model evaluation."""
+
+    conversation_type: Literal["basic", "chain_of_thought"] = Field(
+        ...,
+        description="Conversation type (must match dataset generation)",
+    )
+    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = Field(
+        default=None,
+        description="Reasoning style for chain_of_thought type",
+    )
+    agent_mode: Literal["single_turn", "multi_turn"] | None = Field(
+        default=None,
+        description="Agent mode if tools are used",
+    )
+    metrics: list[str] = Field(
+        default_factory=lambda: [
+            "tool_selection_accuracy",
+            "parameter_accuracy",
+            "execution_success_rate",
+            "response_quality",
+        ],
+        description="Metrics to compute during evaluation",
+    )
+    thresholds: dict[str, float] = Field(
+        default_factory=dict,
+        description="Pass/fail thresholds for metrics",
+    )
+    weights: dict[str, float] = Field(
+        default_factory=lambda: {
+            "tool_selection": 0.40,
+            "parameter_accuracy": 0.30,
+            "execution_success": 0.20,
+            "response_quality": 0.10,
+        },
+        description="Metric weights for overall score calculation",
+    )
+    output_dir: str = Field(
+        default="./eval_results",
+        description="Output directory for evaluation results",
+    )
+    output_formats: list[Literal["json", "html", "csv"]] = Field(
+        default_factory=lambda: ["json", "html", "csv"],
+        description="Output formats to generate",
+    )
+    include_failures: bool = Field(
+        default=True,
+        description="Include failed examples in output",
+    )
+    generate_charts: bool = Field(
+        default=True,
+        description="Generate visualization charts",
+    )
+    batch_size: int = Field(
+        default=1,
+        ge=1,
+        description="Batch size for model inference",
+    )
+    max_samples: int | None = Field(
+        default=None,
+        description="Maximum number of samples to evaluate (None for all)",
+    )
+
+    @model_validator(mode="after")
+    def validate_evaluation_config(self) -> "EvaluationConfig":
+        """Validate evaluation configuration consistency."""
+        # Validate reasoning_style is only used with chain_of_thought
+        if self.reasoning_style is not None and self.conversation_type != "chain_of_thought":
+            raise ValueError(
+                f"reasoning_style can only be set when conversation_type='chain_of_thought', "
+                f"got conversation_type='{self.conversation_type}'"
+            )
+
+        # Validate chain_of_thought has a reasoning_style
+        if self.conversation_type == "chain_of_thought" and self.reasoning_style is None:
+            raise ValueError(
+                "reasoning_style must be specified when conversation_type='chain_of_thought'. "
+                "Choose from: 'freetext', 'structured', 'hybrid'"
+            )
+
+        return self
+
+
 class DeepFabricConfig(BaseModel):
     """Configuration for DeepFabric tasks."""
 
@@ -281,6 +364,7 @@ class DeepFabricConfig(BaseModel):
     topic_graph: TopicGraphConfig | None = Field(None, description="Topic graph configuration")
     data_engine: DataEngineConfig = Field(..., description="Data engine configuration")
     dataset: DatasetConfig = Field(..., description="Dataset configuration")
+    evaluation: EvaluationConfig | None = Field(None, description="Evaluation configuration")
     huggingface: HuggingFaceConfig | None = Field(None, description="Hugging Face configuration")
     kaggle: KaggleConfig | None = Field(None, description="Kaggle configuration")
 

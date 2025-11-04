@@ -1,6 +1,6 @@
 [project]
 name = "deepfabric"
-version = "3.1.0"
+version = "3.2.0"
 description = "Large Scale Topic based Synthetic Data Generation for LLM Fine-Tuning & Training"
 authors = [{name = "Luke Hinds", email = "luke@rdrocket.com"}]
 readme = "README.md"
@@ -21,7 +21,12 @@ dependencies = [
     "posthog>=3.0.0",
     "packaging>=25.0",
     "transformers>=4.57.1",
-    "torch>=2.9.0",
+    "torch>=2.4.0",
+    "accelerate>=0.20.0",
+    "peft>=0.7.0",
+    "protobuf>=3.20.0",
+    "sentencepiece>=0.1.99",
+    "ollama>=0.1.0",
 ]
 
 [project.optional-dependencies]
