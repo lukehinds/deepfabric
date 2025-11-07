@@ -1,16 +1,87 @@
-"""Transformers-based inference backend."""
-
 import json
 import re
 
 from contextlib import suppress
+from typing import Any
 
 import torch
 
+from pydantic import BaseModel, ValidationError, field_validator
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from ...schemas import ToolDefinition
 from ..inference import InferenceBackend, InferenceConfig, ModelResponse
+
+
+def _extract_json_object(text: str, start_pos: int = 0) -> str | None:
+    """Extract a complete JSON object from text, handling nested braces.
+
+    Args:
+        text: Text containing JSON
+        start_pos: Starting position to search from
+
+    Returns:
+        Extracted JSON string or None if not found
+    """
+    # Find first opening brace
+    start = text.find("{", start_pos)
+    if start == -1:
+        return None
+
+    # Track brace depth to find matching closing brace
+    depth = 0
+    in_string = False
+    escape = False
+
+    for i in range(start, len(text)):
+        char = text[i]
+
+        # Handle string escaping
+        if escape:
+            escape = False
+            continue
+        if char == "\\":
+            escape = True
+            continue
+
+        # Track if we're inside a string
+        if char == '"':
+            in_string = not in_string
+            continue
+
+        # Only count braces outside of strings
+        if not in_string:
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    # Found matching closing brace
+                    return text[start : i + 1]
+
+    return None
+
+
+class ToolCall(BaseModel):
+    """Parsed tool call in OpenAI format."""
+
+    name: str
+    arguments: dict[str, Any] | str
+
+    @field_validator("arguments", mode="before")
+    @classmethod
+    def parse_arguments_string(cls, v: Any) -> dict[str, Any]:
+        """Parse arguments if they're a JSON string.
+
+        Raises:
+            ValueError: If arguments is a string but not valid JSON
+        """
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in arguments field: {e}") from e
+        return v
 
 
 class TransformersBackend(InferenceBackend):
@@ -36,7 +107,7 @@ class TransformersBackend(InferenceBackend):
             self.device = "cpu"
 
         # Load tokenizer and model
-        self.tokenizer = AutoTokenizer.from_pretrained(config.model_path) #  nosec
+        self.tokenizer = AutoTokenizer.from_pretrained(config.model_path)  #  nosec
 
         # Determine dtype based on device
         if self.device == "cuda":
@@ -239,7 +310,7 @@ class TransformersBackend(InferenceBackend):
                     )
                 except Exception:  # noqa: S110
                     # Fallback to manual formatting
-                    pass # nosec
+                    pass  # nosec
 
         # Manual formatting fallback (for models without chat templates)
         prompt_parts = []
@@ -265,54 +336,36 @@ class TransformersBackend(InferenceBackend):
     def _parse_tool_call(self, text: str) -> dict | None:
         """Parse tool call from generated text.
 
-        Looks for common tool call patterns:
-        - JSON: {"name": "func", "parameters": {...}}
-        - XML: <tool_call>...</tool_call>
-        - Function: func_name(arg1="val1", arg2="val2")
+        Supports OpenAI-standard tool call formats:
+        - JSON: {"name": "func", "arguments": {...}}
+        - XML: <tool_call>{"name": "func", "arguments": {...}}</tool_call>
 
         Args:
             text: Generated text
 
         Returns:
-            Dict with 'name' and 'parameters' if tool call found, None otherwise
+            Dict with 'name' and 'arguments' if tool call found, None otherwise
         """
-        # Try JSON format
-        json_match = re.search(r"\{[^{}]*\"name\"[^{}]*\"parameters\"[^{}]*\}", text)
-        if json_match:
-            try:
-                data = json.loads(json_match.group(0))
-                if "name" in data and "parameters" in data:
-                    return {"name": data["name"], "parameters": data["parameters"]}
-            except json.JSONDecodeError:
-                pass
-
-        # Try XML format
+        # Try XML format first (common in chat templates)
         xml_match = re.search(r"<tool_call>(.*?)</tool_call>", text, re.DOTALL)
         if xml_match:
             try:
-                data = json.loads(xml_match.group(1))
-                if "name" in data and "parameters" in data:
-                    return {"name": data["name"], "parameters": data["parameters"]}
-            except json.JSONDecodeError:
-                pass
+                data = json.loads(xml_match.group(1).strip())
+                tool_call = ToolCall.model_validate(data)
+                return tool_call.model_dump()
+            except (json.JSONDecodeError, ValidationError):
+                pass  # Expected parsing or validation error
 
-        # Try function call format: func_name(arg="value", ...)
-        func_match = re.search(r"(\w+)\((.*?)\)", text)
-        if func_match:
-            func_name = func_match.group(1)
-            args_str = func_match.group(2)
-
-            # Parse arguments
-            parameters = {}
-            for arg_part in args_str.split(","):
-                arg_clean = arg_part.strip()
-                if "=" in arg_clean:
-                    key, value = arg_clean.split("=", 1)
-                    key = key.strip()
-                    value = value.strip().strip('"').strip("'")
-                    parameters[key] = value
-
-            if parameters:
-                return {"name": func_name, "parameters": parameters}
+        # Try JSON format - extract complete JSON object with proper nesting
+        json_str = _extract_json_object(text)
+        if json_str:
+            try:
+                data = json.loads(json_str)
+                # Verify it has required fields before validating
+                if "name" in data and "arguments" in data:
+                    tool_call = ToolCall.model_validate(data)
+                    return tool_call.model_dump()
+            except (json.JSONDecodeError, ValidationError):
+                pass  # Expected parsing or validation error
 
         return None
