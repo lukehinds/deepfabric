@@ -2,13 +2,33 @@ import json
 import re
 
 from contextlib import suppress
+from typing import Any
 
 import torch
 
+from pydantic import BaseModel, field_validator
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from ...schemas import ToolDefinition
 from ..inference import InferenceBackend, InferenceConfig, ModelResponse
+
+
+class ToolCall(BaseModel):
+    """Parsed tool call in OpenAI format."""
+
+    name: str
+    arguments: dict[str, Any] | str
+
+    @field_validator("arguments", mode="before")
+    @classmethod
+    def parse_arguments_string(cls, v: Any) -> dict[str, Any]:
+        """Parse arguments if they're a JSON string."""
+        if isinstance(v, str):
+            with suppress(json.JSONDecodeError):
+                return json.loads(v)
+            # If parsing fails, return empty dict
+            return {}
+        return v
 
 
 class TransformersBackend(InferenceBackend):
@@ -34,7 +54,7 @@ class TransformersBackend(InferenceBackend):
             self.device = "cpu"
 
         # Load tokenizer and model
-        self.tokenizer = AutoTokenizer.from_pretrained(config.model_path) #  nosec
+        self.tokenizer = AutoTokenizer.from_pretrained(config.model_path)  #  nosec
 
         # Determine dtype based on device
         if self.device == "cuda":
@@ -237,7 +257,7 @@ class TransformersBackend(InferenceBackend):
                     )
                 except Exception:  # noqa: S110
                     # Fallback to manual formatting
-                    pass # nosec
+                    pass  # nosec
 
         # Manual formatting fallback (for models without chat templates)
         prompt_parts = []
@@ -263,11 +283,9 @@ class TransformersBackend(InferenceBackend):
     def _parse_tool_call(self, text: str) -> dict | None:
         """Parse tool call from generated text.
 
-        Looks for common tool call patterns:
-        - JSON: {"name": "func", "arguments": {...}} (OpenAI standard)
-        - JSON: {"name": "func", "parameters": {...}} (legacy format)
-        - XML: <tool_call>...</tool_call>
-        - Function: func_name(arg1="val1", arg2="val2")
+        Supports OpenAI-standard tool call formats:
+        - JSON: {"name": "func", "arguments": {...}}
+        - XML: <tool_call>{"name": "func", "arguments": {...}}</tool_call>
 
         Args:
             text: Generated text
@@ -275,67 +293,20 @@ class TransformersBackend(InferenceBackend):
         Returns:
             Dict with 'name' and 'arguments' if tool call found, None otherwise
         """
-        # Try JSON format with "arguments" (OpenAI standard)
-        json_match = re.search(r"\{[^{}]*\"name\"[^{}]*\"arguments\"[^{}]*\}", text)
-        if json_match:
-            try:
-                data = json.loads(json_match.group(0))
-                if "name" in data and "arguments" in data:
-                    # Parse arguments if they're a JSON string
-                    args = data["arguments"]
-                    if isinstance(args, str):
-                        with suppress(json.JSONDecodeError):
-                            args = json.loads(args)
-                    return {"name": data["name"], "arguments": args}
-            except json.JSONDecodeError:
-                pass
-
-        # Try JSON format with "parameters" (legacy format)
-        json_match = re.search(r"\{[^{}]*\"name\"[^{}]*\"parameters\"[^{}]*\}", text)
-        if json_match:
-            try:
-                data = json.loads(json_match.group(0))
-                if "name" in data and "parameters" in data:
-                    # Normalize to "arguments" key
-                    return {"name": data["name"], "arguments": data["parameters"]}
-            except json.JSONDecodeError:
-                pass
-
-        # Try XML format
+        # Try XML format first (common in chat templates)
         xml_match = re.search(r"<tool_call>(.*?)</tool_call>", text, re.DOTALL)
         if xml_match:
-            try:
-                data = json.loads(xml_match.group(1))
-                # Check for both "arguments" and "parameters"
-                if "name" in data:
-                    if "arguments" in data:
-                        args = data["arguments"]
-                        if isinstance(args, str):
-                            with suppress(json.JSONDecodeError):
-                                args = json.loads(args)
-                        return {"name": data["name"], "arguments": args}
-                    if "parameters" in data:
-                        return {"name": data["name"], "arguments": data["parameters"]}
-            except json.JSONDecodeError:
-                pass
+            with suppress(Exception):
+                data = json.loads(xml_match.group(1).strip())
+                tool_call = ToolCall.model_validate(data)
+                return tool_call.model_dump()
 
-        # Try function call format: func_name(arg="value", ...)
-        func_match = re.search(r"(\w+)\((.*?)\)", text)
-        if func_match:
-            func_name = func_match.group(1)
-            args_str = func_match.group(2)
-
-            # Parse arguments
-            arguments = {}
-            for arg_part in args_str.split(","):
-                arg_clean = arg_part.strip()
-                if "=" in arg_clean:
-                    key, value = arg_clean.split("=", 1)
-                    key = key.strip()
-                    value = value.strip().strip('"').strip("'")
-                    arguments[key] = value
-
-            if arguments:
-                return {"name": func_name, "arguments": arguments}
+        # Try JSON format
+        json_match = re.search(r"\{[^{}]*\"name\"[^{}]*\"arguments\"[^{}]*\}", text)
+        if json_match:
+            with suppress(Exception):
+                data = json.loads(json_match.group(0))
+                tool_call = ToolCall.model_validate(data)
+                return tool_call.model_dump()
 
         return None
