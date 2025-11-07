@@ -1,5 +1,3 @@
-"""Transformers-based inference backend."""
-
 import json
 import re
 
@@ -266,7 +264,8 @@ class TransformersBackend(InferenceBackend):
         """Parse tool call from generated text.
 
         Looks for common tool call patterns:
-        - JSON: {"name": "func", "parameters": {...}}
+        - JSON: {"name": "func", "arguments": {...}} (OpenAI standard)
+        - JSON: {"name": "func", "parameters": {...}} (legacy format)
         - XML: <tool_call>...</tool_call>
         - Function: func_name(arg1="val1", arg2="val2")
 
@@ -274,15 +273,31 @@ class TransformersBackend(InferenceBackend):
             text: Generated text
 
         Returns:
-            Dict with 'name' and 'parameters' if tool call found, None otherwise
+            Dict with 'name' and 'arguments' if tool call found, None otherwise
         """
-        # Try JSON format
+        # Try JSON format with "arguments" (OpenAI standard)
+        json_match = re.search(r"\{[^{}]*\"name\"[^{}]*\"arguments\"[^{}]*\}", text)
+        if json_match:
+            try:
+                data = json.loads(json_match.group(0))
+                if "name" in data and "arguments" in data:
+                    # Parse arguments if they're a JSON string
+                    args = data["arguments"]
+                    if isinstance(args, str):
+                        with suppress(json.JSONDecodeError):
+                            args = json.loads(args)
+                    return {"name": data["name"], "arguments": args}
+            except json.JSONDecodeError:
+                pass
+
+        # Try JSON format with "parameters" (legacy format)
         json_match = re.search(r"\{[^{}]*\"name\"[^{}]*\"parameters\"[^{}]*\}", text)
         if json_match:
             try:
                 data = json.loads(json_match.group(0))
                 if "name" in data and "parameters" in data:
-                    return {"name": data["name"], "parameters": data["parameters"]}
+                    # Normalize to "arguments" key
+                    return {"name": data["name"], "arguments": data["parameters"]}
             except json.JSONDecodeError:
                 pass
 
@@ -291,8 +306,16 @@ class TransformersBackend(InferenceBackend):
         if xml_match:
             try:
                 data = json.loads(xml_match.group(1))
-                if "name" in data and "parameters" in data:
-                    return {"name": data["name"], "parameters": data["parameters"]}
+                # Check for both "arguments" and "parameters"
+                if "name" in data:
+                    if "arguments" in data:
+                        args = data["arguments"]
+                        if isinstance(args, str):
+                            with suppress(json.JSONDecodeError):
+                                args = json.loads(args)
+                        return {"name": data["name"], "arguments": args}
+                    if "parameters" in data:
+                        return {"name": data["name"], "arguments": data["parameters"]}
             except json.JSONDecodeError:
                 pass
 
@@ -303,16 +326,16 @@ class TransformersBackend(InferenceBackend):
             args_str = func_match.group(2)
 
             # Parse arguments
-            parameters = {}
+            arguments = {}
             for arg_part in args_str.split(","):
                 arg_clean = arg_part.strip()
                 if "=" in arg_clean:
                     key, value = arg_clean.split("=", 1)
                     key = key.strip()
                     value = value.strip().strip('"').strip("'")
-                    parameters[key] = value
+                    arguments[key] = value
 
-            if parameters:
-                return {"name": func_name, "parameters": parameters}
+            if arguments:
+                return {"name": func_name, "arguments": arguments}
 
         return None
