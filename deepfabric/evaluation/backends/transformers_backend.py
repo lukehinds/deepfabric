@@ -6,11 +6,60 @@ from typing import Any
 
 import torch
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ValidationError, field_validator
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from ...schemas import ToolDefinition
 from ..inference import InferenceBackend, InferenceConfig, ModelResponse
+
+
+def _extract_json_object(text: str, start_pos: int = 0) -> str | None:
+    """Extract a complete JSON object from text, handling nested braces.
+
+    Args:
+        text: Text containing JSON
+        start_pos: Starting position to search from
+
+    Returns:
+        Extracted JSON string or None if not found
+    """
+    # Find first opening brace
+    start = text.find("{", start_pos)
+    if start == -1:
+        return None
+
+    # Track brace depth to find matching closing brace
+    depth = 0
+    in_string = False
+    escape = False
+
+    for i in range(start, len(text)):
+        char = text[i]
+
+        # Handle string escaping
+        if escape:
+            escape = False
+            continue
+        if char == "\\":
+            escape = True
+            continue
+
+        # Track if we're inside a string
+        if char == '"':
+            in_string = not in_string
+            continue
+
+        # Only count braces outside of strings
+        if not in_string:
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    # Found matching closing brace
+                    return text[start : i + 1]
+
+    return None
 
 
 class ToolCall(BaseModel):
@@ -22,12 +71,16 @@ class ToolCall(BaseModel):
     @field_validator("arguments", mode="before")
     @classmethod
     def parse_arguments_string(cls, v: Any) -> dict[str, Any]:
-        """Parse arguments if they're a JSON string."""
+        """Parse arguments if they're a JSON string.
+
+        Raises:
+            ValueError: If arguments is a string but not valid JSON
+        """
         if isinstance(v, str):
-            with suppress(json.JSONDecodeError):
+            try:
                 return json.loads(v)
-            # If parsing fails, return empty dict
-            return {}
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in arguments field: {e}") from e
         return v
 
 
@@ -296,17 +349,23 @@ class TransformersBackend(InferenceBackend):
         # Try XML format first (common in chat templates)
         xml_match = re.search(r"<tool_call>(.*?)</tool_call>", text, re.DOTALL)
         if xml_match:
-            with suppress(Exception):
+            try:
                 data = json.loads(xml_match.group(1).strip())
                 tool_call = ToolCall.model_validate(data)
                 return tool_call.model_dump()
+            except (json.JSONDecodeError, ValidationError):
+                pass  # Expected parsing or validation error
 
-        # Try JSON format
-        json_match = re.search(r"\{[^{}]*\"name\"[^{}]*\"arguments\"[^{}]*\}", text)
-        if json_match:
-            with suppress(Exception):
-                data = json.loads(json_match.group(0))
-                tool_call = ToolCall.model_validate(data)
-                return tool_call.model_dump()
+        # Try JSON format - extract complete JSON object with proper nesting
+        json_str = _extract_json_object(text)
+        if json_str:
+            try:
+                data = json.loads(json_str)
+                # Verify it has required fields before validating
+                if "name" in data and "arguments" in data:
+                    tool_call = ToolCall.model_validate(data)
+                    return tool_call.model_dump()
+            except (json.JSONDecodeError, ValidationError):
+                pass  # Expected parsing or validation error
 
         return None
