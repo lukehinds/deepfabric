@@ -182,8 +182,7 @@ Generate only the user's question:"""
                 if result:
                     temp_response = result
             if temp_response is None:
-                msg = "Failed to generate user question"
-                raise DataSetGeneratorError(msg)
+                raise DataSetGeneratorError("Failed to generate user question")
             response = cast(UserQuestion, temp_response)
         else:
             response = await self.llm.generate_async(
