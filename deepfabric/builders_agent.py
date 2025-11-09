@@ -1,11 +1,12 @@
 import logging
 import random
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel, Field
 
 from .builders import ConversationBuilder
+from .exceptions import DataSetGeneratorError
 from .progress import ProgressReporter
 from .schemas import (
     AgentContext,
@@ -167,23 +168,28 @@ Example format: "Can you tell me the weather in Paris tomorrow and suggest what 
 
 Generate only the user's question:"""
 
-        response = None
+        response: UserQuestion
         if self.progress_reporter:
+            temp_response = None
             async for chunk, result in self.llm.generate_async_stream(
                 prompt=prompt,
                 schema=UserQuestion,
-                max_tokens=1000,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             ):
                 if chunk:
                     self.progress_reporter.emit_chunk("user_question", chunk)
                 if result:
-                    response = result
+                    temp_response = result
+            if temp_response is None:
+                msg = "Failed to generate user question"
+                raise DataSetGeneratorError(msg)
+            response = cast(UserQuestion, temp_response)
         else:
             response = await self.llm.generate_async(
                 prompt=prompt,
                 schema=UserQuestion,
-                max_tokens=1000,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             )
 
@@ -217,23 +223,28 @@ Provide step-by-step reasoning (2-4 steps) and identify which tools to call with
             reasoning_steps: list[ReasoningStep]
             tool_calls: list[ToolExecution]
 
-        response = None
+        response: AgentThinking
         if self.progress_reporter:
+            temp_response = None
             async for chunk, result in self.llm.generate_async_stream(
                 prompt=prompt,
                 schema=AgentThinking,
-                max_tokens=2000,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             ):
                 if chunk:
                     self.progress_reporter.emit_chunk("agent_reasoning", chunk)
                 if result:
-                    response = result
+                    temp_response = result
+            if temp_response is None:
+                msg = "Failed to generate agent thinking"
+                raise DataSetGeneratorError(msg)
+            response = cast(AgentThinking, temp_response)
         else:
             response = await self.llm.generate_async(
                 prompt=prompt,
                 schema=AgentThinking,
-                max_tokens=2000,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             )
 
@@ -268,12 +279,13 @@ Arguments called with: {tool_call.arguments}
 
 Generate the tool's output/result. Make it realistic and appropriate for the tool and arguments."""
 
-            result = None
+            result: ToolOutput
             if self.progress_reporter:
+                temp_result = None
                 async for chunk, res in self.llm.generate_async_stream(
                     prompt=prompt,
                     schema=ToolOutput,
-                    max_tokens=1000,
+                    max_tokens=self.config.max_tokens,
                     temperature=0.7,
                 ):
                     if chunk:
@@ -281,12 +293,16 @@ Generate the tool's output/result. Make it realistic and appropriate for the too
                             f"tool_sim_{tool_call.function_name}", chunk
                         )
                     if res:
-                        result = res
+                        temp_result = res
+                if temp_result is None:
+                    msg = f"Failed to generate tool output for {tool_call.function_name}"
+                    raise DataSetGeneratorError(msg)
+                result = cast(ToolOutput, temp_result)
             else:
                 result = await self.llm.generate_async(
                     prompt=prompt,
                     schema=ToolOutput,
-                    max_tokens=1000,
+                    max_tokens=self.config.max_tokens,
                     temperature=0.7,  # Slightly creative for variety
                 )
 
@@ -332,23 +348,28 @@ You executed these tools:
 
 Based on these results, provide a clear, helpful response to the user."""
 
-        response = None
+        response: AgentResponse
         if self.progress_reporter:
+            temp_response = None
             async for chunk, result in self.llm.generate_async_stream(
                 prompt=prompt,
                 schema=AgentResponse,
-                max_tokens=800,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             ):
                 if chunk:
                     self.progress_reporter.emit_chunk("agent_response", chunk)
                 if result:
-                    response = result
+                    temp_response = result
+            if temp_response is None:
+                msg = "Failed to generate agent response"
+                raise DataSetGeneratorError(msg)
+            response = cast(AgentResponse, temp_response)
         else:
             response = await self.llm.generate_async(
                 prompt=prompt,
                 schema=AgentResponse,
-                max_tokens=800,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             )
 
@@ -513,23 +534,28 @@ The scenario should:
 
 Keep it brief (2-3 sentences)."""
 
-        response = None
+        response: Scenario
         if self.progress_reporter:
+            temp_response = None
             async for chunk, result in self.llm.generate_async_stream(
                 prompt=prompt,
                 schema=Scenario,
-                max_tokens=1000,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             ):
                 if chunk:
                     self.progress_reporter.emit_chunk("scenario_gen", chunk)
                 if result:
-                    response = result
+                    temp_response = result
+            if temp_response is None:
+                msg = "Failed to generate scenario"
+                raise DataSetGeneratorError(msg)
+            response = cast(Scenario, temp_response)
         else:
             response = await self.llm.generate_async(
                 prompt=prompt,
                 schema=Scenario,
-                max_tokens=1000,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             )
 
@@ -613,12 +639,13 @@ Guidance: {guidance}
 The message should reference or build upon previous conversation if applicable.
 Keep it concise and natural."""
 
-        response = None
+        response: UserQuestion
         if self.progress_reporter:
+            temp_response = None
             async for chunk, result in self.llm.generate_async_stream(
                 prompt=prompt,
                 schema=UserQuestion,
-                max_tokens=150,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             ):
                 if chunk:
@@ -626,12 +653,16 @@ Keep it concise and natural."""
                         f"turn_{turn_idx}_user", chunk, turn=turn_idx + 1
                     )
                 if result:
-                    response = result
+                    temp_response = result
+            if temp_response is None:
+                msg = f"Failed to generate user question for turn {turn_idx + 1}"
+                raise DataSetGeneratorError(msg)
+            response = cast(UserQuestion, temp_response)
         else:
             response = await self.llm.generate_async(
                 prompt=prompt,
                 schema=UserQuestion,
-                max_tokens=150,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             )
 
@@ -668,23 +699,28 @@ Provide step-by-step reasoning (1-3 steps) and identify which tools are needed."
             reasoning_steps: list[ReasoningStep]
             tool_calls: list[ToolExecution]
 
-        response = None
+        response: AgentThinking
         if self.progress_reporter:
+            temp_response = None
             async for chunk, result in self.llm.generate_async_stream(
                 prompt=prompt,
                 schema=AgentThinking,
-                max_tokens=2000,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             ):
                 if chunk:
                     self.progress_reporter.emit_chunk("agent_thinking_mt", chunk)
                 if result:
-                    response = result
+                    temp_response = result
+            if temp_response is None:
+                msg = "Failed to generate agent thinking for multi-turn"
+                raise DataSetGeneratorError(msg)
+            response = cast(AgentThinking, temp_response)
         else:
             response = await self.llm.generate_async(
                 prompt=prompt,
                 schema=AgentThinking,
-                max_tokens=2000,
+                max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             )
 

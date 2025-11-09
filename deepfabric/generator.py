@@ -137,6 +137,10 @@ class DataSetGeneratorConfig(BaseModel):
     max_tools_per_query: int = Field(
         default=3, ge=1, le=10, description="Maximum number of tools per query/turn"
     )
+    max_tools_strict: bool = Field(
+        default=True,
+        description="If True, discard samples exceeding max_tools_per_query. If False, keep sample but truncate executions to limit.",
+    )
     tool_registry_path: str | None = Field(
         default=None, description="Path to custom tool definitions file (JSON/YAML)"
     )
@@ -379,10 +383,16 @@ class DataSetGenerator:
 
                     num_executions = len(conversation.tool_context.executions)
                     if num_executions > self.config.max_tools_per_query:
-                        return False, ValueError(
-                            f"Sample has {num_executions} tool executions, "
-                            f"exceeds limit of {self.config.max_tools_per_query}"
-                        )
+                        if self.config.max_tools_strict:
+                            # Strict mode: discard entire sample
+                            return False, ValueError(
+                                f"Sample has {num_executions} tool executions, "
+                                f"exceeds limit of {self.config.max_tools_per_query}"
+                            )
+                        # Non-strict mode: truncate to limit and keep sample
+                        conversation.tool_context.executions = conversation.tool_context.executions[
+                            : self.config.max_tools_per_query
+                        ]
 
                 return True, conversation
 

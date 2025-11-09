@@ -243,6 +243,7 @@ dataset:
 #    agent_mode: "single_turn"
 #    available_tools: ["code_executor", "linter"]
 #    max_tools_per_query: 3
+#    max_tools_strict: false
 #
 # 3. Multi-turn agent for complex coding workflows:
 #    agent_mode: "multi_turn"

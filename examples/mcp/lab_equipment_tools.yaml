@@ -1,0 +1,260 @@
+# Lab Equipment Control Tools
+# These are specialized laboratory instrument APIs that are unlikely to be in model training data
+# Designed to test true learning of function calling with complex, realistic parameters
+
+tools:
+  - name: spectrometer_scan
+    description: "Configure and run a spectrophotometry scan to measure light absorption/emission across wavelengths"
+    category: "analytical_instruments"
+    parameters:
+      - name: wavelength_start
+        type: int
+        description: "Starting wavelength in nanometers (190-1100nm)"
+        required: true
+      - name: wavelength_end
+        type: int
+        description: "Ending wavelength in nanometers (must be > start)"
+        required: true
+      - name: step_size
+        type: int
+        description: "Wavelength increment between measurements (1-50nm)"
+        required: false
+        default: "1"
+      - name: integration_time
+        type: float
+        description: "Signal integration time in seconds (0.001-10.0)"
+        required: false
+        default: "0.1"
+      - name: scan_mode
+        type: str
+        description: "Measurement mode: 'absorbance', 'transmittance', 'fluorescence', or 'emission'"
+        required: false
+        default: "absorbance"
+      - name: baseline_correction
+        type: bool
+        description: "Apply baseline correction using blank measurement"
+        required: false
+        default: "true"
+    returns: "Spectrum data with wavelength and intensity arrays"
+
+  - name: centrifuge_run
+    description: "Start a centrifugation run with specified speed, time, and temperature parameters"
+    category: "sample_preparation"
+    parameters:
+      - name: rpm
+        type: int
+        description: "Rotation speed in revolutions per minute (100-15000)"
+        required: true
+      - name: duration_minutes
+        type: int
+        description: "Run duration in minutes (1-120)"
+        required: true
+      - name: temperature_celsius
+        type: int
+        description: "Temperature setpoint in Celsius (-20 to 40)"
+        required: false
+        default: "20"
+      - name: acceleration_profile
+        type: str
+        description: "Ramp-up profile: 'fast', 'medium', 'slow', or 'gentle'"
+        required: false
+        default: "medium"
+      - name: brake_mode
+        type: str
+        description: "Deceleration mode: 'maximum', 'normal', 'slow', or 'off'"
+        required: false
+        default: "normal"
+      - name: bucket_positions
+        type: list
+        description: "List of rotor positions to use (1-12), empty list uses all positions"
+        required: false
+    returns: "Run status and final achieved parameters"
+
+  - name: pipette_dispense
+    description: "Automated liquid handling - dispense precise volumes from source to destination wells"
+    category: "liquid_handling"
+    parameters:
+      - name: volume_ul
+        type: float
+        description: "Volume to dispense in microliters (0.5-1000.0)"
+        required: true
+      - name: source_well
+        type: str
+        description: "Source well position (e.g., 'A1', 'B12')"
+        required: true
+      - name: dest_wells
+        type: list
+        description: "List of destination well positions (e.g., ['A1', 'A2', 'A3'])"
+        required: true
+      - name: aspirate_speed
+        type: float
+        description: "Aspiration speed in ul/sec (1.0-500.0)"
+        required: false
+        default: "100.0"
+      - name: dispense_speed
+        type: float
+        description: "Dispense speed in ul/sec (1.0-500.0)"
+        required: false
+        default: "150.0"
+      - name: mix_cycles
+        type: int
+        description: "Number of mix cycles after dispense (0-10)"
+        required: false
+        default: "0"
+      - name: touch_tip
+        type: bool
+        description: "Touch pipette tip to well wall after dispense"
+        required: false
+        default: "false"
+    returns: "Dispense operation results with actual volumes and any errors"
+
+  - name: thermal_cycler_program
+    description: "Program and execute PCR thermal cycling with multiple temperature stages"
+    category: "molecular_biology"
+    parameters:
+      - name: initial_denaturation_temp
+        type: int
+        description: "Initial denaturation temperature in Celsius (90-99)"
+        required: true
+      - name: initial_denaturation_time
+        type: int
+        description: "Initial denaturation time in seconds (30-600)"
+        required: true
+      - name: cycles
+        type: int
+        description: "Number of PCR cycles to run (1-99)"
+        required: true
+      - name: denaturation_temp
+        type: int
+        description: "Cycle denaturation temperature in Celsius (90-99)"
+        required: true
+      - name: denaturation_time
+        type: int
+        description: "Cycle denaturation time in seconds (5-60)"
+        required: true
+      - name: annealing_temp
+        type: int
+        description: "Annealing temperature in Celsius (40-72)"
+        required: true
+      - name: annealing_time
+        type: int
+        description: "Annealing time in seconds (15-60)"
+        required: true
+      - name: extension_temp
+        type: int
+        description: "Extension temperature in Celsius (68-75)"
+        required: true
+      - name: extension_time
+        type: int
+        description: "Extension time in seconds (30-300)"
+        required: true
+      - name: final_extension_temp
+        type: int
+        description: "Final extension temperature in Celsius (68-75)"
+        required: false
+        default: "72"
+      - name: final_extension_time
+        type: int
+        description: "Final extension time in seconds (60-600)"
+        required: false
+        default: "300"
+      - name: lid_temperature
+        type: int
+        description: "Heated lid temperature in Celsius (95-110)"
+        required: false
+        default: "105"
+    returns: "Programmed cycle parameters and estimated completion time"
+
+  - name: plate_reader_measure
+    description: "Read absorbance, fluorescence, or luminescence from microplate wells"
+    category: "analytical_instruments"
+    parameters:
+      - name: measurement_type
+        type: str
+        description: "Type of measurement: 'absorbance', 'fluorescence', 'luminescence', or 'time_resolved'"
+        required: true
+      - name: wavelength_nm
+        type: int
+        description: "Primary wavelength in nanometers (230-1000)"
+        required: true
+      - name: wells_to_read
+        type: list
+        description: "List of well positions to measure (e.g., ['A1', 'A2', 'B1'])"
+        required: true
+      - name: emission_wavelength
+        type: int
+        description: "Emission wavelength for fluorescence in nanometers (only for fluorescence mode)"
+        required: false
+      - name: gain_setting
+        type: str
+        description: "PMT gain setting: 'auto', 'low', 'medium', or 'high'"
+        required: false
+        default: "auto"
+      - name: integration_time_ms
+        type: int
+        description: "Signal integration time in milliseconds (1-10000)"
+        required: false
+        default: "1000"
+      - name: num_flashes
+        type: int
+        description: "Number of measurement flashes per well (1-100)"
+        required: false
+        default: "10"
+      - name: settling_time_ms
+        type: int
+        description: "Settling time before measurement in milliseconds (0-5000)"
+        required: false
+        default: "0"
+      - name: shake_before_read
+        type: bool
+        description: "Shake plate before reading"
+        required: false
+        default: "false"
+      - name: shake_duration_sec
+        type: int
+        description: "Shake duration in seconds if shake_before_read is true (1-60)"
+        required: false
+        default: "5"
+    returns: "Measurement data array with well positions and readings"
+
+  - name: hplc_run_method
+    description: "Execute a High-Performance Liquid Chromatography analysis with specified mobile phase gradients"
+    category: "analytical_instruments"
+    parameters:
+      - name: column_id
+        type: str
+        description: "Column identifier (e.g., 'C18-4.6x250mm')"
+        required: true
+      - name: flow_rate_ml_min
+        type: float
+        description: "Flow rate in mL/min (0.1-5.0)"
+        required: true
+      - name: injection_volume_ul
+        type: float
+        description: "Sample injection volume in microliters (1-100)"
+        required: true
+      - name: gradient_program
+        type: dict
+        description: "Gradient program with time points and solvent percentages"
+        required: true
+      - name: column_temperature
+        type: int
+        description: "Column oven temperature in Celsius (20-80)"
+        required: false
+        default: "30"
+      - name: detection_wavelength
+        type: int
+        description: "UV detector wavelength in nanometers (190-800)"
+        required: false
+        default: "254"
+      - name: run_time_minutes
+        type: int
+        description: "Total run time in minutes (5-120)"
+        required: false
+        default: "30"
+      - name: post_run_equilibration_min
+        type: int
+        description: "Column equilibration time after run in minutes (0-30)"
+        required: false
+        default: "5"
+    returns: "Chromatogram data with retention times and peak areas"
