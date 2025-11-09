@@ -9,6 +9,16 @@ from ..schemas import ToolDefinition
 # Tolerance for numeric comparison
 NUMERIC_TOLERANCE = 1e-6
 
+# Type validation dispatch table
+_TYPE_CHECKS = {
+    "str": lambda v: isinstance(v, str),
+    "int": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "float": lambda v: isinstance(v, int | float) and not isinstance(v, bool),
+    "bool": lambda v: isinstance(v, bool),
+    "list": lambda v: isinstance(v, list),
+    "dict": lambda v: isinstance(v, dict),
+}
+
 
 def _is_valid_type(schema_type: str, value: Any) -> bool:
     """Check if value matches schema type.
@@ -20,16 +30,7 @@ def _is_valid_type(schema_type: str, value: Any) -> bool:
     Returns:
         True if value matches type, False otherwise
     """
-    type_checks = {
-        "str": lambda v: isinstance(v, str),
-        "int": lambda v: isinstance(v, int) and not isinstance(v, bool),
-        "float": lambda v: isinstance(v, int | float) and not isinstance(v, bool),
-        "bool": lambda v: isinstance(v, bool),
-        "list": lambda v: isinstance(v, list),
-        "dict": lambda v: isinstance(v, dict),
-    }
-
-    check = type_checks.get(schema_type)
+    check = _TYPE_CHECKS.get(schema_type)
     return check(value) if check else False
 
 
@@ -55,8 +56,8 @@ def _validate_parameter_types(
     schema_params = {p.name: p for p in tool_def.parameters}
 
     # Check all required parameters are present
-    for param in tool_def.parameters:
-        if param.required and param.name not in predicted_params:
+    for param_name, param_schema in schema_params.items():
+        if param_schema.required and param_name not in predicted_params:
             return False
 
     # Check types for each predicted parameter
