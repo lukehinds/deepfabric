@@ -37,14 +37,14 @@ class ToolCallingEvaluator(BaseEvaluator):
         self,
         ground_truth: GroundTruth,
         prediction: ModelResponse,
-        context: EvaluationContext,  # noqa: ARG002
+        context: EvaluationContext,
     ) -> EvaluatorResult | None:
         """Evaluate tool calling accuracy.
 
         Args:
             ground_truth: Expected tool and parameters
             prediction: Model's generated response
-            context: Evaluation context (unused for tool calling)
+            context: Evaluation context with tool definitions
 
         Returns:
             EvaluatorResult with tool calling metrics
@@ -65,6 +65,8 @@ class ToolCallingEvaluator(BaseEvaluator):
         params_correct = compare_parameters(
             ground_truth.expected_parameters,
             predicted_params,
+            tool_name=ground_truth.expected_tool,
+            tool_definitions=context.tools,
         )
         execution_valid = predicted_tool is not None and params_correct
 

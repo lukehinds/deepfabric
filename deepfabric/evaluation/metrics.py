@@ -4,8 +4,73 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from ..schemas import ToolDefinition
+
 # Tolerance for numeric comparison
 NUMERIC_TOLERANCE = 1e-6
+
+# Type validation dispatch table
+_TYPE_CHECKS = {
+    "str": lambda v: isinstance(v, str),
+    "int": lambda v: isinstance(v, int) and not isinstance(v, bool),
+    "float": lambda v: isinstance(v, int | float) and not isinstance(v, bool),
+    "bool": lambda v: isinstance(v, bool),
+    "list": lambda v: isinstance(v, list),
+    "dict": lambda v: isinstance(v, dict),
+}
+
+
+def _is_valid_type(schema_type: str, value: Any) -> bool:
+    """Check if value matches schema type.
+
+    Args:
+        schema_type: Schema type string ("str", "int", "float", "bool", "list", "dict")
+        value: Value to check
+
+    Returns:
+        True if value matches type, False otherwise
+    """
+    check = _TYPE_CHECKS.get(schema_type)
+    return check(value) if check else False
+
+
+def _validate_parameter_types(
+    predicted_params: dict[str, Any],
+    tool_def: ToolDefinition,
+) -> bool:
+    """Validate parameter types against tool schema.
+
+    Checks that:
+    1. All required parameters are present
+    2. Parameter types match schema (with type coercion)
+    3. Ignores actual values - only validates structure
+
+    Args:
+        predicted_params: Parameters to validate
+        tool_def: Tool definition with schema
+
+    Returns:
+        True if types are valid, False otherwise
+    """
+    # Create lookup for parameters by name
+    schema_params = {p.name: p for p in tool_def.parameters}
+
+    # Check all required parameters are present
+    for param_name, param_schema in schema_params.items():
+        if param_schema.required and param_name not in predicted_params:
+            return False
+
+    # Check types for each predicted parameter
+    for param_name, predicted_value in predicted_params.items():
+        # Skip extra parameters not in schema (allow for flexibility)
+        if param_name not in schema_params:
+            continue
+
+        schema_param = schema_params[param_name]
+        if not _is_valid_type(schema_param.type, predicted_value):
+            return False
+
+    return True
 
 
 class EvaluationMetrics(BaseModel):
@@ -246,24 +311,36 @@ def compute_metrics(
     )
 
 
-def compare_parameters(
+def compare_parameters(  # noqa: PLR0911
     expected: dict[str, Any],
     predicted: dict[str, Any],
+    tool_name: str | None = None,
+    tool_definitions: list[ToolDefinition] | None = None,
 ) -> bool:
     """Compare expected and predicted parameters.
 
-    Performs fuzzy matching for string values (case-insensitive).
+    If tool schema is provided, validates parameter types and presence of required params.
+    Otherwise, performs value-based comparison (legacy behavior for backward compatibility).
 
     Args:
         expected: Expected parameters
         predicted: Predicted parameters
+        tool_name: Name of the tool being called (for schema lookup)
+        tool_definitions: List of tool definitions with schemas
 
     Returns:
-        True if parameters match, False otherwise
+        True if parameters match (schema-aware) or values match (legacy), False otherwise
     """
     if not expected and not predicted:
         return True
 
+    # Schema-aware validation if tool definition available
+    if tool_name and tool_definitions:
+        tool_def = next((t for t in tool_definitions if t.name == tool_name), None)
+        if tool_def:
+            return _validate_parameter_types(predicted, tool_def)
+
+    # Legacy value-based comparison (backward compatibility)
     # Check if all expected keys are present
     if set(expected.keys()) != set(predicted.keys()):
         return False
