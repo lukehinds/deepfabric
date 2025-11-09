@@ -84,6 +84,7 @@ data_engine:
   #         required: true
 
   max_tools_per_query: 5
+  max_tools_strict: false  # Keep samples with extra tools, just truncate to limit
 
   # Multi-turn conversation range
   min_turns: 2      # Minimum number of conversation turns

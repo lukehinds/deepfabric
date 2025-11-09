@@ -1,0 +1,192 @@
+# Baseline Lab Equipment Training Data Generation
+# This config generates high-quality tool calling examples with REAL parameter values
+# Format: TRL SFT (standard approach)
+
+dataset_system_prompt: |
+  You are a laboratory automation assistant with access to analytical instruments and sample preparation equipment.
+  You help scientists configure and operate lab equipment by calling the appropriate instrument control functions.
+
+topic_tree:
+  topic_prompt: |
+    Laboratory workflows and analytical procedures across different scientific disciplines:
+    - Molecular biology: PCR, DNA/RNA quantification, gel electrophoresis, cloning
+    - Analytical chemistry: HPLC analysis, spectroscopy, chromatography, compound identification
+    - Biochemistry: protein assays, enzyme kinetics, bradford assays, western blots
+    - Cell biology: cell culture, flow cytometry, microscopy, cell counting
+    - Quality control: sample testing, calibration curves, method validation
+    - High-throughput screening: 96-well assays, drug discovery, compound libraries
+    - Environmental testing: water quality, soil analysis, contamination detection
+    - Clinical diagnostics: blood analysis, biomarker detection, medical testing
+    - Materials science: polymer characterization, nanoparticle analysis
+    - Food science: nutritional analysis, contamination testing, quality assurance
+
+  model: "gpt-4o"
+  provider: "openai"
+  degree: 4
+  depth: 4
+  temperature: 0.9
+  save_as: "lab_topics.jsonl"
+
+data_engine:
+  generation_system_prompt: |
+    You are a laboratory automation assistant with access to analytical instruments and sample preparation equipment.
+    You help scientists configure and operate lab equipment by calling the appropriate instrument control functions.
+
+  dataset_system_prompt: |
+    You are a laboratory automation assistant with access to analytical instruments and sample preparation equipment.
+    You help scientists configure and operate lab equipment by calling the appropriate instrument control functions.
+
+  provider: "openai"
+  model: "o1-mini"
+  temperature: 0.8
+  max_tokens: 4000
+
+  # Agent configuration
+  conversation_type: "chain_of_thought"
+  agent_mode: "single_turn"
+  reasoning_style: "structured"
+
+  # Tool configuration
+  tool_registry_path: "examples/mcp/lab_equipment_tools.yaml"
+  available_tools: []  # Use all tools
+  max_tools_per_query: 2
+
+  # Generation settings
+  default_batch_size: 5
+  default_num_examples: 0
+  sys_msg: true
+
+  instructions: |
+    CRITICAL: Generate training examples with REALISTIC, SPECIFIC parameter values.
+    NEVER use placeholders like [...], <value>, or generic examples.
+
+    ===== PARAMETER VALUE REQUIREMENTS =====
+
+    **Numbers (int, float):**
+    ✓ GOOD: 450, 12000, 2.5, 0.15
+    ✗ BAD: <rpm_value>, [wavelength], 0, 1
+
+    - Use realistic values within the specified ranges
+    - Vary the values across samples (don't always use the same number)
+    - Consider the scientific context (e.g., DNA denaturation is typically 94-98°C)
+
+    **Strings (enums, identifiers):**
+    ✓ GOOD: "absorbance", "C18-4.6x250mm", "A1", "fast"
+    ✗ BAD: "mode", "column_name", "<well>", "setting"
+
+    - Use exact enum values from the tool description
+    - Well positions: A1-H12 format (common in 96-well plates)
+    - Column IDs: realistic formats like "C18-4.6x250mm", "C8-3.0x150mm"
+
+    **Lists:**
+    ✓ GOOD: ["A1", "A2", "A3"], [1, 3, 5, 7], ["B1", "B2", "C1", "C2"]
+    ✗ BAD: [list_of_wells], [...], [positions], []
+
+    - Provide actual arrays with 2-8 specific items
+    - Well lists: realistic patterns (rows, columns, or specific positions)
+    - Position lists: valid rotor positions (1-12)
+
+    **Booleans:**
+    ✓ GOOD: true, false
+    ✗ BAD: <boolean>, "true", "false"
+
+    - Use actual boolean values based on the experimental needs
+
+    **Dictionaries (gradient_program):**
+    ✓ GOOD: {"0min": {"A": 95, "B": 5}, "10min": {"A": 50, "B": 50}, "20min": {"A": 5, "B": 95}}
+    ✗ BAD: {gradient_definition}, {...}, {time_points}
+
+    - Provide complete gradient programs with 3-5 time points
+    - Use realistic mobile phase percentages (A + B = 100)
+
+    ===== SCENARIO REQUIREMENTS =====
+
+    1. **Diverse Scientific Contexts:**
+       - Vary the type of experiment across samples
+       - Use different combinations of parameters
+       - Include various measurement ranges and conditions
+
+    2. **Realistic Experimental Design:**
+       - PCR: typical annealing temps 50-65°C, extension at 72°C
+       - Spectroscopy: UV-Vis 190-800nm, NIR 800-2500nm
+       - Centrifugation: low speed 100-3000 RPM, high speed 10000-15000 RPM
+       - Plate reading: common wavelengths 280nm (protein), 450nm (ELISA), 595nm (bradford)
+
+    3. **Well Position Patterns:**
+       - Row: ["A1", "A2", "A3", "A4"]
+       - Column: ["A1", "B1", "C1", "D1"]
+       - Block: ["A1", "A2", "B1", "B2"]
+       - Scattered: ["A1", "C5", "E9", "H12"]
+
+    4. **Gradient Programs (HPLC):**
+       Example 1 - Isocratic: {"0min": {"A": 80, "B": 20}, "30min": {"A": 80, "B": 20}}
+       Example 2 - Linear: {"0min": {"A": 95, "B": 5}, "20min": {"A": 5, "B": 95}}
+       Example 3 - Step: {"0min": {"A": 90, "B": 10}, "5min": {"A": 90, "B": 10}, "15min": {"A": 50, "B": 50}}
+
+    ===== EXAMPLE SCENARIOS (DO NOT COPY EXACTLY) =====
+
+    **PCR for DNA Amplification:**
+    "I need to amplify a 500bp fragment. Set up a PCR with 95°C initial denaturation for 3 minutes,
+    then 35 cycles of 95°C for 30s, 58°C for 30s, 72°C for 45s, finishing with 72°C for 5 minutes."
+
+    Tool: thermal_cycler_program
+    Parameters:
+      initial_denaturation_temp: 95
+      initial_denaturation_time: 180
+      cycles: 35
+      denaturation_temp: 95
+      denaturation_time: 30
+      annealing_temp: 58
+      annealing_time: 30
+      extension_temp: 72
+      extension_time: 45
+      final_extension_temp: 72
+      final_extension_time: 300
+
+    **Protein Quantification (Bradford Assay):**
+    "Measure absorbance at 595nm for protein standards in wells A1 through A7 on the plate reader."
+
+    Tool: plate_reader_measure
+    Parameters:
+      measurement_type: "absorbance"
+      wavelength_nm: 595
+      wells_to_read: ["A1", "A2", "A3", "A4", "A5", "A6", "A7"]
+      gain_setting: "auto"
+      num_flashes: 10
+
+    **Sample Preparation:**
+    "Spin down cell pellets at 3000 RPM for 10 minutes at 4°C with slow deceleration."
+
+    Tool: centrifuge_run
+    Parameters:
+      rpm: 3000
+      duration_minutes: 10
+      temperature_celsius: 4
+      acceleration_profile: "medium"
+      brake_mode: "slow"
+
+    ===== QUALITY CHECKS =====
+
+    Before finalizing each example, verify:
+    - [ ] No placeholder values ([], ..., <>, etc.)
+    - [ ] All numbers are realistic for the context
+    - [ ] All enum strings match tool descriptions exactly
+    - [ ] Lists contain 2+ specific items
+    - [ ] Parameter combinations make scientific sense
+    - [ ] Different values used across different samples
+
+dataset:
+  creation:
+    num_steps: 20  # 20 batches
+    batch_size: 10 # 10 samples per batch = 200 total samples
+
+  save_as: "lab_baseline_raw.jsonl"
+
+  formatters:
+    - name: "trl_format"
+      template: "builtin://trl_sft_tools"
+      output: "lab_baseline_trl.jsonl"
+      config:
+        include_system_prompt: true
+        validate_tool_schemas: true
+        remove_available_tools_field: false

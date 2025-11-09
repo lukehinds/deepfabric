@@ -111,6 +111,7 @@ dataset:
 #   # Tools for agent to use
 #   available_tools: ["get_weather", "search_web", "calculate"]
 #   max_tools_per_query: 3
+#   max_tools_strict: false
 #
 #   # Multi-turn conversation range
 #   min_turns: 2

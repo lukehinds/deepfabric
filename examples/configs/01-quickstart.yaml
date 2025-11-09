@@ -14,7 +14,7 @@ dataset_system_prompt: |
 topic_graph:
   topic_prompt: "Python programming fundamentals"
   provider: "openai"
-  model: "gpt-4o"
+  model: "gpt-4o-mini"
   temperature: 0.8
   degree: 3  # Number of subtopics per branch
   depth: 3   # Tree depth (2-3 is usually sufficient)
@@ -30,7 +30,7 @@ data_engine:
 
   # Model configuration
   provider: "openai"
-  model: "gpt-4o"
+  model: "gpt-4o-mini"
   temperature: 0.7
   max_retries: 3  # Retry on API failures
 
@@ -42,6 +42,15 @@ dataset:
     num_steps: 4      # Number of examples to generate
     batch_size: 2      # Parallel generation batch size
     sys_msg: true      # Include system message in output
+    # Rate limiting configuration to handle OpenAI TPM limits
+  rate_limit:
+    max_retries: 7
+    base_delay: 3.0
+    max_delay: 180.0
+    backoff_strategy: "exponential_jitter"
+    exponential_base: 2.0
+    jitter: true
+    respect_retry_after: true
 
 # ============================================================================
 # Next Steps:

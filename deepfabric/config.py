@@ -168,6 +168,10 @@ class DataEngineConfig(BaseModel):
     max_tools_per_query: int = Field(
         default=3, ge=1, le=10, description="Maximum number of tools per query/turn"
     )
+    max_tools_strict: bool = Field(
+        default=True,
+        description="If True, discard samples exceeding max_tools_per_query. If False, keep sample but truncate executions to limit.",
+    )
     tool_registry_path: str | None = Field(
         default=None, description="Path to custom tool definitions file (JSON/YAML)"
     )

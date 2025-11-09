@@ -70,6 +70,7 @@ data_engine:
     - "get_time"         # Get current time in timezone
 
   max_tools_per_query: 3  # Maximum tools per example
+  max_tools_strict: false  # Keep samples with extra tools, just truncate to limit
 
   provider: "openai"
   model: "gpt-4o"
@@ -142,6 +143,7 @@ dataset:
 #     - "book_reservation"
 #
 #   max_tools_per_query: 5
+#   max_tools_strict: false
 #
 #   provider: "openai"
 #   model: "gpt-4o"
