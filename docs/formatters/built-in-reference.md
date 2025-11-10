@@ -828,7 +828,7 @@ formatters:
 
 ### For Tool/Function Calling
 
-- **TRL SFT Tools**: HuggingFace TRL SFTTrainer with OpenAI function schema (recommended for modern training workflows)
+- **TRL Tools**: HuggingFace TRL SFTTrainer with OpenAI function schema (recommended for modern training workflows)
 - **Single Tool Call**: Individual tool call format with each call in its own message exchange
 - **Tool Calling**: Embedded tool calling with thinking traces and multiple tools per response
 - **Harmony**: TypeScript-style function definitions with channels for tool calls and responses

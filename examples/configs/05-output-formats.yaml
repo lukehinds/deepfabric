@@ -14,7 +14,7 @@
 # 2. FORMATTING - Transforms data to target formats
 #    - Applied post-generation using formatters
 #    - Multiple output formats from single dataset
-#    - Supported formats: conversations, alpaca, chatml, trl_sft_tools, xlam_v2, etc.
+#    - Supported formats: conversations, alpaca, chatml, openai_schema, xlam_v2, etc.
 #
 # ============================================================================
 
@@ -85,10 +85,10 @@ dataset:
         output_format: "text"
         include_system: true
 
-    # TRL SFT format for HuggingFace training
-    - name: "trl_format"
-      template: "builtin://trl_sft_tools"
-      output: "dataset_trl.jsonl"
+    # OpenAI Schema format for HuggingFace training
+    - name: "openai_format"
+      template: "builtin://openai_schema"
+      output: "dataset_openai.jsonl"
 
 # ============================================================================
 # ADVANCED: MULTI-TURN AGENT DATA WITH XLAM FORMATTING

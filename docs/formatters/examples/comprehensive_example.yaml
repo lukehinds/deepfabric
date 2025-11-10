@@ -52,21 +52,6 @@ dataset:
 
   # Multiple formatters with Pydantic validation
   formatters:
-    # GRPO formatter for reasoning model training
-    - name: "grpo_reasoning"
-      template: "builtin://grpo.py"
-      config:
-        reasoning_start_tag: "<start_working_out>"
-        reasoning_end_tag: "<end_working_out>"
-        solution_start_tag: "<SOLUTION>"
-        solution_end_tag: "</SOLUTION>"
-        validate_numerical: false  # Educational content may not always have numerical answers
-        system_prompt: |
-          You are given a topic or question.
-          Think through your response step by step.
-          Place your reasoning between <start_working_out> and <end_working_out>.
-          Then provide your final answer between <SOLUTION> and </SOLUTION>.
-      output: "grpo_educational_dataset.jsonl"
 
     # Alpaca formatter for instruction-following
     - name: "alpaca_instruct"
@@ -100,21 +85,6 @@ dataset:
         default_system_message: "You are an expert educator providing clear, helpful explanations."
         require_system_message: true
       output: "chatml_text_dataset.jsonl"
-
-    # Custom reasoning format using GRPO with different tags
-    - name: "custom_reasoning"
-      template: "builtin://grpo.py"
-      config:
-        reasoning_start_tag: "<thinking>"
-        reasoning_end_tag: "</thinking>"
-        solution_start_tag: "<answer>"
-        solution_end_tag: "</answer>"
-        validate_numerical: false
-        system_prompt: |
-          When given a question or topic, provide a thoughtful response.
-          Show your thinking process between <thinking> and </thinking> tags.
-          Provide your final answer between <answer> and </answer> tags.
-      output: "custom_reasoning_dataset.jsonl"
 
 # Optional: Upload to Hugging Face Hub
 huggingface:

@@ -56,7 +56,7 @@ DeepFabric operates through a three-stage agent training pipeline that transform
 
 **2. Dataset Generation**: Produces training examples that combine structured reasoning with tool calling patterns. Rather than isolated question-answer pairs, the engine generates examples showing decision-making processes, tool selection logic, and parameter construction reasoning. Templates support Chain of Thought variants, multi-turn tool calling (XLAM v2), and MCP-compatible function invocations.
 
-**3. Format Engine**: Packages datasets into framework-specific formats (TRL, Unsloth, Axolotl, etc.) with a single generation pass. This "generate once, train everywhere" approach enables rapid experimentation across different SLM architectures without data regeneration.
+**3. Format Engine**: Packages datasets into model architecture-specific formats for seamless integration into training frameworks. Built-in formatters support HuggingFace TRL and custom training pipelines. This "generate once, train everywhere" approach enables rapid experimentation across model architectures and parameter scales without regenerating data.
 
 The topic modeling foundation sets DeepFabric apart from simple prompt-based generation. Rather than creating isolated examples, the system builds a conceptual map of your agent's domain and generates examples that systematically explore different capabilities. This ensures broader skill coverage and more consistent quality—essential for training reliable agents.
 
@@ -70,19 +70,23 @@ Training smaller language models to be effective agents requires more than simpl
 
 **Format Flexibility**: DeepFabric's formatter system enables a "generate once, train everywhere" workflow. A single dataset can be exported to TRL, Unsloth, Axolotl, or custom training frameworks, allowing you to experiment with different model architectures and training approaches without regenerating data. This flexibility is particularly valuable when training SLMs across different parameter scales (0.5B to 14B+) to find the optimal balance of capability and efficiency.
 
-This paradigm shift—from simple supervised learning to structured agentic training—enables SLMs to rival larger models on specific tasks while maintaining the advantages of local deployment, cost efficiency, and specialized behavior.
+This shift from simple supervised learning to structured agentic training enables SLMs to rival larger models on specific tasks while maintaining the advantages of local deployment, cost efficiency, and specialized behavior.
 
-## Production-Ready Training Integration
+## AI/ML Training Pipeline Integration
 
-DeepFabric datasets integrate directly into modern training frameworks without preprocessing or conversion pipelines:
+DeepFabric datasets integrate directly into modern training frameworks without preprocessing or conversion pipelines, where the models Chat templates are derived from Transformers tokenizers. For example:
 
-**Supervised Fine-Tuning**: The `builtin://trl_sft_tools` formatter produces datasets that drop directly into HuggingFace TRL's `SFTTrainer`. Tool-calling examples include complete function schemas, parameter construction reasoning, and multi-turn interactions—everything needed for training capable function-calling agents.
+```python
+from deepfabric import Dataset
+from deepfabric.evaluation import split_to_hf_dataset, SplitConfig
+from datasets import Dataset as HFDataset
+import json
 
-**Reinforcement Learning from Process Supervision**: The `builtin://grpo` formatter generates datasets structured for GRPO training, where each reasoning step can be individually verified and optimized. This enables training models that not only produce correct answers but show transparent, auditable reasoning processes—critical for agent reliability and debugging.
-
-**Framework Flexibility**: DeepFabric's formatter architecture decouples data generation from training framework specifics. Generate your dataset once, then export to TRL, Unsloth, Axolotl, or implement custom formatters for specialized training approaches. This "generate once, train everywhere" workflow enables rapid experimentation across model architectures and parameter scales without regenerating expensive training data.
-
-The result is a streamlined pipeline from topic specification to trained agent: define your domain, generate structured examples with reasoning and tool patterns, and begin training within minutes—not hours or days of data engineering.
+# Load from hub
+ds = Dataset.from_hub("lukehinds/lab-equipment-tool-test")
+formatted = ds.format(tokenizer=tokenizer)
+formatted.save("qwen-formatted.jsonl")
+```
 
 ## Topic Trees and Graphs
 

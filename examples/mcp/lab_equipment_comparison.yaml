@@ -99,9 +99,9 @@ dataset:
 
   # Generate the SAME data in 3 different formats for comparison
   formatters:
-    # Format 1: TRL SFT Tools (OpenAI function calling style)
-    - name: "format_trl"
-      template: "builtin://trl_sft_tools"
+    # Format 1: OpenAI Schema (OpenAI function calling style)
+    - name: "format_openai"
+      template: "builtin://openai_schema"
       output: "lab_comparison_trl.jsonl"
       config:
         include_system_prompt: true

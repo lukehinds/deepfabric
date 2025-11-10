@@ -183,8 +183,8 @@ dataset:
   save_as: "lab_baseline_raw.jsonl"
 
   formatters:
-    - name: "trl_format"
-      template: "builtin://trl_sft_tools"
+    - name: "openai_format"
+      template: "builtin://openai_schema"
       output: "lab_baseline_trl.jsonl"
       config:
         include_system_prompt: true
