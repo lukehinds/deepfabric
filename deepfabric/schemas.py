@@ -362,53 +362,6 @@ class MathematicalAnswerMixin:
         return "e" in value.lower()
 
 
-class FreeTextCoTMathematical(BaseModel, MathematicalAnswerMixin):
-    """Chain of Thought dataset in free-text format with numerical answer validation."""
-
-    question: str = Field(description="The mathematical question or problem to solve")
-    chain_of_thought: str = Field(description="Step-by-step mathematical reasoning")
-    final_answer: str = Field(description="Numerical answer only (e.g., 42, 3.14, -17, 2.5e10)")
-
-    @field_validator("final_answer")
-    @classmethod
-    def validate_numerical(cls, v: str) -> str:
-        """Validate and format numerical answers with strict consistency rules."""
-        return cls._format_mathematical_answer(v)
-
-
-class StructuredCoTMathematical(BaseModel, MathematicalAnswerMixin):
-    """Chain of Thought dataset with structured reasoning and numerical answer validation."""
-
-    messages: list[ChatMessage] = Field(description="Conversation messages", min_length=1)
-    reasoning_trace: list[ReasoningStep] = Field(
-        description="Structured reasoning steps", min_length=1
-    )
-    final_answer: str = Field(description="Numerical answer only (e.g., 42, 3.14, -17)")
-
-    @field_validator("final_answer")
-    @classmethod
-    def validate_numerical(cls, v: str) -> str:
-        """Validate and format numerical answers with strict consistency rules."""
-        return cls._format_mathematical_answer(v)
-
-
-class HybridCoTMathematical(BaseModel, MathematicalAnswerMixin):
-    """Chain of Thought dataset with hybrid reasoning and numerical answer validation."""
-
-    question: str = Field(description="The mathematical question or problem to solve")
-    chain_of_thought: str = Field(description="Natural language mathematical reasoning")
-    reasoning_trace: list[ReasoningStep] = Field(
-        description="Structured reasoning steps", min_length=1
-    )
-    final_answer: str = Field(description="Numerical answer only (e.g., 42, 3.14, -17)")
-
-    @field_validator("final_answer")
-    @classmethod
-    def validate_numerical(cls, v: str) -> str:
-        """Validate and format numerical answers with strict consistency rules."""
-        return cls._format_mathematical_answer(v)
-
-
 # Capability Models for Composable Conversation Schema
 class ReasoningTrace(BaseModel):
     """Reasoning capability - present when conversation_type='chain_of_thought'."""
