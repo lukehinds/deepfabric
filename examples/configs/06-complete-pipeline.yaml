@@ -117,7 +117,7 @@ dataset:
   # - alpaca: Works best with simple Q&A (not chain-of-thought or multi-turn)
   # - chatml: May reject samples with complex reasoning structures
   # - conversations: Most flexible, accepts all conversation types
-  # - openai_schema: Flexible, works with most conversation types
+  # - openai: Flexible, works with most conversation types
   # - xlam_v2: Requires agent_mode for tool-calling data
   #
   # DeepFabric will warn you about potential incompatibilities when loading config.
@@ -133,7 +133,7 @@ dataset:
 
     # Format 2: OpenAI Schema format for HuggingFace training (compatible with chain-of-thought)
     - name: "openai_sft"
-      template: "builtin://openai_schema"
+      template: "builtin://openai"
       output: "python_dataset_openai.jsonl"
       config:
         include_system_prompt: true
@@ -242,7 +242,7 @@ dataset:
 #
 # 4. Generate multi-format datasets (choose compatible formatters):
 #    - conversations: Works with all conversation types (universal)
-#    - openai_schema: Works with all types, optimized for HuggingFace
+#    - openai: Works with all types, optimized for HuggingFace
 #    - xlam_v2: For agent training (requires agent_mode)
 #    - tool_calling: For embedded tool execution traces
 #    - alpaca: Best for simple Q&A (avoid with chain-of-thought)

@@ -157,89 +157,6 @@ class AlpacaFormatter(BaseFormatter):
 
         return result
 
-    def _format_messages_sample(self, sample: dict[str, Any]) -> dict[str, Any]:
-        """Format a sample with messages structure to Alpaca format."""
-        messages = sample["messages"]
-
-        instruction = ""
-        input_text = ""
-        output_text = ""
-
-        # Extract instruction from system message
-        system_messages = [msg for msg in messages if msg["role"] == "system"]
-        if system_messages:
-            instruction = system_messages[0]["content"]
-
-        # Extract input from user messages
-        user_messages = [msg for msg in messages if msg["role"] == "user"]
-        if user_messages:
-            # If we have a system instruction, use user content as input
-            if instruction:
-                input_text = " ".join(msg["content"] for msg in user_messages)
-            else:
-                # If no system instruction, use first user message as instruction
-                instruction = user_messages[0]["content"]
-                if len(user_messages) > 1:
-                    input_text = " ".join(msg["content"] for msg in user_messages[1:])
-
-        # Extract output from assistant messages
-        assistant_messages = [msg for msg in messages if msg["role"] == "assistant"]
-        if assistant_messages:
-            output_text = " ".join(msg["content"] for msg in assistant_messages)
-        # If no assistant message but has reasoning_trace and final_answer (structured CoT format)
-        elif "reasoning_trace" in sample and "final_answer" in sample:
-            # Build output from reasoning trace and final answer
-            output_parts = []
-            if isinstance(sample["reasoning_trace"], list):
-                for step in sample["reasoning_trace"]:
-                    if isinstance(step, dict):
-                        thought = step.get("thought", "")
-                        if thought:
-                            output_parts.append(thought)
-            elif isinstance(sample["reasoning_trace"], str):
-                output_parts.append(sample["reasoning_trace"])
-
-            if output_parts:
-                output_text = " ".join(output_parts) + f" The answer is {sample['final_answer']}."
-            else:
-                output_text = f"The answer is {sample['final_answer']}."
-
-        # Apply custom instruction template if provided
-        if self.instruction_template:
-            instruction = self.instruction_template.format(instruction=instruction)
-
-        # Build Alpaca format
-        alpaca_sample = {"instruction": instruction, "output": output_text}
-
-        # Only include input if it's not empty or if configured to include empty inputs
-        if input_text or self.include_empty_input:
-            alpaca_sample["input"] = input_text
-
-        return alpaca_sample
-
-    def _format_direct_sample(self, sample: dict[str, Any]) -> dict[str, Any]:
-        """Format a sample that already has instruction/output fields."""
-        alpaca_sample = {
-            "instruction": sample[self.instruction_field],
-            "output": sample[self.output_field],
-        }
-
-        # Include input if available or if configured to include empty inputs
-        if self.input_field in sample:
-            input_text = sample[self.input_field]
-            if input_text or self.include_empty_input:
-                alpaca_sample["input"] = input_text
-        elif self.include_empty_input:
-            alpaca_sample["input"] = ""
-
-        # Apply custom instruction template if provided
-        if self.instruction_template:
-            alpaca_sample["instruction"] = self.instruction_template.format(
-                instruction=alpaca_sample["instruction"]
-            )
-
-        return alpaca_sample
-
     def _format_qa_sample(self, sample: dict[str, Any]) -> dict[str, Any]:
         """Format a Q&A sample to Alpaca format."""
         question = sample["question"]
@@ -289,49 +206,6 @@ class AlpacaFormatter(BaseFormatter):
 
         if input_text or self.include_empty_input:
             alpaca_sample[self.input_field] = input_text
-
-        return alpaca_sample
-
-    def _format_generic_sample(self, sample: dict[str, Any]) -> dict[str, Any] | None:
-        """Try to format any sample by detecting instruction/output patterns."""
-        # Look for instruction-like fields
-        instruction_fields = ["instruction", "prompt", "question", "task", "query", "problem"]
-        output_fields = ["output", "response", "answer", "solution", "result", "final_answer"]
-        input_fields = ["input", "context", "passage", "background", "text"]
-
-        instruction = None
-        output = None
-        input_text = ""
-
-        # Find instruction
-        for field in instruction_fields:
-            if field in sample and sample[field]:
-                instruction = sample[field]
-                break
-
-        # Find output
-        for field in output_fields:
-            if field in sample and sample[field]:
-                output = sample[field]
-                break
-
-        # Find input/context
-        for field in input_fields:
-            if field in sample and sample[field]:
-                input_text = sample[field]
-                break
-
-        if not instruction or not output:
-            return None
-
-        # Apply custom instruction template if provided
-        if self.instruction_template:
-            instruction = self.instruction_template.format(instruction=instruction)
-
-        alpaca_sample = {"instruction": instruction, "output": output}
-
-        if input_text or self.include_empty_input:
-            alpaca_sample["input"] = input_text
 
         return alpaca_sample
 

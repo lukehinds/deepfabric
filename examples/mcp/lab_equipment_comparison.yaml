@@ -101,7 +101,7 @@ dataset:
   formatters:
     # Format 1: OpenAI Schema (OpenAI function calling style)
     - name: "format_openai"
-      template: "builtin://openai_schema"
+      template: "builtin://openai"
       output: "lab_comparison_trl.jsonl"
       config:
         include_system_prompt: true

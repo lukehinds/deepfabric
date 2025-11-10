@@ -405,14 +405,35 @@ Based on these results, provide a clear, helpful response to the user."""
         # Add user message
         messages.append(user_message)
 
-        # Add first assistant message (with reasoning and tool calls, but no final answer)
+        # Build tool_calls in OpenAI format
+        tool_calls_openai = []
+        for idx, result in enumerate(tool_results):
+            tool_call_id = f"call_{idx}"
+            tool_calls_openai.append(
+                {
+                    "id": tool_call_id,
+                    "type": "function",
+                    "function": {"name": result.function_name, "arguments": result.arguments},
+                }
+            )
+
+        # Add first assistant message with tool_calls
         # The ChatML formatter will add <think> tags and <tool_call> tags based on
         # reasoning and tool_context.executions
-        messages.append(ChatMessage(role="assistant", content=""))
+        messages.append(
+            ChatMessage(
+                role="assistant",
+                content="",
+                tool_calls=tool_calls_openai if tool_calls_openai else None,
+            )
+        )
 
-        # Add tool response messages
-        for result in tool_results:
-            messages.append(ChatMessage(role="tool", content=result.result))
+        # Add tool response messages with tool_call_id
+        for idx, result in enumerate(tool_results):
+            tool_call_id = f"call_{idx}"
+            messages.append(
+                ChatMessage(role="tool", content=result.result, tool_call_id=tool_call_id)
+            )
 
         # Add final assistant response with the answer
         messages.append(agent_response)
@@ -437,10 +458,17 @@ Based on these results, provide a clear, helpful response to the user."""
             "topic": topic_prompt if topic_prompt else "general",
         }
 
+        # Insert system message if configured
+        self._insert_system_message_if_configured(messages)
+
+        # Convert tools to OpenAI format
+        tools_openai = [tool.to_openai() for tool in self.tool_registry.tools]
+
         return Conversation(
             messages=messages,
             reasoning=reasoning_trace,
             tool_context=tool_context,
+            tools=tools_openai,
             agent_context=agent_context,
             question=user_message.content,  # Set question field for formatters
             final_answer=agent_response.content,  # Set final_answer field for formatters
@@ -459,6 +487,18 @@ Based on these results, provide a clear, helpful response to the user."""
             tool_descriptions.append(f"- {tool.name}({params}): {tool.description}")
 
         return "\n".join(tool_descriptions)
+
+    def _insert_system_message_if_configured(self, messages: list[ChatMessage]) -> None:
+        """Insert system message at the beginning of messages if configured.
+
+        Args:
+            messages: List of messages to potentially prepend system message to
+        """
+        if self.config.sys_msg:
+            messages.insert(
+                0,
+                ChatMessage(role="system", content=self.config.dataset_system_prompt or ""),
+            )
 
 
 class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
@@ -800,19 +840,50 @@ Is the user's original task/goal from the scenario fully completed?
         all_reasoning: list[ReasoningStep] = []
         all_executions: list[ToolExecution] = []
 
+        # Track tool_call_id counter across all turns
+        tool_call_counter = 0
+
         # Add messages from each turn in correct order:
         # user -> assistant (thinking/tool_calls) -> tool (responses) -> assistant (final answer)
         for turn in turns:
             # User message
             messages.append(turn.user_message)
 
-            # First assistant message (empty content - reasoning and tool calls will be added by formatters)
-            # This represents the assistant's "thinking" phase where it plans tool usage
-            messages.append(ChatMessage(role="assistant", content=""))
-
-            # Tool response messages (results from executed tools)
+            # Build tool_calls for this turn in OpenAI format
+            tool_calls_openai = []
+            turn_tool_call_ids = []
             for tool_exec in turn.tool_calls:
-                messages.append(ChatMessage(role="tool", content=tool_exec.result))
+                tool_call_id = f"call_{tool_call_counter}"
+                tool_call_counter += 1
+                turn_tool_call_ids.append(tool_call_id)
+                tool_calls_openai.append(
+                    {
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_exec.function_name,
+                            "arguments": tool_exec.arguments,
+                        },
+                    }
+                )
+
+            # First assistant message with tool_calls
+            # This represents the assistant's "thinking" phase where it plans tool usage
+            messages.append(
+                ChatMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=tool_calls_openai if tool_calls_openai else None,
+                )
+            )
+
+            # Tool response messages with tool_call_id
+            for idx, tool_exec in enumerate(turn.tool_calls):
+                messages.append(
+                    ChatMessage(
+                        role="tool", content=tool_exec.result, tool_call_id=turn_tool_call_ids[idx]
+                    )
+                )
 
             # Final assistant response with the answer
             messages.append(turn.agent_response)
@@ -846,10 +917,17 @@ Is the user's original task/goal from the scenario fully completed?
             "topic": topic_prompt if topic_prompt else "general",
         }
 
+        # Insert system message if configured
+        self._insert_system_message_if_configured(messages)
+
+        # Convert tools to OpenAI format
+        tools_openai = [tool.to_openai() for tool in self.tool_registry.tools]
+
         return Conversation(
             messages=messages,
             reasoning=reasoning_trace,
             tool_context=tool_context,
+            tools=tools_openai,
             agent_context=agent_context,
             metadata=metadata,
         )

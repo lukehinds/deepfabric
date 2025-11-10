@@ -176,7 +176,7 @@ class HFChatTemplateFormatter:
 
         # Extract tools if present
         if conversation.tool_context and conversation.tool_context.available_tools:
-            tools = [tool.to_openai_schema() for tool in conversation.tool_context.available_tools]
+            tools = [tool.to_openai() for tool in conversation.tool_context.available_tools]
 
         # Process messages
         for msg in conversation.messages:

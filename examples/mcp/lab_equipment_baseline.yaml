@@ -184,7 +184,7 @@ dataset:
 
   formatters:
     - name: "openai_format"
-      template: "builtin://openai_schema"
+      template: "builtin://openai"
       output: "lab_baseline_trl.jsonl"
       config:
         include_system_prompt: true

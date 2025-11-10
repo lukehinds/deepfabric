@@ -21,7 +21,7 @@ from deepfabric.formatters.base import BaseFormatter, FormatterError
 from deepfabric.formatters.builtin.alpaca import AlpacaFormatter
 from deepfabric.formatters.builtin.chatml import ChatmlFormatter
 from deepfabric.formatters.builtin.harmony import HarmonyFormatter
-from deepfabric.formatters.builtin.openai_schema import (
+from deepfabric.formatters.builtin.openai import (
     OpenAISchemaConfig,
     OpenAISchemaFormatter,
 )
@@ -163,13 +163,14 @@ class CustomFormatter(BaseFormatter):
         assert "chatml" in formatters
 
     def test_formatter_with_config(self):
-        """Test loading openai_schema formatter with custom configuration."""
+        """Test loading openai formatter with custom configuration."""
         config = {
             "include_system_prompt": False,
             "validate_tool_schemas": False,
             "remove_available_tools_field": True,
+            "parallel_tool_calls": False,
         }
-        formatter = self.registry.load_formatter("builtin://openai_schema.py", config)
+        formatter = self.registry.load_formatter("builtin://openai.py", config)
         assert isinstance(formatter, OpenAISchemaFormatter)
 
         # Verify config was loaded correctly
@@ -177,6 +178,7 @@ class CustomFormatter(BaseFormatter):
         assert formatter._config_model.include_system_prompt is False
         assert formatter._config_model.validate_tool_schemas is False
         assert formatter._config_model.remove_available_tools_field is True
+        assert formatter._config_model.parallel_tool_calls is False
 
 
 class TestAlpacaFormatter:
@@ -1431,7 +1433,7 @@ class TestOpenAISchemaFormatter:
     def test_load_via_registry(self):
         """Test loading OpenAI Schema formatter via registry."""
         registry = FormatterRegistry()
-        formatter = registry.load_formatter("builtin://openai_schema")
+        formatter = registry.load_formatter("builtin://openai")
         assert formatter is not None
 
         assert isinstance(formatter, OpenAISchemaFormatter)
@@ -1443,3 +1445,73 @@ class TestOpenAISchemaFormatter:
         assert "system_prompt_override" in config
         assert "validate_tool_schemas" in config
         assert "remove_available_tools_field" in config
+        assert "parallel_tool_calls" in config
+
+    def test_clean_openai_output(self):
+        """Test that formatter outputs only OpenAI-compatible fields."""
+        sample = {
+            "messages": [
+                {"role": "user", "content": "Test"},
+                {"role": "assistant", "content": "Response"},
+            ],
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "test_tool",
+                        "description": "Test",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {},
+                            "required": [],
+                        },
+                    },
+                }
+            ],
+            # DeepFabric-specific fields that should be removed
+            "metadata": {"conversation_type": "chain_of_thought"},
+            "reasoning": {"style": "structured", "content": []},
+            "tool_context": {"available_tools": [], "executions": []},
+            "agent_context": {"mode": "single_turn"},
+            "question": "Test question",
+            "final_answer": "Test answer",
+        }
+
+        result = self.formatter.format([sample])
+        formatted = result[0].model_dump()
+
+        # Should only have OpenAI fields
+        assert "messages" in formatted
+        assert "tools" in formatted
+
+        # Should NOT have DeepFabric-specific fields
+        assert "metadata" not in formatted
+        assert "reasoning" not in formatted
+        assert "tool_context" not in formatted
+        assert "agent_context" not in formatted
+        assert "question" not in formatted
+        assert "final_answer" not in formatted
+
+    def test_parallel_tool_calls_field(self):
+        """Test parallel_tool_calls field configuration."""
+        # Test without parallel_tool_calls (None = omit)
+        formatter_none = OpenAISchemaFormatter({"parallel_tool_calls": None})
+        sample = {"messages": [{"role": "user", "content": "Test"}]}
+
+        result = formatter_none.format([sample])
+        formatted = result[0].model_dump()
+        assert "parallel_tool_calls" not in formatted
+
+        # Test with parallel_tool_calls = False
+        formatter_false = OpenAISchemaFormatter({"parallel_tool_calls": False})
+        result = formatter_false.format([sample])
+        formatted = result[0].model_dump()
+        assert "parallel_tool_calls" in formatted
+        assert formatted["parallel_tool_calls"] is False
+
+        # Test with parallel_tool_calls = True
+        formatter_true = OpenAISchemaFormatter({"parallel_tool_calls": True})
+        result = formatter_true.format([sample])
+        formatted = result[0].model_dump()
+        assert "parallel_tool_calls" in formatted
+        assert formatted["parallel_tool_calls"] is True

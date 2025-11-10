@@ -128,7 +128,7 @@ class OllamaBackend(InferenceBackend):
             Ollama-formatted tool dict
         """
         # Use the built-in OpenAI schema converter (Ollama uses same format)
-        return tool.to_openai_schema()
+        return tool.to_openai()
 
     def cleanup(self) -> None:
         """Clean up resources.
