@@ -89,6 +89,12 @@ class OpenAISchemaFormatter(BaseFormatter):
     """
 
     def __init__(self, config: dict[str, Any] | None = None, tool_registry=None):
+        """Initialize the OpenAI Schema formatter.
+
+        Args:
+            config: Optional configuration dictionary for formatter behavior
+            tool_registry: Optional tool registry for tool definitions
+        """
         super().__init__(config, tool_registry=tool_registry)
 
     def get_config_model(self) -> type[BaseModel] | None:

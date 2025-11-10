@@ -21,7 +21,10 @@ from deepfabric.formatters.base import BaseFormatter, FormatterError
 from deepfabric.formatters.builtin.alpaca import AlpacaFormatter
 from deepfabric.formatters.builtin.chatml import ChatmlFormatter
 from deepfabric.formatters.builtin.harmony import HarmonyFormatter
-from deepfabric.formatters.builtin.openai_schema import OpenAISchemaFormatter
+from deepfabric.formatters.builtin.openai_schema import (
+    OpenAISchemaConfig,
+    OpenAISchemaFormatter,
+)
 from deepfabric.formatters.builtin.tool_calling import ToolCallingFormatter
 from deepfabric.formatters.registry import FormatterRegistry
 from deepfabric.schemas import (
@@ -160,11 +163,20 @@ class CustomFormatter(BaseFormatter):
         assert "chatml" in formatters
 
     def test_formatter_with_config(self):
-        """Test loading formatter with custom configuration."""
-        config = {"start_token": "<custom_start>"}
-        formatter = self.registry.load_formatter("builtin://chatml.py", config)
-        assert isinstance(formatter, ChatmlFormatter)
-        assert formatter.start_token == "<custom_start>"  # noqa: S105
+        """Test loading openai_schema formatter with custom configuration."""
+        config = {
+            "include_system_prompt": False,
+            "validate_tool_schemas": False,
+            "remove_available_tools_field": True,
+        }
+        formatter = self.registry.load_formatter("builtin://openai_schema.py", config)
+        assert isinstance(formatter, OpenAISchemaFormatter)
+
+        # Verify config was loaded correctly
+        assert isinstance(formatter._config_model, OpenAISchemaConfig)
+        assert formatter._config_model.include_system_prompt is False
+        assert formatter._config_model.validate_tool_schemas is False
+        assert formatter._config_model.remove_available_tools_field is True
 
 
 class TestAlpacaFormatter:
