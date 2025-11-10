@@ -62,13 +62,18 @@ class ToolCallingEvaluator(BaseEvaluator):
 
         # Compute metrics
         tool_correct = predicted_tool == ground_truth.expected_tool
+
+        # Validate parameters against the PREDICTED tool (not expected)
+        # This measures parameter extraction capability independently of tool selection
         params_correct = compare_parameters(
             ground_truth.expected_parameters,
             predicted_params,
-            tool_name=ground_truth.expected_tool,
+            tool_name=predicted_tool,  # Use predicted tool for schema validation
             tool_definitions=context.tools,
         )
-        execution_valid = predicted_tool is not None and params_correct
+
+        # Execution valid requires BOTH correct tool AND correct params
+        execution_valid = tool_correct and params_correct
 
         return EvaluatorResult(
             evaluator_name=self.get_name(),
