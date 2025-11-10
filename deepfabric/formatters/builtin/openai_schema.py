@@ -1,25 +1,27 @@
 """
-TRL SFT Tools formatter.
+OpenAI Schema formatter.
 
-This formatter transforms DeepFabric agent reasoning datasets into the format
-required by HuggingFace TRL's SFTTrainer for tool/function calling fine-tuning.
+This formatter transforms DeepFabric datasets into OpenAI's function calling schema format.
+It works with or without tools - producing standard messages when tools are absent, and
+adding the tools field in OpenAI schema format when tools are present.
 
 Key features:
 - Converts `available_tools` to `tools` field in OpenAI schema format
 - Ensures proper message structure with tool calls and tool responses
-- Compatible with TRL SFTTrainer's tool calling mode
-- Supports multiple conversation types (agent_cot_tools, agent_cot_hybrid, etc.)
+- Compatible with training frameworks like HuggingFace TRL SFTTrainer
+- Supports multiple conversation types (agent_cot_tools, agent_cot_hybrid, standard conversations)
+- Tools are optional - works for standard chat and function calling datasets
 
 The formatter converts from DeepFabric's internal format:
 {
   "messages": [...],
-  "available_tools": [{"name": "...", "parameters": [...], ...}, ...]
+  "available_tools": [{"name": "...", "parameters": [...], ...}, ...]  # optional
 }
 
-To TRL SFT format:
+To OpenAI schema format:
 {
   "messages": [...],
-  "tools": [
+  "tools": [  # only present if available_tools exists
     {
       "type": "function",
       "function": {
@@ -33,8 +35,8 @@ To TRL SFT format:
 }
 
 Reference:
+- https://platform.openai.com/docs/guides/function-calling
 - https://huggingface.co/docs/trl/en/sft_trainer#tool-calling-with-sft
-- https://www.stephendiehl.com/posts/fine_tuning_tools/
 """
 
 import json
@@ -51,8 +53,8 @@ from ..models import ConversationSample
 logger = logging.getLogger(__name__)
 
 
-class TRLSFTToolsConfig(BaseModel):
-    """Configuration for TRL SFT Tools formatter."""
+class OpenAISchemaConfig(BaseModel):
+    """Configuration for OpenAI Schema formatter."""
 
     include_system_prompt: bool = Field(
         default=True,
@@ -72,29 +74,35 @@ class TRLSFTToolsConfig(BaseModel):
     )
 
 
-class TRLSFTToolsFormatter(BaseFormatter):
+class OpenAISchemaFormatter(BaseFormatter):
     """
-    Formatter for HuggingFace TRL SFTTrainer tool calling format.
+    Formatter for OpenAI function calling schema format.
 
-    This formatter prepares DeepFabric datasets for training with TRL's
-    SFTTrainer in tool calling mode. It converts DeepFabric's tool definitions
-    to OpenAI function calling schema format required by TRL.
+    This formatter prepares DeepFabric datasets in OpenAI's standard function calling
+    schema. It works with or without tools - producing standard chat messages when tools
+    are absent, and including the tools field when tools are present.
 
-    The formatter is specifically designed for:
-    - Fine-tuning models with tool/function calling capabilities
-    - Training with HuggingFace TRL SFTTrainer
-    - Creating datasets compatible with trl.trainer.sft_trainer
+    The formatter is designed for:
+    - Creating datasets in OpenAI's standard format
+    - Training models with function calling capabilities
+    - Compatible with training frameworks (HuggingFace TRL, Axolotl, Unsloth, etc.)
     """
 
     def __init__(self, config: dict[str, Any] | None = None, tool_registry=None):
+        """Initialize the OpenAI Schema formatter.
+
+        Args:
+            config: Optional configuration dictionary for formatter behavior
+            tool_registry: Optional tool registry for tool definitions
+        """
         super().__init__(config, tool_registry=tool_registry)
 
     def get_config_model(self) -> type[BaseModel] | None:
         """Return the configuration model for this formatter."""
-        return TRLSFTToolsConfig
+        return OpenAISchemaConfig
 
     def validate(self, sample) -> bool:
-        """Validate that sample has required fields for TRL format."""
+        """Validate that sample has required fields for OpenAI schema format."""
         # Accept either messages format OR agent_cot_tools format
 
         # Check for messages format
@@ -123,10 +131,10 @@ class TRLSFTToolsFormatter(BaseFormatter):
             return None
 
         # Get configuration
-        config: TRLSFTToolsConfig = (
+        config: OpenAISchemaConfig = (
             self._config_model
-            if isinstance(self._config_model, TRLSFTToolsConfig)
-            else TRLSFTToolsConfig()
+            if isinstance(self._config_model, OpenAISchemaConfig)
+            else OpenAISchemaConfig()
         )
 
         # Convert agent_cot_tools format to messages format if needed
@@ -209,7 +217,7 @@ class TRLSFTToolsFormatter(BaseFormatter):
 
         return formatted_sample
 
-    def _convert_agent_to_messages(self, sample: dict, config: TRLSFTToolsConfig) -> dict:
+    def _convert_agent_to_messages(self, sample: dict, config: OpenAISchemaConfig) -> dict:
         """
         Convert agent_cot_tools format to messages format.
 

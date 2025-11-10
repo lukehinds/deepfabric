@@ -311,12 +311,6 @@ def format_command(
                 "end_token": "<|im_end|>",
                 "include_system": False,
             },
-            "grpo": {
-                "reasoning_start_tag": "<start_working_out>",
-                "reasoning_end_tag": "<end_working_out>",
-                "solution_start_tag": "<SOLUTION>",
-                "solution_end_tag": "</SOLUTION>",
-            },
             "harmony": {
                 "output_format": "text",
                 "default_channel": "final",
@@ -324,16 +318,16 @@ def format_command(
                 "reasoning_level": "high",
                 "include_metadata": True,
             },
-            # TRL SFT Tools formatter defaults
-            "trl_sft_tools": {},
-            "trl": {},  # alias
+            # OpenAI Schema formatter defaults
+            "openai_schema": {},
+            "trl": {},  # alias for backwards compatibility
             "xlam_v2": {},
         }
 
         # Map aliases to actual builtin module names
         template_name = formatter
         if formatter == "trl":
-            template_name = "trl_sft_tools"
+            template_name = "openai_schema"
 
         formatter_configs = [
             {
@@ -401,7 +395,6 @@ def format_command(
             "conversations",
             "alpaca",
             "chatml",
-            "grpo",
             "harmony",
             "trl",
             "xlam_v2",

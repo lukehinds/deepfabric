@@ -80,8 +80,8 @@ data_engine:
 dataset:
   save_as: "dataset_single_turn.jsonl"
   creation:
-    num_steps: 6
-    batch_size: 4
+    num_steps: 4
+    batch_size: 2
     sys_msg: true
 
   # Format for training (tool calling format)

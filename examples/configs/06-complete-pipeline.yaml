@@ -117,7 +117,7 @@ dataset:
   # - alpaca: Works best with simple Q&A (not chain-of-thought or multi-turn)
   # - chatml: May reject samples with complex reasoning structures
   # - conversations: Most flexible, accepts all conversation types
-  # - trl_sft_tools: Flexible, works with most conversation types
+  # - openai_schema: Flexible, works with most conversation types
   # - xlam_v2: Requires agent_mode for tool-calling data
   #
   # DeepFabric will warn you about potential incompatibilities when loading config.
@@ -131,22 +131,12 @@ dataset:
       config:
         include_system: true
 
-    # Format 2: TRL SFT format for HuggingFace training (compatible with chain-of-thought)
-    - name: "trl_sft"
-      template: "builtin://trl_sft_tools"
-      output: "python_dataset_trl.jsonl"
+    # Format 2: OpenAI Schema format for HuggingFace training (compatible with chain-of-thought)
+    - name: "openai_sft"
+      template: "builtin://openai_schema"
+      output: "python_dataset_openai.jsonl"
       config:
-        include_system_in_user: false
-
-    # Format 3: GRPO format for reasoning with rewards (optimized for chain-of-thought)
-    - name: "grpo_format"
-      template: "builtin://grpo"
-      output: "python_dataset_grpo.jsonl"
-      config:
-        reasoning_start_tag: "<start_reasoning>"
-        reasoning_end_tag: "</end_reasoning>"
-        solution_start_tag: "<solution>"
-        solution_end_tag: "</solution>"
+        include_system_prompt: true
 
 # ============================================================================
 # STEP 5: HuggingFace Hub Upload (Optional)
@@ -221,8 +211,7 @@ dataset:
 # - python_dataset_raw.jsonl         (raw generated data)
 # - python_dataset_final.jsonl       (final dataset)
 # - python_dataset_standard.jsonl    (conversations format - universal)
-# - python_dataset_trl.jsonl         (TRL SFT Tools format - HuggingFace)
-# - python_dataset_grpo.jsonl        (GRPO format - reasoning with rewards)
+# - python_dataset_openai.jsonl      (OpenAI Schema format - HuggingFace compatible)
 #
 # Plus auto-generated dataset card if uploading to HuggingFace
 # ============================================================================
@@ -253,8 +242,7 @@ dataset:
 #
 # 4. Generate multi-format datasets (choose compatible formatters):
 #    - conversations: Works with all conversation types (universal)
-#    - trl_sft_tools: Works with all types, optimized for HuggingFace
-#    - grpo: Best for chain-of-thought reasoning
+#    - openai_schema: Works with all types, optimized for HuggingFace
 #    - xlam_v2: For agent training (requires agent_mode)
 #    - tool_calling: For embedded tool execution traces
 #    - alpaca: Best for simple Q&A (avoid with chain-of-thought)

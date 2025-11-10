@@ -4,7 +4,7 @@ Tests for the DeepFabric formatter system.
 This module tests:
 - BaseFormatter interface
 - FormatterRegistry functionality
-- Built-in formatters (GRPO, Alpaca, ChatML)
+- Built-in formatters (Alpaca, ChatML, Harmony)
 - Dataset integration
 - Error handling
 """
@@ -20,10 +20,12 @@ from deepfabric.dataset import Dataset
 from deepfabric.formatters.base import BaseFormatter, FormatterError
 from deepfabric.formatters.builtin.alpaca import AlpacaFormatter
 from deepfabric.formatters.builtin.chatml import ChatmlFormatter
-from deepfabric.formatters.builtin.grpo import GrpoFormatter
 from deepfabric.formatters.builtin.harmony import HarmonyFormatter
+from deepfabric.formatters.builtin.openai_schema import (
+    OpenAISchemaConfig,
+    OpenAISchemaFormatter,
+)
 from deepfabric.formatters.builtin.tool_calling import ToolCallingFormatter
-from deepfabric.formatters.builtin.trl_sft_tools import TRLSFTToolsFormatter
 from deepfabric.formatters.registry import FormatterRegistry
 from deepfabric.schemas import (
     ChatMessage,
@@ -85,11 +87,6 @@ class TestFormatterRegistry:
         """Set up test fixtures."""
         self.registry = FormatterRegistry()
 
-    def test_load_builtin_grpo_formatter(self):
-        """Test loading the built-in GRPO formatter."""
-        formatter = self.registry.load_formatter("builtin://grpo.py")
-        assert isinstance(formatter, GrpoFormatter)
-
     def test_load_builtin_alpaca_formatter(self):
         """Test loading the built-in Alpaca formatter."""
         formatter = self.registry.load_formatter("builtin://alpaca.py")
@@ -143,8 +140,8 @@ class CustomFormatter(BaseFormatter):
 
     def test_formatter_caching(self):
         """Test that formatters are cached."""
-        formatter1 = self.registry.load_formatter("builtin://grpo.py")
-        formatter2 = self.registry.load_formatter("builtin://grpo.py")
+        formatter1 = self.registry.load_formatter("builtin://alpaca.py")
+        formatter2 = self.registry.load_formatter("builtin://alpaca.py")
 
         # Should be different instances but same class
         assert isinstance(formatter1, type(formatter2))
@@ -152,7 +149,7 @@ class CustomFormatter(BaseFormatter):
 
     def test_clear_cache(self):
         """Test clearing the formatter cache."""
-        self.registry.load_formatter("builtin://grpo.py")
+        self.registry.load_formatter("builtin://alpaca.py")
         assert len(self.registry._cache) > 0
 
         self.registry.clear_cache()
@@ -162,131 +159,24 @@ class CustomFormatter(BaseFormatter):
         """Test listing available built-in formatters."""
         formatters = self.registry.list_builtin_formatters()
         assert isinstance(formatters, list)
-        assert "grpo" in formatters
         assert "alpaca" in formatters
         assert "chatml" in formatters
 
     def test_formatter_with_config(self):
-        """Test loading formatter with custom configuration."""
-        config = {"reasoning_start_tag": "<custom_start>"}
-        formatter = self.registry.load_formatter("builtin://grpo.py", config)
-        assert isinstance(formatter, GrpoFormatter)
-        assert formatter.reasoning_start_tag == "<custom_start>"
-
-
-class TestGrpoFormatter:
-    """Test the GRPO formatter specifically."""
-
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.formatter = GrpoFormatter()
-
-    def test_grpo_default_config(self):
-        """Test GRPO formatter with default configuration."""
-        assert self.formatter.reasoning_start_tag == "<start_working_out>"
-        assert self.formatter.reasoning_end_tag == "<end_working_out>"
-        assert self.formatter.solution_start_tag == "<SOLUTION>"
-        assert self.formatter.solution_end_tag == "</SOLUTION>"
-
-    def test_grpo_custom_config(self):
-        """Test GRPO formatter with custom configuration."""
+        """Test loading openai_schema formatter with custom configuration."""
         config = {
-            "reasoning_start_tag": "<think>",
-            "reasoning_end_tag": "</think>",
-            "solution_start_tag": "<answer>",
-            "solution_end_tag": "</answer>",
+            "include_system_prompt": False,
+            "validate_tool_schemas": False,
+            "remove_available_tools_field": True,
         }
-        formatter = GrpoFormatter(config)
-        assert formatter.reasoning_start_tag == "<think>"
-        assert formatter.reasoning_end_tag == "</think>"
-        assert formatter.solution_start_tag == "<answer>"
-        assert formatter.solution_end_tag == "</answer>"
+        formatter = self.registry.load_formatter("builtin://openai_schema.py", config)
+        assert isinstance(formatter, OpenAISchemaFormatter)
 
-    def test_format_messages_sample(self):
-        """Test formatting a messages-based sample."""
-        sample = {
-            "messages": [
-                {"role": "system", "content": "You are a math tutor."},
-                {"role": "user", "content": "What is 2 + 2?"},
-                {"role": "assistant", "content": "I need to add 2 and 2. The answer is 4."},
-            ]
-        }
-
-        result = self.formatter.format([sample])
-        assert len(result) == 1
-
-        formatted = result[0]
-        # Convert FormattedOutput to dict for testing
-        formatted_dict = formatted.model_dump() if hasattr(formatted, "model_dump") else formatted
-        assert "messages" in formatted_dict
-
-        # Check assistant message is wrapped in GRPO format
-        assistant_msg = next(
-            msg for msg in formatted_dict["messages"] if msg["role"] == "assistant"
-        )
-        content = assistant_msg["content"]
-        assert "<start_working_out>" in content
-        assert "<end_working_out>" in content
-        assert "<SOLUTION>" in content
-        assert "</SOLUTION>" in content
-
-    def test_format_qa_sample(self):
-        """Test formatting a Q&A sample."""
-        sample = {"question": "What is 5 + 3?", "final_answer": "8"}
-
-        result = self.formatter.format([sample])
-        assert len(result) == 1
-
-        formatted = result[0]
-        assert hasattr(formatted, "messages")
-        assert len(formatted.messages) == FORMATTED_LENGTH  # system, user, assistant
-
-        # Check roles
-        roles = [msg["role"] for msg in formatted.messages]
-        assert "system" in roles
-        assert "user" in roles
-        assert "assistant" in roles
-
-    def test_validate_messages_format(self):
-        """Test validation of messages format."""
-        valid_sample = {
-            "messages": [
-                {"role": "user", "content": "Question"},
-                {"role": "assistant", "content": "Answer"},
-            ]
-        }
-        assert self.formatter.validate(valid_sample)
-
-        invalid_sample = {"messages": "not a list"}
-        assert not self.formatter.validate(invalid_sample)
-
-    def test_validate_qa_format(self):
-        """Test validation of Q&A format."""
-        valid_sample = {"question": "What is X?", "final_answer": "Y"}
-        assert self.formatter.validate(valid_sample)
-
-        invalid_sample = {"question": "What is X?"}  # Missing answer
-        assert not self.formatter.validate(invalid_sample)
-
-    def test_numerical_validation(self):
-        """Test numerical answer validation."""
-        formatter = GrpoFormatter({"validate_numerical": True})
-
-        # This would need more complex testing with actual GRPO format validation
-        assert formatter.validate_numerical is True
-
-    def test_get_description(self):
-        """Test formatter description."""
-        description = self.formatter.get_description()
-        assert isinstance(description, str)
-        assert "GRPO" in description
-
-    def test_get_supported_formats(self):
-        """Test supported formats."""
-        formats = self.formatter.get_supported_formats()
-        assert isinstance(formats, list)
-        assert "messages" in formats
-        assert "question_answer" in formats
+        # Verify config was loaded correctly
+        assert isinstance(formatter._config_model, OpenAISchemaConfig)
+        assert formatter._config_model.include_system_prompt is False
+        assert formatter._config_model.validate_tool_schemas is False
+        assert formatter._config_model.remove_available_tools_field is True
 
 
 class TestAlpacaFormatter:
@@ -479,26 +369,26 @@ class TestDatasetIntegration:
 
     def test_apply_single_formatter(self):
         """Test applying a single formatter to dataset."""
-        formatter_configs = [{"name": "grpo", "template": "builtin://grpo.py", "config": {}}]
+        formatter_configs = [{"name": "alpaca", "template": "builtin://alpaca.py", "config": {}}]
 
         result = self.dataset.apply_formatters(formatter_configs)
 
-        assert "grpo" in result
-        assert isinstance(result["grpo"], Dataset)
-        assert len(result["grpo"].samples) == 2  # noqa: PLR2004
+        assert "alpaca" in result
+        assert isinstance(result["alpaca"], Dataset)
+        assert len(result["alpaca"].samples) == 2  # noqa: PLR2004
 
     def test_apply_multiple_formatters(self):
         """Test applying multiple formatters to dataset."""
         formatter_configs = [
-            {"name": "grpo", "template": "builtin://grpo.py", "config": {}},
+            {"name": "chatml", "template": "builtin://chatml.py", "config": {}},
             {"name": "alpaca", "template": "builtin://alpaca.py", "config": {}},
         ]
 
         result = self.dataset.apply_formatters(formatter_configs)
 
-        assert "grpo" in result
+        assert "chatml" in result
         assert "alpaca" in result
-        assert isinstance(result["grpo"], Dataset)
+        assert isinstance(result["chatml"], Dataset)
         assert isinstance(result["alpaca"], Dataset)
 
     def test_apply_formatter_with_output_file(self):
@@ -508,8 +398,8 @@ class TestDatasetIntegration:
 
             formatter_configs = [
                 {
-                    "name": "grpo",
-                    "template": "builtin://grpo.py",
+                    "name": "alpaca",
+                    "template": "builtin://alpaca.py",
                     "config": {},
                     "output": output_path,
                 }
@@ -521,7 +411,7 @@ class TestDatasetIntegration:
             assert os.path.exists(output_path)
 
             # Check dataset was returned
-            assert "grpo" in result
+            assert "alpaca" in result
 
     def test_list_available_formatters(self):
         """Test listing available formatters."""
@@ -1222,18 +1112,18 @@ class TestHarmonyFormatter:
         assert text.count("<|channel|>commentary") >= 2  # noqa: PLR2004
 
 
-class TestTRLSFTToolsFormatter:
-    """Test the TRL SFT Tools formatter."""
+class TestOpenAISchemaFormatter:
+    """Test the OpenAI Schema formatter."""
 
     def setup_method(self):
         """Set up test fixtures."""
 
-        self.formatter = TRLSFTToolsFormatter()
+        self.formatter = OpenAISchemaFormatter()
 
     def test_formatter_initialization(self):
         """Test formatter can be initialized."""
 
-        formatter = TRLSFTToolsFormatter()
+        formatter = OpenAISchemaFormatter()
         assert formatter is not None
 
     def test_formatter_with_config(self):
@@ -1244,7 +1134,7 @@ class TestTRLSFTToolsFormatter:
             "validate_tool_schemas": True,
             "remove_available_tools_field": False,
         }
-        formatter = TRLSFTToolsFormatter(config)
+        formatter = OpenAISchemaFormatter(config)
         assert formatter is not None
 
     def test_validate_sample_with_messages(self):
@@ -1412,7 +1302,7 @@ class TestTRLSFTToolsFormatter:
         """Test removing available_tools field from output."""
 
         config = {"remove_available_tools_field": True}
-        formatter = TRLSFTToolsFormatter(config)
+        formatter = OpenAISchemaFormatter(config)
 
         sample = {
             "messages": [{"role": "user", "content": "Test"}],
@@ -1441,7 +1331,7 @@ class TestTRLSFTToolsFormatter:
             "include_system_prompt": True,
             "system_prompt_override": custom_prompt,
         }
-        formatter = TRLSFTToolsFormatter(config)
+        formatter = OpenAISchemaFormatter(config)
 
         sample = {
             "messages": [
@@ -1464,7 +1354,7 @@ class TestTRLSFTToolsFormatter:
             "include_system_prompt": True,
             "system_prompt_override": custom_prompt,
         }
-        formatter = TRLSFTToolsFormatter(config)
+        formatter = OpenAISchemaFormatter(config)
 
         sample = {"messages": [{"role": "user", "content": "Test"}]}
 
@@ -1539,12 +1429,12 @@ class TestTRLSFTToolsFormatter:
         assert props["dict_param"]["type"] == "object"
 
     def test_load_via_registry(self):
-        """Test loading TRL formatter via registry."""
+        """Test loading OpenAI Schema formatter via registry."""
         registry = FormatterRegistry()
-        formatter = registry.load_formatter("builtin://trl_sft_tools")
+        formatter = registry.load_formatter("builtin://openai_schema")
         assert formatter is not None
 
-        assert isinstance(formatter, TRLSFTToolsFormatter)
+        assert isinstance(formatter, OpenAISchemaFormatter)
 
     def test_example_config(self):
         """Test getting example configuration."""
