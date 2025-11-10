@@ -72,6 +72,10 @@ class OpenAISchemaConfig(BaseModel):
         default=False,
         description="Remove the 'available_tools' field from output (keep only 'tools')",
     )
+    parallel_tool_calls: bool | None = Field(
+        default=None,
+        description="Include parallel_tool_calls field (None=omit, True/False=include with value)",
+    )
 
 
 class OpenAISchemaFormatter(BaseFormatter):
@@ -146,51 +150,71 @@ class OpenAISchemaFormatter(BaseFormatter):
         # Start with a copy of the sample
         formatted_sample = sample_dict.copy()
 
-        # Convert available_tools to TRL format if present
-        # Support both legacy format (available_tools) and unified schema (tool_context.available_tools)
-        available_tools = get_field(sample, "available_tools")
-        tool_executions = []
-        if not available_tools and has_field(sample, "tool_context"):
-            tool_context = get_field(sample, "tool_context")
-            if isinstance(tool_context, dict):
-                if "available_tools" in tool_context:
-                    available_tools = tool_context["available_tools"]
-                if "executions" in tool_context:
-                    tool_executions = tool_context["executions"]
-            elif hasattr(tool_context, "available_tools"):
-                available_tools = tool_context.available_tools  # type: ignore
-                if hasattr(tool_context, "executions"):
-                    tool_executions = tool_context.executions  # type: ignore
+        # Check if tools field already exists in OpenAI format (new unified schema)
+        existing_tools = get_field(sample, "tools")
 
-        if available_tools:
-            try:
-                # Convert to ToolDefinition objects
-                tool_defs = [ToolDefinition.model_validate(tool) for tool in available_tools]
+        if existing_tools:
+            # Tools already in OpenAI format - use directly
+            formatted_sample["tools"] = existing_tools
 
-                # Filter to only tools actually used (saves tokens)
-                if tool_executions:
-                    tool_defs = self._get_conversation_used_tools(tool_defs, tool_executions)
-
-                # Convert to OpenAI schema
-                formatted_sample["tools"] = [tool.to_openai() for tool in tool_defs]
-
-                # Optionally validate tool schemas
-                if config.validate_tool_schemas:
+            # Optionally validate tool schemas
+            if config.validate_tool_schemas:
+                try:
                     self._validate_tool_schemas(formatted_sample["tools"])
+                except ValueError as e:
+                    logger.warning("Tool schema validation failed: %s", e)
 
-                # Optionally remove available_tools field
-                if config.remove_available_tools_field:
-                    formatted_sample.pop("available_tools", None)
+            # Optionally remove available_tools field for cleaner output
+            if config.remove_available_tools_field:
+                formatted_sample.pop("available_tools", None)
+                if "tool_context" in formatted_sample:
+                    formatted_sample["tool_context"].pop("available_tools", None)
+        else:
+            # Fallback: Convert available_tools to OpenAI format if present
+            # Support both legacy format (available_tools) and unified schema (tool_context.available_tools)
+            available_tools = get_field(sample, "available_tools")
+            tool_executions = []
+            if not available_tools and has_field(sample, "tool_context"):
+                tool_context = get_field(sample, "tool_context")
+                if isinstance(tool_context, dict):
+                    if "available_tools" in tool_context:
+                        available_tools = tool_context["available_tools"]
+                    if "executions" in tool_context:
+                        tool_executions = tool_context["executions"]
+                elif hasattr(tool_context, "available_tools"):
+                    available_tools = tool_context.available_tools  # type: ignore
+                    if hasattr(tool_context, "executions"):
+                        tool_executions = tool_context.executions  # type: ignore
 
-            except (ValidationError, TypeError, KeyError) as e:
-                # If tool conversion fails, log but don't fail the entire sample
-                # This allows processing of samples without proper tool definitions
-                logger.warning(
-                    "Failed to convert 'available_tools' for a sample due to: %s. Skipping tool conversion.",
-                    e,
-                    exc_info=True,
-                )
-                formatted_sample["tools"] = []
+            if available_tools:
+                try:
+                    # Convert to ToolDefinition objects
+                    tool_defs = [ToolDefinition.model_validate(tool) for tool in available_tools]
+
+                    # Filter to only tools actually used (saves tokens)
+                    if tool_executions:
+                        tool_defs = self._get_conversation_used_tools(tool_defs, tool_executions)
+
+                    # Convert to OpenAI schema
+                    formatted_sample["tools"] = [tool.to_openai() for tool in tool_defs]
+
+                    # Optionally validate tool schemas
+                    if config.validate_tool_schemas:
+                        self._validate_tool_schemas(formatted_sample["tools"])
+
+                    # Optionally remove available_tools field
+                    if config.remove_available_tools_field:
+                        formatted_sample.pop("available_tools", None)
+
+                except (ValidationError, TypeError, KeyError) as e:
+                    # If tool conversion fails, log but don't fail the entire sample
+                    # This allows processing of samples without proper tool definitions
+                    logger.warning(
+                        "Failed to convert 'available_tools' for a sample due to: %s. Skipping tool conversion.",
+                        e,
+                        exc_info=True,
+                    )
+                    formatted_sample["tools"] = []
 
         # Handle system prompt
         messages = formatted_sample.get("messages", [])
@@ -208,13 +232,19 @@ class OpenAISchemaFormatter(BaseFormatter):
                     {"role": "system", "content": config.system_prompt_override},
                 )
 
-        # Clean up empty fields that shouldn't be in the output
-        # For basic conversations (no CoT), question and final_answer are empty strings
-        if "question" in formatted_sample and not formatted_sample["question"]:
-            del formatted_sample["question"]
-        if "final_answer" in formatted_sample and not formatted_sample["final_answer"]:
-            del formatted_sample["final_answer"]
-        return formatted_sample
+        # Return only OpenAI-compatible fields
+        # OpenAI format only includes: messages, tools, and optionally parallel_tool_calls
+        openai_sample = {"messages": formatted_sample.get("messages", [])}
+
+        # Add tools field if present
+        if "tools" in formatted_sample and formatted_sample["tools"]:
+            openai_sample["tools"] = formatted_sample["tools"]
+
+        # Add parallel_tool_calls if configured
+        if config.parallel_tool_calls is not None:
+            openai_sample["parallel_tool_calls"] = config.parallel_tool_calls
+
+        return openai_sample
 
     def _convert_agent_to_messages(self, sample: dict, config: OpenAISchemaConfig) -> dict:
         """
@@ -346,4 +376,5 @@ class OpenAISchemaFormatter(BaseFormatter):
             "system_prompt_override": None,
             "validate_tool_schemas": True,
             "remove_available_tools_field": False,
+            "parallel_tool_calls": False,
         }

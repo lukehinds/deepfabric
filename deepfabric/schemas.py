@@ -25,7 +25,15 @@ class ChatMessage(BaseModel):
     role: Literal["system", "user", "assistant", "tool"] = Field(
         description="The role of the message sender"
     )
-    content: str = Field(description="The content of the message")
+    content: str | None = Field(
+        default=None, description="The content of the message (optional when tool_calls is present)"
+    )
+    tool_calls: list[dict[str, Any]] | None = Field(
+        default=None, description="Tool calls made by the assistant (OpenAI format)"
+    )
+    tool_call_id: str | None = Field(
+        default=None, description="ID linking tool result to the original tool call"
+    )
 
 
 class ChatTranscript(BaseModel):
@@ -434,6 +442,10 @@ class Conversation(BaseModel):
     )
     tool_context: ToolContext | None = Field(
         default=None, description="Tool capability - available tools and executions"
+    )
+    tools: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="OpenAI-compatible tool definitions (populated from tool_context for training)",
     )
     agent_context: AgentContext | None = Field(
         default=None, description="Agent capability - agentic behavior and planning"
