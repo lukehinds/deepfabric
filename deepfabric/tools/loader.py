@@ -167,7 +167,7 @@ def tools_to_trl_format(tools: list[ToolDefinition] | ToolRegistry) -> list[dict
     """
     if isinstance(tools, ToolRegistry):
         return tools.to_trl_format()
-    return [tool.to_openai_schema() for tool in tools]
+    return [tool.to_openai() for tool in tools]
 
 
 def convert_available_tools_to_trl(sample: dict) -> dict:
@@ -193,7 +193,7 @@ def convert_available_tools_to_trl(sample: dict) -> dict:
     # Convert available_tools (list of dicts) to ToolDefinition objects
     try:
         tool_defs = [ToolDefinition.model_validate(tool) for tool in sample["available_tools"]]
-        sample["tools"] = [tool.to_openai_schema() for tool in tool_defs]
+        sample["tools"] = [tool.to_openai() for tool in tool_defs]
     except (ValidationError, TypeError, KeyError) as e:
         # If conversion fails, log and return the original sample
         logger.warning(

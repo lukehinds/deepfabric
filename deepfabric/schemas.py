@@ -104,7 +104,7 @@ class ToolDefinition(BaseModel):
                 params.append(f"{p.name}: {p.type} = {p.default}")
         return f"{self.name}({', '.join(params)}) → {self.returns}"
 
-    def to_openai_schema(self) -> dict[str, Any]:
+    def to_openai(self) -> dict[str, Any]:
         """
         Convert tool definition to OpenAI function calling schema format.
 
@@ -222,7 +222,7 @@ class ToolRegistry(BaseModel):
             >>> trl_tools = registry.to_trl_format()
             >>> # Use in dataset: {"messages": [...], "tools": trl_tools}
         """
-        return [tool.to_openai_schema() for tool in self.tools]
+        return [tool.to_openai() for tool in self.tools]
 
 
 # Agent tool-calling schemas

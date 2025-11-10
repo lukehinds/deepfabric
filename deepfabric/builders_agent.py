@@ -437,6 +437,13 @@ Based on these results, provide a clear, helpful response to the user."""
             "topic": topic_prompt if topic_prompt else "general",
         }
 
+        # Insert system message if configured
+        if self.config.sys_msg:
+            messages.insert(
+                0,
+                ChatMessage(role="system", content=self.config.dataset_system_prompt or ""),
+            )
+
         return Conversation(
             messages=messages,
             reasoning=reasoning_trace,
@@ -845,6 +852,13 @@ Is the user's original task/goal from the scenario fully completed?
             "conversation_type": "chain_of_thought" if reasoning_trace else "basic",
             "topic": topic_prompt if topic_prompt else "general",
         }
+
+        # Insert system message if configured
+        if self.config.sys_msg:
+            messages.insert(
+                0,
+                ChatMessage(role="system", content=self.config.dataset_system_prompt or ""),
+            )
 
         return Conversation(
             messages=messages,

@@ -21,7 +21,7 @@ from deepfabric.formatters.base import BaseFormatter, FormatterError
 from deepfabric.formatters.builtin.alpaca import AlpacaFormatter
 from deepfabric.formatters.builtin.chatml import ChatmlFormatter
 from deepfabric.formatters.builtin.harmony import HarmonyFormatter
-from deepfabric.formatters.builtin.openai_schema import (
+from deepfabric.formatters.builtin.openai import (
     OpenAISchemaConfig,
     OpenAISchemaFormatter,
 )
@@ -163,13 +163,13 @@ class CustomFormatter(BaseFormatter):
         assert "chatml" in formatters
 
     def test_formatter_with_config(self):
-        """Test loading openai_schema formatter with custom configuration."""
+        """Test loading openai formatter with custom configuration."""
         config = {
             "include_system_prompt": False,
             "validate_tool_schemas": False,
             "remove_available_tools_field": True,
         }
-        formatter = self.registry.load_formatter("builtin://openai_schema.py", config)
+        formatter = self.registry.load_formatter("builtin://openai.py", config)
         assert isinstance(formatter, OpenAISchemaFormatter)
 
         # Verify config was loaded correctly
@@ -1431,7 +1431,7 @@ class TestOpenAISchemaFormatter:
     def test_load_via_registry(self):
         """Test loading OpenAI Schema formatter via registry."""
         registry = FormatterRegistry()
-        formatter = registry.load_formatter("builtin://openai_schema")
+        formatter = registry.load_formatter("builtin://openai")
         assert formatter is not None
 
         assert isinstance(formatter, OpenAISchemaFormatter)

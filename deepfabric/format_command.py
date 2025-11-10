@@ -319,15 +319,12 @@ def format_command(
                 "include_metadata": True,
             },
             # OpenAI Schema formatter defaults
-            "openai_schema": {},
-            "trl": {},  # alias for backwards compatibility
+            "openai": {},
             "xlam_v2": {},
         }
 
         # Map aliases to actual builtin module names
         template_name = formatter
-        if formatter == "trl":
-            template_name = "openai_schema"
 
         formatter_configs = [
             {
@@ -396,7 +393,7 @@ def format_command(
             "alpaca",
             "chatml",
             "harmony",
-            "trl",
+            "openai",
             "xlam_v2",
         ]
     ),

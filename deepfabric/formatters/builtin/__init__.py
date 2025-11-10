@@ -8,7 +8,7 @@ popular training frameworks and methodologies.
 from .alpaca import AlpacaFormatter
 from .chatml import ChatmlFormatter
 from .conversations import ConversationsFormatter
-from .openai_schema import OpenAISchemaFormatter
+from .openai import OpenAISchemaFormatter
 
 __all__ = [
     "AlpacaFormatter",

@@ -14,7 +14,7 @@
 # 2. FORMATTING - Transforms data to target formats
 #    - Applied post-generation using formatters
 #    - Multiple output formats from single dataset
-#    - Supported formats: conversations, alpaca, chatml, openai_schema, xlam_v2, etc.
+#    - Supported formats: conversations, alpaca, chatml, openai, xlam_v2, etc.
 #
 # ============================================================================
 
@@ -87,7 +87,7 @@ dataset:
 
     # OpenAI Schema format for HuggingFace training
     - name: "openai_format"
-      template: "builtin://openai_schema"
+      template: "builtin://openai"
       output: "dataset_openai.jsonl"
 
 # ============================================================================

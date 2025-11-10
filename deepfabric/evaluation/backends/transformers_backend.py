@@ -290,7 +290,7 @@ class TransformersBackend(InferenceBackend):
                 # Convert tools to OpenAI format for chat template compatibility
                 tools_param = None
                 if tools:
-                    tools_param = [tool.to_openai_schema() for tool in tools]
+                    tools_param = [tool.to_openai() for tool in tools]
 
                 # Try with tools parameter (for models with native tool support)
                 return self.tokenizer.apply_chat_template(

@@ -127,6 +127,7 @@ class OpenAISchemaFormatter(BaseFormatter):
         Returns:
             Formatted sample with 'tools' field in OpenAI schema format
         """
+        print("In OpenAISchemaFormatter _format_single_sample")
         if not self.validate(sample):
             return None
 
@@ -139,6 +140,7 @@ class OpenAISchemaFormatter(BaseFormatter):
 
         # Convert agent_cot_tools format to messages format if needed
         if not has_field(sample, "messages"):
+            print("Converting agent_cot_tools format to messages format")
             sample_dict = self._convert_agent_to_messages(to_dict(sample), config)
         else:
             sample_dict = to_dict(sample)
@@ -151,6 +153,7 @@ class OpenAISchemaFormatter(BaseFormatter):
         available_tools = get_field(sample, "available_tools")
         tool_executions = []
         if not available_tools and has_field(sample, "tool_context"):
+            print("Extracting available_tools and executions from tool_context")
             tool_context = get_field(sample, "tool_context")
             if isinstance(tool_context, dict):
                 if "available_tools" in tool_context:
@@ -163,6 +166,7 @@ class OpenAISchemaFormatter(BaseFormatter):
                     tool_executions = tool_context.executions  # type: ignore
 
         if available_tools:
+            print("Validating and formatting available_tools")
             try:
                 # Convert to ToolDefinition objects
                 tool_defs = [ToolDefinition.model_validate(tool) for tool in available_tools]
@@ -172,7 +176,7 @@ class OpenAISchemaFormatter(BaseFormatter):
                     tool_defs = self._get_conversation_used_tools(tool_defs, tool_executions)
 
                 # Convert to OpenAI schema
-                formatted_sample["tools"] = [tool.to_openai_schema() for tool in tool_defs]
+                formatted_sample["tools"] = [tool.to_openai() for tool in tool_defs]
 
                 # Optionally validate tool schemas
                 if config.validate_tool_schemas:
@@ -215,6 +219,9 @@ class OpenAISchemaFormatter(BaseFormatter):
         if "final_answer" in formatted_sample and not formatted_sample["final_answer"]:
             del formatted_sample["final_answer"]
 
+        import json
+        print("Formatted sample JSON:", json.dumps(formatted_sample, indent=2))
+
         return formatted_sample
 
     def _convert_agent_to_messages(self, sample: dict, config: OpenAISchemaConfig) -> dict:
@@ -228,6 +235,7 @@ class OpenAISchemaFormatter(BaseFormatter):
         Returns:
             Sample with messages field
         """
+        print("In OpenAISchemaFormatter _convert_agent_to_messages")
         messages = []
 
         # Add system message if configured
@@ -308,6 +316,7 @@ class OpenAISchemaFormatter(BaseFormatter):
         Raises:
             ValueError: If tool schemas are invalid
         """
+        print("In OpenAISchemaFormatter _validate_tool_schemas")
         for i, tool in enumerate(tools):
             # Check required top-level fields
             if "type" not in tool or tool["type"] != "function":
@@ -336,10 +345,12 @@ class OpenAISchemaFormatter(BaseFormatter):
 
     def format_conversation_sample(self, sample: ConversationSample) -> dict[str, Any]:
         """Format a ConversationSample (if needed for compatibility)."""
+        print("In OpenAISchemaFormatter format_conversation_sample")
         return {"messages": [msg.model_dump() for msg in sample.messages]}
 
     def get_example_config(self) -> dict[str, Any]:
         """Return example configuration for this formatter."""
+        print("In OpenAISchemaFormatter get_example_config")
         return {
             "include_system_prompt": True,
             "system_prompt_override": None,

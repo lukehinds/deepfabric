@@ -78,24 +78,24 @@ data_engine:
   max_retries: 3  # Retry on API failures
 
 dataset:
-  save_as: "dataset_single_turn.jsonl"
+  save_as: "deepfabric-dataset.jsonl"
   creation:
-    num_steps: 4
-    batch_size: 2
+    num_steps: 1
+    batch_size: 1
     sys_msg: true
 
   # Format for training (tool calling format)
-  formatters:
-    - name: "tool_calling"
-      template: "builtin://tool_calling"
-      output: "dataset_single_turn_formatted.jsonl"
-      config:
-        system_prompt: |
-          You are a function calling AI model. You are provided with function
-          signatures within <tools></tools> XML tags. For each function call,
-          return a json object with function name and arguments within
-          <tool_call></tool_call> XML tags.
-        include_tools_in_system: true
+  # formatters:
+  #   - name: "tool_calling"
+  #     template: "builtin://tool_calling"
+  #     output: "dataset_single_turn_formatted.jsonl"
+  #     config:
+  #       system_prompt: |
+  #         You are a function calling AI model. You are provided with function
+  #         signatures within <tools></tools> XML tags. For each function call,
+  #         return a json object with function name and arguments within
+  #         <tool_call></tool_call> XML tags.
+  #       include_tools_in_system: true
 
 # ============================================================================
 # OPTION 2: MULTI-TURN AGENT (Complex multi-step interactions)
