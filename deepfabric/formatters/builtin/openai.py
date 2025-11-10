@@ -218,10 +218,6 @@ class OpenAISchemaFormatter(BaseFormatter):
             del formatted_sample["question"]
         if "final_answer" in formatted_sample and not formatted_sample["final_answer"]:
             del formatted_sample["final_answer"]
-
-        import json
-        print("Formatted sample JSON:", json.dumps(formatted_sample, indent=2))
-
         return formatted_sample
 
     def _convert_agent_to_messages(self, sample: dict, config: OpenAISchemaConfig) -> dict:
