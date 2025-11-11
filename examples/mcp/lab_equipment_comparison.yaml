@@ -92,7 +92,7 @@ data_engine:
 
 dataset:
   creation:
-    num_steps: 510  # 200 total samples (40 steps × 5 batch size)
+    num_steps: 20  # 200 total samples (40 steps × 5 batch size)
     batch_size: 2 # Reduced to avoid rate limits
 
   save_as: "lab_comparison_raw.jsonl"

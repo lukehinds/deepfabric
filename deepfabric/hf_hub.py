@@ -7,7 +7,7 @@ from typing import Any
 from datasets import load_dataset
 from huggingface_hub import DatasetCard, login
 from huggingface_hub.errors import HfHubHTTPError, RepositoryNotFoundError
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, ValidationError, field_serializer
 
 from .constants import DEFAULT_HF_TAGS
 from .tui import get_tui
@@ -125,7 +125,7 @@ class HFUploader:
                     upload_sample = HubUploadSample(**sample)
                     cleaned_sample = upload_sample.to_upload_dict()
                     tmp_file.write(json.dumps(cleaned_sample) + "\n")
-                except Exception as e:
+                except ValidationError as e:
                     # Log but don't fail - write original sample if serialization fails
                     tui.warning(f"Failed to serialize sample: {e}. Using original.")
                     tmp_file.write(json.dumps(sample) + "\n")
@@ -167,7 +167,7 @@ class HFUploader:
             return True  # noqa: TRY300
         except Exception as e:
             tui = get_tui()
-            tui.warning(f"Failed to update dataset card: {str(e)}")
+            tui.warning(f"Failed to update dataset card: {str(e)}") # nosec
             return False
 
     def push_to_hub(

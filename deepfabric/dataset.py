@@ -35,24 +35,17 @@ class HubSample(BaseModel):
     final_answer: str = ""
 
     @field_validator(
-        "metadata", "reasoning", "tool_context", "agent_context", "structured_data", mode="before"
+        "metadata",
+        "reasoning",
+        "tool_context",
+        "agent_context",
+        "structured_data",
+        "tools",
+        mode="before",
     )
     @classmethod
-    def deserialize_dict_field(cls, v: Any) -> dict[str, Any] | None:
-        """Deserialize JSON string fields to dicts."""
-        if v is None:
-            return None
-        if isinstance(v, str):
-            try:
-                return json.loads(v)
-            except json.JSONDecodeError:
-                return None
-        return v
-
-    @field_validator("tools", mode="before")
-    @classmethod
-    def deserialize_tools(cls, v: Any) -> list[dict[str, Any]] | None:
-        """Deserialize tools JSON string to list of dicts."""
+    def deserialize_json_field(cls, v: Any) -> dict[str, Any] | list[dict[str, Any]] | None:
+        """Deserialize JSON string fields to dicts or lists."""
         if v is None:
             return None
         if isinstance(v, str):
