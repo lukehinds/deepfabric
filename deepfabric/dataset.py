@@ -5,13 +5,70 @@ from typing import Any, overload
 
 from datasets import load_dataset
 from datasets.exceptions import DatasetNotFoundError, UnexpectedSplitsError
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 
 from .formatters import FormatterRegistry
 from .formatters.base import FormatterError
 from .formatters.hf_template import HFChatTemplateFormatter
 from .formatters.models import FormatterConfigModel
 from .schemas import Conversation
+from .tui import get_tui
+
+
+class HubSample(BaseModel):
+    """
+    Model for handling HuggingFace Hub data format.
+
+    Complex nested fields (tools, tool_context, reasoning, etc.) are stored as JSON strings
+    on HuggingFace Hub to avoid schema merging issues. This model handles automatic
+    deserialization when loading from Hub.
+    """
+
+    messages: list[dict[str, Any]]
+    metadata: dict[str, Any] | str | None = None
+    reasoning: dict[str, Any] | str | None = None
+    tool_context: dict[str, Any] | str | None = None
+    tools: list[dict[str, Any]] | str | None = None
+    agent_context: dict[str, Any] | str | None = None
+    structured_data: dict[str, Any] | str | None = None
+    question: str = ""
+    final_answer: str = ""
+
+    @field_validator(
+        "metadata", "reasoning", "tool_context", "agent_context", "structured_data", mode="before"
+    )
+    @classmethod
+    def deserialize_dict_field(cls, v: Any) -> dict[str, Any] | None:
+        """Deserialize JSON string fields to dicts."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return None
+        return v
+
+    @field_validator("tools", mode="before")
+    @classmethod
+    def deserialize_tools(cls, v: Any) -> list[dict[str, Any]] | None:
+        """Deserialize tools JSON string to list of dicts."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return None
+        return v
+
+    def to_conversation_dict(self) -> dict[str, Any]:
+        """Convert to dictionary suitable for Conversation model."""
+        return {
+            k: v
+            for k, v in self.model_dump().items()
+            if v is not None or k in ("question", "final_answer")
+        }
 
 
 class Dataset:
@@ -102,18 +159,19 @@ class Dataset:
         """
         try:
             hf_ds = load_dataset(repo_id, split=split)  #  nosec
-            samples = list(hf_ds)
 
-            # Clean up samples: HuggingFace datasets may convert empty strings to None
+            # Use HubSample model to handle JSON deserialization cleanly
             cleaned_samples = []
-            for sample in samples:
-                cleaned = dict(sample)
-                # Convert None back to empty strings for optional string fields
-                if cleaned.get("question") is None:
-                    cleaned["question"] = ""
-                if cleaned.get("final_answer") is None:
-                    cleaned["final_answer"] = ""
-                cleaned_samples.append(cleaned)
+            tui = get_tui()
+            for raw_sample in hf_ds:
+                try:
+                    # Type checker can't verify raw_sample has all fields, but ValidationError will catch it
+                    hub_sample = HubSample(**raw_sample)  # type: ignore[arg-type]
+                    cleaned_samples.append(hub_sample.to_conversation_dict())
+                except ValidationError as e:
+                    # Log validation errors but continue processing
+                    tui.warning(f"Skipping invalid sample: {e}")
+                    continue
 
             return cls.from_list(cleaned_samples)
         except (DatasetNotFoundError, UnexpectedSplitsError) as e:
@@ -259,6 +317,7 @@ class Dataset:
         """
 
         formatted_datasets = {}
+        tui = get_tui()
 
         for config in formatter_configs:
             # Parse config using Pydantic model for validation
@@ -287,13 +346,13 @@ class Dataset:
 
                     # Log statistics if available
                     if result.stats.failed_samples > 0:
-                        print(
-                            f"Warning: {result.stats.failed_samples} samples failed to format with {formatter_name}"
+                        tui.warning(
+                            f"{result.stats.failed_samples} samples failed to format with {formatter_name}"
                         )
                     if result.errors:
-                        print(
+                        tui.warning(
                             f"Formatter errors for {formatter_name}: {result.errors[:3]}..."
-                        )  # Show first 3 errors
+                        )
                 else:
                     # Fallback to basic format method
                     formatted_result = formatter.format(self.samples)
@@ -327,7 +386,7 @@ class Dataset:
                 # Save to file if output path is specified
                 if output_path:
                     formatted_dataset.save(output_path)
-                    print(
+                    tui.success(
                         f"Formatted dataset saved to {output_path} using {formatter_name} formatter"
                     )
 
@@ -490,6 +549,7 @@ class Dataset:
         formatted_samples = []
         failed_count = 0
         error_messages = {}  # Track unique error messages and their counts
+        tui = get_tui()
 
         for sample in self.samples:
             try:
@@ -518,16 +578,16 @@ class Dataset:
         # Print summary
         total = len(self.samples)
         success = len(formatted_samples)
-        print(f"Formatted {success}/{total} samples for {model_id}")
+        tui.info(f"Formatted {success}/{total} samples for {model_id}")
 
         if failed_count > 0:
-            print(f"Warning: {failed_count} samples failed to format")
+            tui.warning(f"{failed_count} samples failed to format")
             # Print unique error messages with counts
             for error_msg, count in error_messages.items():
                 if count == 1:
-                    print(f"  - {error_msg}")
+                    tui.warning(f"  - {error_msg}")
                 else:
-                    print(f"  - {error_msg} ({count} samples)")
+                    tui.warning(f"  - {error_msg} ({count} samples)")
 
         # Return with info if requested
         if return_info:

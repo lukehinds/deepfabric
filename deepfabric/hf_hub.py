@@ -2,12 +2,65 @@ import json
 import tempfile
 
 from pathlib import Path
+from typing import Any
 
 from datasets import load_dataset
 from huggingface_hub import DatasetCard, login
 from huggingface_hub.errors import HfHubHTTPError, RepositoryNotFoundError
+from pydantic import BaseModel, field_serializer
 
 from .constants import DEFAULT_HF_TAGS
+from .tui import get_tui
+
+
+class HubUploadSample(BaseModel):
+    """
+    Model for preparing samples for HuggingFace Hub upload.
+
+    Complex nested fields (tools, tool_context, reasoning, etc.) are serialized to JSON strings
+    to avoid HuggingFace's Parquet schema merging issues. This is the industry-standard approach
+    used by datasets like Salesforce xLAM (60k examples).
+    """
+
+    messages: list[dict[str, Any]]
+    metadata: dict[str, Any] | None = None
+    reasoning: dict[str, Any] | None = None
+    tool_context: dict[str, Any] | None = None
+    tools: list[dict[str, Any]] | None = None
+    agent_context: dict[str, Any] | None = None
+    structured_data: dict[str, Any] | None = None
+    question: str = ""
+    final_answer: str = ""
+
+    @field_serializer("metadata", "reasoning", "tool_context", "agent_context", "structured_data")
+    def serialize_dict_field(self, value: dict[str, Any] | None) -> str | None:
+        """Serialize dict fields to JSON strings for HF Hub storage."""
+        if value is None:
+            return None
+        return json.dumps(value)
+
+    @field_serializer("tools")
+    def serialize_tools(self, value: list[dict[str, Any]] | None) -> str | None:
+        """Serialize tools list to JSON string for HF Hub storage."""
+        if value is None:
+            return None
+        return json.dumps(value)
+
+    def to_upload_dict(self) -> dict[str, Any]:
+        """
+        Convert to dictionary ready for HF Hub upload.
+
+        Removes empty question/final_answer fields to avoid empty columns in dataset viewers.
+        """
+        result = self.model_dump(mode="json")
+
+        # Remove empty question/final_answer fields to avoid empty columns
+        if result.get("question") == "":
+            result.pop("question", None)
+        if result.get("final_answer") == "":
+            result.pop("final_answer", None)
+
+        return result
 
 
 class HFUploader:
@@ -46,45 +99,36 @@ class HFUploader:
 
     def _clean_dataset_for_upload(self, jsonl_file_path: str) -> str:
         """
-        Clean dataset by removing empty question/final_answer fields.
+        Prepare dataset for HuggingFace Hub upload.
 
-        This prevents empty columns from appearing in HuggingFace/Kaggle dataset viewers.
+        This method:
+        1. Serializes complex nested fields (tools, tool_context, etc.) to JSON strings
+           to avoid HuggingFace's Parquet schema merging issues
+        2. Removes empty question/final_answer fields to prevent empty columns in viewers
 
         Parameters:
         jsonl_file_path (str): Path to the original JSONL file.
 
         Returns:
-        str: Path to cleaned file (temp file if cleaning was needed, original if not).
+        str: Path to prepared file (always a temp file with serialized data).
         """
-        # Read the dataset and check if cleaning is needed
-        needs_cleaning = False
-        samples = []
-
+        # Read and process all samples
         with open(jsonl_file_path) as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                sample = json.loads(line)
-                samples.append(sample)
+            samples = [json.loads(line) for line in f if line.strip()]
 
-                # Check if any sample has empty question/final_answer
-                if sample.get("question") == "" or sample.get("final_answer") == "":
-                    needs_cleaning = True
-
-        # If no cleaning needed, return original file
-        if not needs_cleaning:
-            return jsonl_file_path
-
-        # Create a temporary file with cleaned data
+        # Create a temporary file with serialized data
+        tui = get_tui()
         with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tmp_file:
             for sample in samples:
-                # Remove empty question/final_answer fields
-                if sample.get("question") == "":
-                    sample.pop("question", None)
-                if sample.get("final_answer") == "":
-                    sample.pop("final_answer", None)
-
-                tmp_file.write(json.dumps(sample) + "\n")
+                try:
+                    # Use Pydantic model for clean serialization
+                    upload_sample = HubUploadSample(**sample)
+                    cleaned_sample = upload_sample.to_upload_dict()
+                    tmp_file.write(json.dumps(cleaned_sample) + "\n")
+                except Exception as e:
+                    # Log but don't fail - write original sample if serialization fails
+                    tui.warning(f"Failed to serialize sample: {e}. Using original.")
+                    tmp_file.write(json.dumps(sample) + "\n")
 
             return tmp_file.name
 
@@ -122,7 +166,8 @@ class HFUploader:
                 push_method(repo_id)
             return True  # noqa: TRY300
         except Exception as e:
-            print(f"Warning: Failed to update dataset card: {str(e)}")  # nosec
+            tui = get_tui()
+            tui.warning(f"Failed to update dataset card: {str(e)}")
             return False
 
     def push_to_hub(
