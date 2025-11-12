@@ -306,6 +306,15 @@ def _ensure_openai_strict_mode_compliance(schema_dict: dict) -> dict:
     if "items" in schema_dict:
         schema_dict["items"] = _ensure_openai_strict_mode_compliance(schema_dict["items"])
 
+    # Process union types (anyOf, oneOf, allOf)
+    # This must be done to handle nested structures like list[dict[str, Any]] | None
+    # where the dict[str, Any] is inside an array variant
+    for union_key in ["anyOf", "oneOf", "allOf"]:
+        if union_key in schema_dict:
+            schema_dict[union_key] = [
+                _ensure_openai_strict_mode_compliance(variant) for variant in schema_dict[union_key]
+            ]
+
     return schema_dict
 
 
