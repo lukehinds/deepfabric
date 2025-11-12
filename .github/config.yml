@@ -1,0 +1,50 @@
+# Configuration for welcome - https://github.com/behaviorbot/welcome
+
+# Configuration for new-issue-welcome - https://github.com/behaviorbot/new-issue-welcome
+
+# Comment to be posted to on first time issues
+newIssueWelcomeComment: >
+  🎉 **Welcome to the DeepFabric project!** 🎉  
+  Thanks for opening your first issue here — we’re *so excited* to have you contributing! 😄  
+  Please make sure to follow the issue template so we can help you faster 🧵✨  
+
+  💬 Join our amazing community on Discord for live discussions, sneak peeks, and good vibes:  
+  👉 [**DeepFabric Discord**](https://discord.gg/pPcjYzGvbS)  
+
+  🧠 Let’s build something *deep* together! 🚀💡  
+
+  ![welcome gif](https://media.giphy.com/media/OkJat1YNdoD3W/giphy.gif)
+
+---
+
+# Configuration for new-pr-welcome - https://github.com/behaviorbot/new-pr-welcome
+
+# Comment to be posted to on PRs from first time contributors in your repository
+newPRWelcomeComment: >
+  👏 **Thank you for your first pull request!** 👏  
+  Welcome to **DeepFabric** — you’re officially part of the weave now! 🧶✨  
+
+  Please take a moment to check out our **contributing guidelines** before your PR is reviewed 💪  
+  Every thread you add helps strengthen the fabric of this project 🕸️💙  
+
+  💬 Hop into our Discord to say hi or share your progress:  
+  👉 [**DeepFabric Discord**](https://discord.gg/pPcjYzGvbS)  
+
+  ![thank you gif](https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif)
+
+---
+
+# Configuration for first-pr-merge - https://github.com/behaviorbot/first-pr-merge
+
+# Comment to be posted to on pull requests merged by a first time user
+firstPRMergeComment: >
+  🥳 **Congratulations on merging your first PR!** 🥳  
+  The **DeepFabric** team is *so proud* of you! 🌟  
+
+  You’ve officially added your thread to the ever-growing fabric of this project 🧵💫  
+  Keep up the great work and let’s keep building amazing things together! 🚀  
+
+  💬 Come celebrate with us on Discord — you’ve earned it!  
+  👉 [**DeepFabric Discord**](https://discord.gg/pPcjYzGvbS)  
+
+  ![celebration gif](https://media.giphy.com/media/111ebonMs90YLu/giphy.gif)
