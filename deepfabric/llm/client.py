@@ -17,6 +17,9 @@ from .errors import handle_provider_error
 from .rate_limit_config import RateLimitConfig, create_rate_limit_config
 from .retry_handler import RetryHandler, retry_with_backoff, retry_with_backoff_async
 
+# JSON Schema union type keys that need recursive processing
+_UNION_KEYS = ("anyOf", "oneOf", "allOf")
+
 
 def _raise_api_key_error(env_var: str) -> None:
     """Raise an error for missing API key."""
@@ -189,7 +192,7 @@ def _strip_additional_properties(schema_dict: dict) -> dict:
         schema_dict["items"] = _strip_additional_properties(schema_dict["items"])
 
     # Process union types (anyOf, oneOf, allOf)
-    for union_key in ["anyOf", "oneOf", "allOf"]:
+    for union_key in _UNION_KEYS:
         if union_key in schema_dict:
             schema_dict[union_key] = [
                 _strip_additional_properties(variant) for variant in schema_dict[union_key]
@@ -309,7 +312,7 @@ def _ensure_openai_strict_mode_compliance(schema_dict: dict) -> dict:
     # Process union types (anyOf, oneOf, allOf)
     # This must be done to handle nested structures like list[dict[str, Any]] | None
     # where the dict[str, Any] is inside an array variant
-    for union_key in ["anyOf", "oneOf", "allOf"]:
+    for union_key in _UNION_KEYS:
         if union_key in schema_dict:
             schema_dict[union_key] = [
                 _ensure_openai_strict_mode_compliance(variant) for variant in schema_dict[union_key]
