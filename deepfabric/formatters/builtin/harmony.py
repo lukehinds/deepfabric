@@ -152,7 +152,7 @@ class HarmonyFormatter(BaseFormatter):
 
         if self.output_format == "text":
             return {"text": self._messages_to_harmony_text(messages)}
-        return {"messages": [msg.model_dump() for msg in messages]}
+        return {"messages": [msg.model_dump(exclude_none=True) for msg in messages]}
 
     def _format_qa_sample(self, sample: dict[str, Any]) -> dict[str, Any]:
         """Format a Q&A sample to Harmony format."""
@@ -209,7 +209,7 @@ class HarmonyFormatter(BaseFormatter):
 
         if self.output_format == "text":
             return {"text": self._messages_to_harmony_text(messages)}
-        return {"messages": [msg.model_dump() for msg in messages]}
+        return {"messages": [msg.model_dump(exclude_none=True) for msg in messages]}
 
     def _format_generic_sample(self, sample: dict[str, Any]) -> dict[str, Any] | None:
         """Try to format any sample by detecting conversation patterns."""
@@ -300,7 +300,7 @@ class HarmonyFormatter(BaseFormatter):
 
         if self.output_format == "text":
             return {"text": self._messages_to_harmony_text(messages)}
-        return {"messages": [msg.model_dump() for msg in messages]}
+        return {"messages": [msg.model_dump(exclude_none=True) for msg in messages]}
 
     def _build_system_message(self, sample: dict[str, Any]) -> str:
         """Build the system message with optional metadata."""

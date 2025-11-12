@@ -367,7 +367,7 @@ class OpenAISchemaFormatter(BaseFormatter):
 
     def format_conversation_sample(self, sample: ConversationSample) -> dict[str, Any]:
         """Format a ConversationSample (if needed for compatibility)."""
-        return {"messages": [msg.model_dump() for msg in sample.messages]}
+        return {"messages": [msg.model_dump(exclude_none=True) for msg in sample.messages]}
 
     def get_example_config(self) -> dict[str, Any]:
         """Return example configuration for this formatter."""

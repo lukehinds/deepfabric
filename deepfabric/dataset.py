@@ -317,7 +317,7 @@ class Dataset:
 
                     if dump is not None:
                         formatted_dataset.samples = [
-                            getattr(sample, dump)() for sample in formatted_samples
+                            getattr(sample, dump)(exclude_none=True) for sample in formatted_samples
                         ]
                     else:
                         formatted_dataset.samples = formatted_samples

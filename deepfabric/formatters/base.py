@@ -73,7 +73,7 @@ def to_dict(obj) -> dict:
     if isinstance(obj, dict):
         return obj.copy()
     if isinstance(obj, BaseModel):
-        return obj.model_dump()
+        return obj.model_dump(exclude_none=True)
     raise TypeError(f"Cannot convert {type(obj)} to dict")
 
 

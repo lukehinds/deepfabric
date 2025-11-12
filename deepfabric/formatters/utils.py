@@ -53,7 +53,7 @@ def extract_messages(sample: Any) -> list[dict[str, str]]:  # noqa: PLR0911
 
     # Convert Pydantic objects to dict
     if hasattr(data, "model_dump") and callable(getattr(data, "model_dump", None)):
-        data = data.model_dump()  # type: ignore[union-attr]
+        data = data.model_dump(exclude_none=True)  # type: ignore[union-attr]
 
     # Try to extract messages from common formats
     if isinstance(data, dict):
@@ -102,7 +102,7 @@ def extract_data(sample: Any) -> dict:
     if isinstance(sample, GenericSample):
         return sample.data
     if hasattr(sample, "model_dump") and callable(getattr(sample, "model_dump", None)):
-        return sample.model_dump()  # type: ignore[union-attr]
+        return sample.model_dump(exclude_none=True)  # type: ignore[union-attr]
     if isinstance(sample, dict):
         return sample
     raise ValueError(f"Cannot extract data from sample type: {type(sample)}")
