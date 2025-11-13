@@ -30,7 +30,7 @@ test-integration-verbose:
 security:
 	uv run bandit -r deepfabric/
 
-build: clean test
+build: clean test-unit
 	uv build
 
-all: clean install format lint test security build
+all: clean install format lint test-unit test-integration security build
