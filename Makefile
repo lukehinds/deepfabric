@@ -25,7 +25,7 @@ test-integration:
 
 .PHONY: test-integration-verbose
 test-integration-verbose:
-	uv runpytest -v -rA --durations=10 tests/integration/
+	uv run pytest -v -rA --durations=10 tests/integration/
 
 security:
 	uv run bandit -r deepfabric/
