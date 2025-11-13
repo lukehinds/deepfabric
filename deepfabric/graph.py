@@ -2,7 +2,7 @@ import asyncio
 import json
 import textwrap
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -131,7 +131,7 @@ class Graph(TopicModel):
         )
 
         # Progress reporter for streaming feedback (set by topic_manager)
-        self.progress_reporter: "ProgressReporter" | None = None
+        self.progress_reporter: ProgressReporter | None = None
 
         trace(
             "graph_created",

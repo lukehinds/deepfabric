@@ -3,7 +3,7 @@ import json
 import time
 import warnings
 
-from typing import Any, TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -159,7 +159,7 @@ class Tree(TopicModel):
         )
 
         # Progress reporter for streaming feedback (set by topic_manager)
-        self.progress_reporter: "ProgressReporter" | None = None
+        self.progress_reporter: ProgressReporter | None = None
 
         trace(
             "tree_created",
