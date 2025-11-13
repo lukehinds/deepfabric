@@ -22,6 +22,7 @@ from .topic_model import TopicModel
 if TYPE_CHECKING:  # only for type hints to avoid runtime cycles
     from .progress import ProgressReporter
 
+
 def validate_graph_response(response_text: str) -> dict[str, Any] | None:
     """Clean and validate the JSON response for the graph from the LLM."""
     try:

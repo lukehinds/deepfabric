@@ -149,8 +149,10 @@ class TestTreeIntegration:
                 self.chunks = []
 
             # Methods used by topic_manager
-            def start_building(self, model_name: str, depth: int, degree: int) -> None:
-                self.started.append((model_name, depth, degree))
+            def start_building(
+                self, model_name: str, depth: int, degree: int, topic_prompt: str
+            ) -> None:
+                self.started.append((model_name, depth, degree, topic_prompt))
 
             def add_failure(self) -> None:
                 self.failures += 1

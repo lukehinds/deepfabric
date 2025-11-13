@@ -470,8 +470,8 @@ Based on these results, provide a clear, helpful response to the user."""
             tool_context=tool_context,
             tools=tools_openai,
             agent_context=agent_context,
-            question=user_message.content,  # Set question field for formatters
-            final_answer=agent_response.content,  # Set final_answer field for formatters
+            question=user_message.content or "",  # Set question field for formatters
+            final_answer=agent_response.content or "",  # Set final_answer field for formatters
             metadata=metadata,
         )
 
