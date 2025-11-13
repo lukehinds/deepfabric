@@ -21,11 +21,11 @@ test-unit:
 	uv run pytest tests/unit/
 
 test-integration:
-	pytest tests/integration --tb=short --maxfail=1 -v
+	uv run pytest tests/integration --tb=short --maxfail=1 -v
 
 .PHONY: test-integration-verbose
 test-integration-verbose:
-	pytest -v -rA --durations=10 tests/integration/
+	uv runpytest -v -rA --durations=10 tests/integration/
 
 security:
 	uv run bandit -r deepfabric/
