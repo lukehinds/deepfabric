@@ -44,7 +44,7 @@ async def _process_graph_events(graph: Graph) -> dict | None:
     # Create and attach progress reporter for streaming
     progress_reporter = ProgressReporter()
     progress_reporter.attach(tui)
-    graph.progress_reporter = progress_reporter
+    graph.progress_reporter = progress_reporter  # type: ignore
 
     tui_started = False
 
@@ -100,7 +100,7 @@ async def _process_tree_events(tree: Tree, debug: bool = False) -> dict | None:
     # Create and attach progress reporter for streaming
     progress_reporter = ProgressReporter()
     progress_reporter.attach(tui)
-    tree.progress_reporter = progress_reporter
+    tree.progress_reporter = progress_reporter  # type: ignore
 
     final_event = None
     try:

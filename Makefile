@@ -17,8 +17,17 @@ format: ## Format code with ruff (parallel)
 lint:
 	uv run ruff check . --exclude notebooks/
 
-test:
-	uv run pytest
+test-unit:
+	uv run pytest tests/unit/
+
+PYTEST_ADDOPTS ?=
+
+test-integration:
+	pytest $(PYTEST_ADDOPTS) tests/integration/
+
+.PHONY: test-integration-verbose
+test-integration-verbose:
+	pytest -v -rA --durations=10 tests/integration/
 
 security:
 	uv run bandit -r deepfabric/

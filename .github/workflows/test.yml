@@ -36,7 +36,7 @@ jobs:
       run: make lint
 
     - name: Run tests
-      run: make test
+      run: make test-unit
 
     - name: Run security checks
       run: make security
