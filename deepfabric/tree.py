@@ -3,7 +3,7 @@ import json
 import time
 import warnings
 
-from typing import Any, TypedDict
+from typing import Any, TYPE_CHECKING, TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -24,6 +24,8 @@ from .topic_model import TopicModel
 
 warnings.filterwarnings("ignore", message=".*Pydantic serializer warnings:.*")
 
+if TYPE_CHECKING:  # only for type hints to avoid runtime cycles
+    from .progress import ProgressReporter
 
 UPPER_DEGREE = 50
 UPPER_DEPTH = 10
@@ -157,7 +159,7 @@ class Tree(TopicModel):
         )
 
         # Progress reporter for streaming feedback (set by topic_manager)
-        self.progress_reporter = None
+        self.progress_reporter: "ProgressReporter" | None = None
 
         trace(
             "tree_created",

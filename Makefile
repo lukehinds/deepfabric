@@ -1,4 +1,4 @@
-.PHONY: clean install format lint test security build all
+.PHONY: clean install format lint test-unit test-integration security build all
 
 clean:
 	rm -rf build/

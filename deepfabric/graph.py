@@ -2,7 +2,7 @@ import asyncio
 import json
 import textwrap
 
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +19,8 @@ from .prompts import GRAPH_EXPANSION_PROMPT
 from .schemas import GraphSubtopics
 from .topic_model import TopicModel
 
+if TYPE_CHECKING:  # only for type hints to avoid runtime cycles
+    from .progress import ProgressReporter
 
 def validate_graph_response(response_text: str) -> dict[str, Any] | None:
     """Clean and validate the JSON response for the graph from the LLM."""
@@ -129,7 +131,7 @@ class Graph(TopicModel):
         )
 
         # Progress reporter for streaming feedback (set by topic_manager)
-        self.progress_reporter = None
+        self.progress_reporter: "ProgressReporter" | None = None
 
         trace(
             "graph_created",
