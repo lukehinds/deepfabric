@@ -20,10 +20,8 @@ lint:
 test-unit:
 	uv run pytest tests/unit/
 
-PYTEST_ADDOPTS ?=
-
 test-integration:
-	pytest $(PYTEST_ADDOPTS) tests/integration/
+	pytest tests/integration --tb=short --maxfail=1 -v
 
 .PHONY: test-integration-verbose
 test-integration-verbose:
