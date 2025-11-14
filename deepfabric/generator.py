@@ -304,9 +304,14 @@ class DataSetGenerator:
         topic_paths: list,
         data_creation_prompt: str,
         num_example_demonstrations: int,
-    ) -> list[str]:
-        """Generate prompts for a batch."""
-        prompts = []
+    ) -> tuple[list[str], list[list[str] | None]]:
+        """Generate prompts for a batch and return the associated paths used.
+
+        Returns:
+            (prompts, used_paths) where used_paths aligns with prompts order.
+        """
+        prompts: list[str] = []
+        used_paths: list[list[str] | None] = []
         for i in range(batch_size):
             path = None
             if topic_paths:
@@ -322,7 +327,8 @@ class DataSetGenerator:
                 subtopics_list=path,
             )
             prompts.append(sample_prompt)
-        return prompts
+            used_paths.append(path)
+        return prompts, used_paths
 
     def _get_minimal_schema(self) -> type:
         """Get the conversation schema for the current config."""
@@ -333,6 +339,7 @@ class DataSetGenerator:
         prompts: list[str],
         include_sys_msg: bool,
         start_sample_idx: int = 0,
+        paths_for_batch: list[list[str] | None] | None = None,
     ) -> tuple[list, list]:
         """Generate structured samples using builder pattern.
 
@@ -362,11 +369,15 @@ class DataSetGenerator:
             progress_reporter=self.progress_reporter,
         )
 
-        async def _generate(prompt: str, sample_idx: int) -> tuple[bool, Exception | Conversation]:
+        async def _generate(
+            prompt: str, sample_idx: int, path_info: list[str] | None
+        ) -> tuple[bool, Exception | Conversation]:
             # Notify progress reporter about which sample we're working on
             if self.progress_reporter:
                 self.progress_reporter.emit_step_start(
-                    f"Generating sample {sample_idx + 1}", sample_idx=sample_idx + 1
+                    f"Generating sample {sample_idx + 1}",
+                    sample_idx=sample_idx + 1,
+                    topic_path=path_info,
                 )
 
             try:
@@ -397,10 +408,12 @@ class DataSetGenerator:
                 return True, conversation
 
         # Generate all samples concurrently with sample indices
-        tasks = [
-            asyncio.create_task(_generate(prompt, start_sample_idx + idx))
-            for idx, prompt in enumerate(prompts)
-        ]
+        tasks = []
+        for idx, prompt in enumerate(prompts):
+            path_info = None
+            if paths_for_batch and idx < len(paths_for_batch):
+                path_info = paths_for_batch[idx]
+            tasks.append(asyncio.create_task(_generate(prompt, start_sample_idx + idx, path_info)))
         results = await asyncio.gather(*tasks)
 
         for success, payload in results:
@@ -602,6 +615,12 @@ class DataSetGenerator:
         total_samples = num_steps * batch_size
         data_creation_prompt = self._get_cot_prompt_template()
 
+        root_topic_prompt = None
+        topic_model_type = None
+        if topic_model is not None:
+            root_topic_prompt = getattr(topic_model, "topic_prompt", None)
+            topic_model_type = type(topic_model).__name__.lower()
+
         async for event in self._run_generation_loop_async(
             num_steps=num_steps,
             batch_size=batch_size,
@@ -610,6 +629,8 @@ class DataSetGenerator:
             data_creation_prompt=data_creation_prompt,
             num_example_demonstrations=num_example_demonstrations,
             include_sys_msg=include_sys_msg,
+            root_topic_prompt=root_topic_prompt,
+            topic_model_type=topic_model_type,
         ):
             yield event
 
@@ -622,6 +643,8 @@ class DataSetGenerator:
         data_creation_prompt: str,
         num_example_demonstrations: int,
         include_sys_msg: bool,
+        root_topic_prompt: str | None = None,
+        topic_model_type: str | None = None,
     ) -> AsyncGenerator[dict | Dataset, None]:
         """Run the main generation loop yielding progress events."""
         try:
@@ -631,13 +654,15 @@ class DataSetGenerator:
                 "num_steps": num_steps,
                 "batch_size": batch_size,
                 "total_samples": total_samples,
+                "root_topic_prompt": root_topic_prompt,
+                "topic_model_type": topic_model_type,
             }
 
             for step in range(num_steps):
                 yield {"event": "step_start", "step": step + 1, "total_steps": num_steps}
 
                 start_idx = step * batch_size
-                prompts = self._generate_batch_prompts(
+                prompts, used_paths = self._generate_batch_prompts(
                     batch_size,
                     start_idx,
                     topic_paths,
@@ -648,7 +673,7 @@ class DataSetGenerator:
                 failed_before = len(self.failed_samples)
 
                 success, samples_generated = await self._process_batch_with_retries_async(
-                    prompts, include_sys_msg, start_idx
+                    prompts, include_sys_msg, start_idx, used_paths
                 )
 
                 failed_in_batch = len(self.failed_samples) - failed_before
@@ -697,12 +722,13 @@ class DataSetGenerator:
         prompts: list[str],
         include_sys_msg: bool,
         start_sample_idx: int = 0,
+        paths_for_batch: list[list[str] | None] | None = None,
     ) -> tuple[bool, int]:
         """Process a batch with retry logic."""
         for attempt in range(self.config.max_retries):
             try:
                 samples, failed_responses = await self._generate_structured_samples_async(
-                    prompts, include_sys_msg, start_sample_idx
+                    prompts, include_sys_msg, start_sample_idx, paths_for_batch
                 )
 
                 # Update failed samples

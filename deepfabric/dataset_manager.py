@@ -1,14 +1,13 @@
 import asyncio
+import contextlib
 import os
 import traceback
 
 from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING
 
-from rich.console import Group
+from rich.layout import Layout
 from rich.live import Live
-from rich.progress import Progress as RichProgress
-from rich.progress import SpinnerColumn, TextColumn
 
 from .config import DeepFabricConfig
 from .config_manager import DEFAULT_MODEL
@@ -16,8 +15,32 @@ from .dataset import Dataset
 from .exceptions import ConfigurationError
 from .generator import DataSetGenerator
 from .progress import ProgressReporter
-from .tui import get_dataset_tui, get_tui
+from .tui import STREAM_PANEL_WIDTH, get_dataset_tui, get_tui
 from .utils import ensure_not_running_loop
+
+
+# Lazy/defensive access to TUI settings to avoid early import issues
+def _get_tui_settings():
+    try:
+        from .tui import get_tui_settings as _gts  # noqa: PLC0415
+
+        return _gts()
+    except Exception:
+
+        class _S:
+            mode = "rich"
+
+        return _S()
+
+
+def _get_preview_lines() -> int:
+    try:
+        from .tui import get_preview_lines as _gpl  # noqa: PLC0415
+
+        return _gpl()
+    except Exception:
+        return 16
+
 
 if TYPE_CHECKING:
     from .topic_model import TopicModel
@@ -31,64 +54,105 @@ async def handle_dataset_events_async(
 ) -> Dataset | None:
     """Handle dataset generation with TUI progress and streaming feedback."""
     tui = get_dataset_tui()
-    progress = None
+    footer_prog = None
     task = None
     live = None
+    simple_task = None
 
     final_result: Dataset | None = None
     try:
         async for event in generator:
             if isinstance(event, dict) and "event" in event:
                 if event["event"] == "generation_start":
-                    tui.show_generation_header(
+                    settings = _get_tui_settings()
+                    # Build header and params panels for layout
+                    header_panel, params_panel = tui.build_generation_panels(
                         event["model_name"], event["num_steps"], event["batch_size"]
                     )
-                    tui.progress = tui.create_rich_progress()
-                    progress = tui.progress
-                    task = progress.add_task(
-                        "  Generating dataset samples", total=event["total_samples"]
-                    )
+                    # Capture context for the run
+                    tui.root_topic_prompt = event.get("root_topic_prompt")
+                    tui.topic_model_type = event.get("topic_model_type")
 
-                    # Create streaming progress with animated spinner
-                    tui.stream_progress = RichProgress(
-                        SpinnerColumn(),
-                        TextColumn("{task.description}", style="dim"),
-                        console=tui.console,
-                    )
-                    tui.stream_task = tui.stream_progress.add_task(
-                        "  Processing: (waiting for LLM output...)"
-                    )
+                    if settings.mode == "rich":
+                        # Initialize status tracking
+                        tui.init_status(
+                            total_steps=event["num_steps"], total_samples=event["total_samples"]
+                        )
 
-                    # Start Live display with both progress bars
-                    live = Live(
-                        Group(progress, tui.stream_progress),
-                        console=tui.console,
-                        refresh_per_second=10,
-                    )
-                    tui.live_display = live  # Give TUI reference to update it
-                    live.start()
+                        # Build layout with footer card
+                        layout = Layout(name="root")
+                        layout.split(Layout(name="main"), Layout(name="footer", size=3))
+                        left = Layout(name="left", ratio=3)
+                        right = Layout(name="right", ratio=2)
+                        right.minimum_size = STREAM_PANEL_WIDTH
+                        # Right column: status on top, streaming preview fixed height
+                        right.split(
+                            Layout(name="status", size=6),
+                            Layout(name="preview", size=_get_preview_lines()),
+                        )
+                        left.split(
+                            Layout(name="header", size=4),
+                            Layout(name="params", size=6),
+                            Layout(name="context", size=5),
+                            Layout(name="events"),
+                        )
+                        left["header"].update(header_panel)
+                        left["params"].update(params_panel)
+                        left["context"].update(tui._context_panel())
+                        left["events"].update(tui.tui.build_events_panel([], title="Events"))
+                        right["status"].update(tui._status_panel())
+                        right["preview"].update(
+                            tui.tui.build_stream_panel("Waiting for LLM output...")
+                        )
+                        layout["main"].split_row(left, right)
+
+                        # Footer run status
+                        footer_prog = tui.tui.create_footer(layout, title="Run Status")
+                        task = footer_prog.add_task(
+                            "Generating dataset samples", total=event["total_samples"]
+                        )
+
+                        # Use alternate screen to avoid scroll trails; leave a clean terminal
+                        live = Live(layout, console=tui.console, refresh_per_second=15, screen=True)
+                        tui.live_display = live  # Give TUI reference to update it
+                        tui.live_layout = layout  # Allow TUI to update panes
+                        live.start()
+                    else:
+                        # Simple/headless mode: print and proceed without Live
+                        tui.show_generation_header(
+                            event["model_name"], event["num_steps"], event["batch_size"]
+                        )
+                        simple_task = {"count": 0, "total": event["total_samples"]}
                 elif event["event"] == "step_complete":
-                    if progress and task is not None:
-                        samples_generated = event.get("samples_generated", 0)
+                    samples_generated = event.get("samples_generated", 0)
+                    if footer_prog and task is not None:
                         if samples_generated > 0:
-                            progress.update(task, advance=samples_generated)
-
-                        # Show debug info for failed samples in this step
-                        if debug and "failed_in_step" in event and event["failed_in_step"] > 0:
-                            get_tui().error(
-                                f"🔍 Debug: {event['failed_in_step']} samples failed in this step"
+                            with contextlib.suppress(Exception):
+                                footer_prog.update(task, advance=samples_generated)
+                            tui.log_event(f"✓ Generated +{samples_generated} samples")
+                            # Update status totals
+                            tui.status_step_complete(
+                                samples_generated, int(event.get("failed_in_step", 0))
                             )
-                            if "failure_reasons" in event:
-                                for reason in event.get("failure_reasons", [])[
-                                    :3
-                                ]:  # Show first 3 failures
-                                    get_tui().error(f"    - {reason}")
+                    elif isinstance(simple_task, dict) and samples_generated > 0:
+                        simple_task["count"] += samples_generated
+                        tui.info(
+                            f"Step {event.get('step')}: +{samples_generated} (total {simple_task['count']}/{simple_task['total']})"
+                        )
+                elif event["event"] == "step_start":
+                    # Keep status panel in sync
+                    step = int(event.get("step", 0))
+                    total = int(event.get("total_steps", 0))
+                    tui.status_step_start(step, total)
 
                 elif event["event"] == "generation_complete":
                     if live:
                         live.stop()
                     tui.console.print()  # Add blank line after live display
                     tui.success(f"Successfully generated {event['total_samples']} samples")
+                    tui.log_event(
+                        f"Done • total={event['total_samples']} failed={event['failed_samples']}"
+                    )
                     if event["failed_samples"] > 0:
                         tui.warning(f"Failed to generate {event['failed_samples']} samples")
 

@@ -20,7 +20,7 @@ from .graph import Graph
 from .metrics import set_trace_debug, trace
 from .topic_manager import load_or_build_topic_model, save_topic_model
 from .topic_model import TopicModel
-from .tui import get_tui
+from .tui import configure_tui, get_tui
 from .update_checker import check_for_updates
 from .validation import show_validation_success, validate_path_requirements
 
@@ -84,6 +84,7 @@ class GenerateOptions(BaseModel):
     mode: Literal["tree", "graph"] = Field(default="tree")
     debug: bool = False
     topic_only: bool = False
+    tui: Literal["rich", "simple"] = Field(default="rich")
 
     # Modular conversation configuration
     conversation_type: Literal["basic", "chain_of_thought"] | None = None
@@ -326,6 +327,13 @@ def _run_generation(
     help="Enable debug mode for detailed error output",
 )
 @click.option(
+    "--tui",
+    type=click.Choice(["rich", "simple"]),
+    default="rich",
+    show_default=True,
+    help="TUI mode: rich (two-pane with preview) or simple (headless-friendly)",
+)
+@click.option(
     "--topic-only",
     is_flag=True,
     help="Only create topic assets, no dataset",
@@ -371,6 +379,7 @@ def generate(  # noqa: PLR0913
     conversation_type: Literal["basic", "chain_of_thought"] | None = None,
     reasoning_style: Literal["freetext", "structured", "hybrid"] | None = None,
     agent_mode: Literal["single_turn", "multi_turn"] | None = None,
+    tui: Literal["rich", "simple"] = "rich",
 ) -> None:
     """Generate training data from a YAML configuration file or CLI parameters."""
     set_trace_debug(debug)
@@ -406,12 +415,16 @@ def generate(  # noqa: PLR0913
             conversation_type=conversation_type,
             reasoning_style=reasoning_style,
             agent_mode=agent_mode,
+            tui=tui,
         )
     except PydanticValidationError as error:
         handle_error(click.get_current_context(), ConfigurationError(str(error)))
         return
 
     try:
+        # Configure TUI before any output
+        configure_tui(options.tui)
+
         preparation = _load_and_prepare_generation_context(options)
 
         topic_model = _initialize_topic_model(
@@ -431,8 +444,8 @@ def generate(  # noqa: PLR0913
     except ConfigurationError as e:
         handle_error(click.get_current_context(), e)
     except Exception as e:
-        tui = get_tui()
-        tui.error(f"Unexpected error: {str(e)}")
+        tui = get_tui()  # type: ignore
+        tui.error(f"Unexpected error: {str(e)}")  # type: ignore
         sys.exit(1)
 
 
