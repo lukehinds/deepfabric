@@ -1,3 +1,5 @@
+import time
+
 from .exceptions import ConfigurationError
 from .tui import get_tui
 
@@ -140,3 +142,4 @@ def show_validation_success(
     if mode == "graph":
         tui.info("  • Note: Graph paths may vary due to cross-connections")
     print()  # Extra space before topic generation
+    time.sleep(1)  # One-second pause to allow user to read the information

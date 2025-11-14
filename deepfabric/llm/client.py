@@ -185,14 +185,13 @@ def _strip_additional_properties(schema_dict: dict) -> dict:
             elif _is_incompatible_array(prop_schema):
                 # Remove arrays with incompatible items (e.g., list[dict[str, Any]])
                 properties_to_remove.append(prop_name)
-            elif "anyOf" in prop_schema:
+            elif "anyOf" in prop_schema and any(
+                isinstance(variant, dict)
+                and (_is_incompatible_object(variant) or _is_incompatible_array(variant))
+                for variant in prop_schema["anyOf"]
+            ):
                 # Check if anyOf contains incompatible variants
-                for variant in prop_schema["anyOf"]:
-                    if isinstance(variant, dict) and (
-                        _is_incompatible_object(variant) or _is_incompatible_array(variant)
-                    ):
-                        properties_to_remove.append(prop_name)
-                        break
+                properties_to_remove.append(prop_name)
 
         # Remove incompatible properties from the schema
         for prop_name in properties_to_remove:
