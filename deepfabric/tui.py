@@ -63,7 +63,6 @@ def get_preview_lines() -> int:
         return STREAM_FIXED_LINES
     else:
         return v if v > MIN_PREVIEW_LINES else STREAM_FIXED_LINES
-        return STREAM_FIXED_LINES
 
 
 class DeepFabricTUI:
@@ -881,7 +880,7 @@ class DatasetGenerationTUI(StreamObserver):
 
         # Throttle: avoid re-rendering too frequently
         now = monotonic()
-        if now - getattr(self, "_last_render_t", 0.0) < 0.06:  # noqa: PLR2004
+        if now - getattr(self, "_last_render_t", 0.0) < STREAM_RENDER_THROTTLE_S:  # noqa: PLR2004
             return
 
         # Build multi-line text; show the last N lines based on terminal height

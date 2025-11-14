@@ -162,24 +162,17 @@ class SingleShotBuilder(ConversationBuilder):
                         self.progress_reporter.emit_chunk("conversation_gen", chunk)
                     if result:
                         conversation = result
-            except Exception:
+            except Exception as e:
                 # Fallback to non-streaming on any streaming error
-                conversation = await self.llm.generate_async(
-                    prompt=generation_prompt,
-                    schema=Conversation,
-                    max_retries=self.config.max_retries,
-                    max_tokens=self.config.max_tokens,
-                    temperature=self.config.temperature,
+                logger.debug(
+                    "Streaming generation failed, falling back to non-streaming: %s",
+                    str(e),
+                    exc_info=True,
                 )
+                conversation = await self._generate_non_streaming(generation_prompt)
         else:
             # Fallback to non-streaming
-            conversation = await self.llm.generate_async(
-                prompt=generation_prompt,
-                schema=Conversation,
-                max_retries=self.config.max_retries,
-                max_tokens=self.config.max_tokens,
-                temperature=self.config.temperature,
-            )
+            conversation = await self._generate_non_streaming(generation_prompt)
 
         if conversation is None:
             msg = "Failed to generate conversation"
@@ -205,6 +198,23 @@ class SingleShotBuilder(ConversationBuilder):
             )
 
         return conversation
+
+    async def _generate_non_streaming(self, prompt: str) -> Conversation:
+        """Generate conversation using non-streaming LLM call.
+
+        Args:
+            prompt: The complete generation prompt
+
+        Returns:
+            Generated Conversation object
+        """
+        return await self.llm.generate_async(
+            prompt=prompt,
+            schema=Conversation,
+            max_retries=self.config.max_retries,
+            max_tokens=self.config.max_tokens,
+            temperature=self.config.temperature,
+        )
 
     def _build_prompt(self, topic_prompt: str) -> str:
         """Build the generation prompt for single-shot generation.
