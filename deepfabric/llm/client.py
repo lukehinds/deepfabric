@@ -113,6 +113,39 @@ def _create_async_openai_compatible_client(
     return openai.AsyncOpenAI(api_key=api_key, **client_kwargs)
 
 
+def _is_incompatible_object(schema: dict) -> bool:
+    """Check if a schema represents an object incompatible with Gemini.
+
+    Gemini rejects objects with no properties defined (like dict[str, Any]).
+
+    Args:
+        schema: JSON schema dictionary
+
+    Returns:
+        True if the schema is an incompatible object type
+    """
+    return schema.get("type") == "object" and "properties" not in schema and "$ref" not in schema
+
+
+def _is_incompatible_array(schema: dict) -> bool:
+    """Check if a schema represents an array with incompatible items.
+
+    Arrays with object items that have no properties (like list[dict[str, Any]])
+    are incompatible with Gemini.
+
+    Args:
+        schema: JSON schema dictionary
+
+    Returns:
+        True if the schema is an incompatible array type
+    """
+    if schema.get("type") != "array" or "items" not in schema:
+        return False
+
+    items = schema["items"]
+    return isinstance(items, dict) and _is_incompatible_object(items)
+
+
 def _strip_additional_properties(schema_dict: dict) -> dict:
     """
     Recursively remove additionalProperties from JSON schema and handle dict[str, Any] fields.
@@ -120,6 +153,7 @@ def _strip_additional_properties(schema_dict: dict) -> dict:
     Gemini doesn't support:
     1. additionalProperties field in JSON schemas
     2. Objects with no properties defined (e.g., dict[str, Any])
+    3. Arrays whose items are objects with no properties (e.g., list[dict[str, Any]])
 
     Fields like dict[str, Any] have additionalProperties: true and no properties defined.
     Gemini requires that object-type fields must have properties, so we exclude these
@@ -134,35 +168,30 @@ def _strip_additional_properties(schema_dict: dict) -> dict:
     if not isinstance(schema_dict, dict):
         return schema_dict
 
-    # For Gemini, identify and remove dict[str, Any] fields
-    # These have additionalProperties: true and no properties, which Gemini rejects
+    # For Gemini, identify and remove incompatible fields
     if "properties" in schema_dict:
         properties_to_remove = []
         for prop_name, prop_schema in schema_dict["properties"].items():
-            # Combine isinstance check with specific conditions to avoid nested ifs
-            if isinstance(prop_schema, dict) and prop_schema.get("additionalProperties") is True:
+            if not isinstance(prop_schema, dict):
+                continue
+
+            # Check for direct incompatibilities
+            if prop_schema.get("additionalProperties") is True:
                 # Remove fields with additionalProperties: true (e.g., dict[str, Any])
-                # Gemini requires objects to have properties defined
                 properties_to_remove.append(prop_name)
-            elif isinstance(prop_schema, dict) and (
-                prop_schema.get("type") == "object"
-                and "properties" not in prop_schema
-                and "$ref" not in prop_schema
+            elif _is_incompatible_object(prop_schema):
+                # Remove objects with no properties
+                properties_to_remove.append(prop_name)
+            elif _is_incompatible_array(prop_schema):
+                # Remove arrays with incompatible items (e.g., list[dict[str, Any]])
+                properties_to_remove.append(prop_name)
+            elif "anyOf" in prop_schema and any(
+                isinstance(variant, dict)
+                and (_is_incompatible_object(variant) or _is_incompatible_array(variant))
+                for variant in prop_schema["anyOf"]
             ):
-                # Also remove objects with no properties and no explicit additionalProperties
+                # Check if anyOf contains incompatible variants
                 properties_to_remove.append(prop_name)
-            elif isinstance(prop_schema, dict) and "anyOf" in prop_schema:
-                # Check if anyOf contains an object with no properties (e.g., dict[str, Any] | None)
-                # Remove the entire field if any variant is an incompatible object
-                for variant in prop_schema["anyOf"]:
-                    if isinstance(variant, dict) and (
-                        variant.get("type") == "object"
-                        and "properties" not in variant
-                        and "$ref" not in variant
-                    ):
-                        # This field has an object variant with no properties - remove it
-                        properties_to_remove.append(prop_name)
-                        break
 
         # Remove incompatible properties from the schema
         for prop_name in properties_to_remove:
