@@ -444,8 +444,8 @@ def generate(  # noqa: PLR0913
     except ConfigurationError as e:
         handle_error(click.get_current_context(), e)
     except Exception as e:
-        tui = get_tui() # type: ignore
-        tui.error(f"Unexpected error: {str(e)}") # type: ignore
+        tui = get_tui()  # type: ignore
+        tui.error(f"Unexpected error: {str(e)}")  # type: ignore
         sys.exit(1)
 
 
