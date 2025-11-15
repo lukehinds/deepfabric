@@ -22,6 +22,10 @@ class InferenceConfig(BaseModel):
         default="transformers",
         description="Inference backend to use",
     )
+    use_unsloth: bool = Field(
+        default=False,
+        description="Use Unsloth for loading adapter (for adapters trained with Unsloth)",
+    )
     temperature: float = Field(
         default=0.7,
         ge=0.0,

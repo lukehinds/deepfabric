@@ -106,9 +106,6 @@ class TransformersBackend(InferenceBackend):
         else:
             self.device = "cpu"
 
-        # Load tokenizer and model
-        self.tokenizer = AutoTokenizer.from_pretrained(config.model_path)  #  nosec
-
         # Determine dtype based on device
         if self.device == "cuda":
             dtype = torch.float16
@@ -120,27 +117,52 @@ class TransformersBackend(InferenceBackend):
             dtype = torch.float32
             device_map = None
 
-        self.model = AutoModelForCausalLM.from_pretrained(  # nosec
-            config.model_path,
-            device_map=device_map,
-            dtype=dtype,
-        )
+        # Load with Unsloth if requested and adapter is provided
+        if config.use_unsloth and config.adapter_path:
+            try:
+                from unsloth import FastLanguageModel  # type: ignore # noqa: PLC0415
 
-        # Load PEFT adapter if provided
-        if config.adapter_path:
-            from peft import PeftModel  # noqa: PLC0415
+                self.model, self.tokenizer = FastLanguageModel.from_pretrained(
+                    model_name=config.adapter_path,
+                    max_seq_length=2048,
+                    dtype=dtype,
+                    load_in_4bit=False,
+                )
+                FastLanguageModel.for_inference(self.model)
+                self.loaded_with_unsloth = True
+            except (ImportError, Exception) as e:
+                # If Unsloth fails, fall back to standard loading
+                print(f"Warning: Unsloth loading failed ({e}), falling back to standard PEFT")
+                self.loaded_with_unsloth = False
+        else:
+            self.loaded_with_unsloth = False
 
-            self.model = PeftModel.from_pretrained(self.model, config.adapter_path)
+        # Standard transformers/PEFT loading
+        if not self.loaded_with_unsloth:
+            self.tokenizer = AutoTokenizer.from_pretrained(config.model_path)  #  nosec
 
-        # Move to device if not using device_map
-        if self.device in ("cpu", "mps"):
-            self.model.to(self.device)  # type: ignore[arg-type]
+            self.model = AutoModelForCausalLM.from_pretrained(  # nosec
+                config.model_path,
+                device_map=device_map,
+                dtype=dtype,
+            )
 
-        # Enable optimizations for faster inference
-        # Compile model for better performance (PyTorch 2.0+)
-        with suppress(Exception):
-            # Use reduce-overhead mode for better latency on smaller batches
-            self.model = torch.compile(self.model, mode="reduce-overhead")  # type: ignore[assignment]
+            # Load PEFT adapter if provided
+            if config.adapter_path:
+                from peft import PeftModel  # noqa: PLC0415
+
+                self.model = PeftModel.from_pretrained(self.model, config.adapter_path)
+
+            # Move to device if not using device_map
+            if self.device in ("cpu", "mps"):
+                self.model.to(self.device)  # type: ignore[arg-type]
+
+        # Enable optimizations for faster inference (skip for Unsloth as it has its own optimizations)
+        if not self.loaded_with_unsloth:
+            # Compile model for better performance (PyTorch 2.0+)
+            with suppress(Exception):
+                # Use reduce-overhead mode for better latency on smaller batches
+                self.model = torch.compile(self.model, mode="reduce-overhead")  # type: ignore[assignment]
 
         # Set padding token if not set
         if self.tokenizer.pad_token is None:
