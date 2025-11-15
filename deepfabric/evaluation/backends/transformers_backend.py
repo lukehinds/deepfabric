@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 
 from contextlib import suppress
@@ -11,6 +12,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from ...schemas import ToolDefinition
 from ..inference import InferenceBackend, InferenceConfig, ModelResponse
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_json_object(text: str, start_pos: int = 0) -> str | None:
@@ -117,6 +120,7 @@ class TransformersBackend(InferenceBackend):
             dtype = torch.float32
             device_map = None
 
+        self.loaded_with_unsloth = False
         # Load with Unsloth if requested and adapter is provided
         if config.use_unsloth and config.adapter_path:
             try:
@@ -124,18 +128,16 @@ class TransformersBackend(InferenceBackend):
 
                 self.model, self.tokenizer = FastLanguageModel.from_pretrained(
                     model_name=config.adapter_path,
-                    max_seq_length=2048,
+                    max_seq_length=config.max_seq_length,
                     dtype=dtype,
-                    load_in_4bit=False,
+                    load_in_4bit=config.load_in_4bit,
                 )
                 FastLanguageModel.for_inference(self.model)
                 self.loaded_with_unsloth = True
-            except (ImportError, Exception) as e:
-                # If Unsloth fails, fall back to standard loading
-                print(f"Warning: Unsloth loading failed ({e}), falling back to standard PEFT")
-                self.loaded_with_unsloth = False
-        else:
-            self.loaded_with_unsloth = False
+            except ImportError:
+                logger.warning("Unsloth not installed, falling back to standard PEFT")
+            except Exception as e:
+                logger.warning("Unsloth loading failed (%s), falling back to standard PEFT", e)
 
         # Standard transformers/PEFT loading
         if not self.loaded_with_unsloth:
@@ -157,8 +159,7 @@ class TransformersBackend(InferenceBackend):
             if self.device in ("cpu", "mps"):
                 self.model.to(self.device)  # type: ignore[arg-type]
 
-        # Enable optimizations for faster inference (skip for Unsloth as it has its own optimizations)
-        if not self.loaded_with_unsloth:
+            # Enable optimizations for faster inference
             # Compile model for better performance (PyTorch 2.0+)
             with suppress(Exception):
                 # Use reduce-overhead mode for better latency on smaller batches
