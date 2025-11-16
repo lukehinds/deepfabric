@@ -311,24 +311,26 @@ class HFChatTemplateFormatter:
         # Handle reasoning - only inject if template supports it
         if self._should_inject_reasoning(conversation):
             reasoning_config = self.model_config.reasoning
-            # At this point, conversation.reasoning is guaranteed to be non-None
-            # because _should_inject_reasoning checks for it
-            assert conversation.reasoning is not None  # Type narrowing
+            # Type narrowing: _should_inject_reasoning guarantees reasoning is not None
+            if conversation.reasoning is None:
+                # This should never happen, but satisfies type checker
+                return message
             reasoning_text = self._format_reasoning(conversation.reasoning)
 
-            if reasoning_config.native_support and reasoning_config.inject_mode == "native":
+            if reasoning_config.inject_mode == "native":
                 # Pass reasoning as separate field for chat template to handle
                 # (e.g., Qwen Thinking models use reasoning_content field)
                 message["reasoning_content"] = reasoning_text
-            elif reasoning_config.inject_mode == "native":
-                # Inject tags manually into content
+            elif reasoning_config.inject_mode == "structured":
+                # Wrap reasoning in tags (e.g., <think>...</think>)
                 message["content"] = f"{reasoning_config.start_tag}\n{reasoning_text}\n{reasoning_config.end_tag}\n\n{content}"
-            elif reasoning_config.prefix:
-                # Inline mode with prefix
-                message["content"] = f"{reasoning_config.prefix}{reasoning_text}{reasoning_config.separator}{content}"
-            else:
-                # Inline mode without prefix
-                message["content"] = f"{reasoning_text}{reasoning_config.separator}{content}"
+            elif reasoning_config.inject_mode == "inline":
+                # Prepend reasoning text to content
+                if reasoning_config.prefix:
+                    message["content"] = f"{reasoning_config.prefix}{reasoning_text}{reasoning_config.separator}{content}"
+                else:
+                    message["content"] = f"{reasoning_text}{reasoning_config.separator}{content}"
+            # Note: inject_mode == "omit" is handled by _should_inject_reasoning returning False
 
         return message
 
@@ -356,7 +358,7 @@ class HFChatTemplateFormatter:
             for step in reasoning.content:
                 # Type narrowing ensures step is ReasoningStep
                 thought = step.thought
-                action = step.action if step.action else None
+                action = step.action
                 if action:
                     parts.append(f"{thought} → {action}")
                 else:
@@ -404,8 +406,8 @@ class HFChatTemplateFormatter:
 
         Checks:
         1. Conversation has reasoning content
-        2. Chat template supports reasoning keywords
-        3. Model config indicates reasoning support
+        2. Model config does not specify 'omit' for reasoning injection
+        3. Chat template supports reasoning keywords
 
         Args:
             conversation: DeepFabric Conversation object
@@ -413,8 +415,8 @@ class HFChatTemplateFormatter:
         Returns:
             True if reasoning should be injected, False otherwise
         """
-        # No reasoning in conversation
-        if not conversation.reasoning:
+        # No reasoning in conversation or explicitly set to omit
+        if not conversation.reasoning or self.model_config.reasoning.inject_mode == "omit":
             return False
 
         # Check if template supports reasoning
