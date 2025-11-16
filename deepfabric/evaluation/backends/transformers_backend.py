@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 
 from contextlib import suppress
@@ -11,6 +12,8 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from ...schemas import ToolDefinition
 from ..inference import InferenceBackend, InferenceConfig, ModelResponse
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_json_object(text: str, start_pos: int = 0) -> str | None:
@@ -106,9 +109,6 @@ class TransformersBackend(InferenceBackend):
         else:
             self.device = "cpu"
 
-        # Load tokenizer and model
-        self.tokenizer = AutoTokenizer.from_pretrained(config.model_path)  #  nosec
-
         # Determine dtype based on device
         if self.device == "cuda":
             dtype = torch.float16
@@ -120,27 +120,50 @@ class TransformersBackend(InferenceBackend):
             dtype = torch.float32
             device_map = None
 
-        self.model = AutoModelForCausalLM.from_pretrained(  # nosec
-            config.model_path,
-            device_map=device_map,
-            dtype=dtype,
-        )
+        self.loaded_with_unsloth = False
+        # Load with Unsloth if requested and adapter is provided
+        if config.use_unsloth and config.adapter_path:
+            try:
+                from unsloth import FastLanguageModel  # type: ignore # noqa: PLC0415
 
-        # Load PEFT adapter if provided
-        if config.adapter_path:
-            from peft import PeftModel  # noqa: PLC0415
+                self.model, self.tokenizer = FastLanguageModel.from_pretrained(
+                    model_name=config.adapter_path,
+                    max_seq_length=config.max_seq_length,
+                    dtype=dtype,
+                    load_in_4bit=config.load_in_4bit,
+                )
+                FastLanguageModel.for_inference(self.model)
+                self.loaded_with_unsloth = True
+            except ImportError:
+                logger.warning("Unsloth not installed, falling back to standard PEFT")
+            except Exception as e:
+                logger.warning("Unsloth loading failed (%s), falling back to standard PEFT", e)
 
-            self.model = PeftModel.from_pretrained(self.model, config.adapter_path)
+        # Standard transformers/PEFT loading
+        if not self.loaded_with_unsloth:
+            self.tokenizer = AutoTokenizer.from_pretrained(config.model_path)  #  nosec
 
-        # Move to device if not using device_map
-        if self.device in ("cpu", "mps"):
-            self.model.to(self.device)  # type: ignore[arg-type]
+            self.model = AutoModelForCausalLM.from_pretrained(  # nosec
+                config.model_path,
+                device_map=device_map,
+                dtype=dtype,
+            )
 
-        # Enable optimizations for faster inference
-        # Compile model for better performance (PyTorch 2.0+)
-        with suppress(Exception):
-            # Use reduce-overhead mode for better latency on smaller batches
-            self.model = torch.compile(self.model, mode="reduce-overhead")  # type: ignore[assignment]
+            # Load PEFT adapter if provided
+            if config.adapter_path:
+                from peft import PeftModel  # noqa: PLC0415
+
+                self.model = PeftModel.from_pretrained(self.model, config.adapter_path)
+
+            # Move to device if not using device_map
+            if self.device in ("cpu", "mps"):
+                self.model.to(self.device)  # type: ignore[arg-type]
+
+            # Enable optimizations for faster inference
+            # Compile model for better performance (PyTorch 2.0+)
+            with suppress(Exception):
+                # Use reduce-overhead mode for better latency on smaller batches
+                self.model = torch.compile(self.model, mode="reduce-overhead")  # type: ignore[assignment]
 
         # Set padding token if not set
         if self.tokenizer.pad_token is None:

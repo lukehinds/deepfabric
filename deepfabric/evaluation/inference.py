@@ -22,6 +22,19 @@ class InferenceConfig(BaseModel):
         default="transformers",
         description="Inference backend to use",
     )
+    use_unsloth: bool = Field(
+        default=False,
+        description="Use Unsloth for loading adapter (for adapters trained with Unsloth)",
+    )
+    max_seq_length: int = Field(
+        default=2048,
+        ge=1,
+        description="Maximum sequence length for Unsloth models",
+    )
+    load_in_4bit: bool = Field(
+        default=False,
+        description="Load model in 4-bit quantization (for Unsloth)",
+    )
     temperature: float = Field(
         default=0.7,
         ge=0.0,
