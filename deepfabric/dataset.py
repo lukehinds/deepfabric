@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 
 from typing import Any, overload
@@ -13,6 +14,7 @@ from .formatters.hf_template import HFChatTemplateFormatter
 from .formatters.models import FormatterConfigModel
 from .schemas import Conversation
 
+logger = logging.getLogger(__name__)
 
 class Dataset:
     """
@@ -482,9 +484,21 @@ class Dataset:
             formatter.tokenizer = tokenizer
             formatter.use_transformers = True
 
-        # Note: We don't warn about missing reasoning for models with thinking support
-        # Many models (like Qwen3) support BOTH thinking and non-thinking modes
-        # The presence of <think> tags means it's available, not required
+        # Check for reasoning/template mismatch before formatting
+        # This helps users catch configuration issues early
+        has_reasoning_samples = any(
+            isinstance(sample, dict) and "reasoning" in sample and sample["reasoning"] is not None
+            for sample in self.samples
+        )
+        template_supports_reasoning = formatter._chat_template_supports_reasoning()
+
+        if has_reasoning_samples and not template_supports_reasoning:
+            logger.warning(
+                f"WARNING: Dataset contains reasoning/chain-of-thought data, but model {model_id} "
+                "does not support reasoning in its chat template. Reasoning content will be "
+                "omitted from formatted output. Consider using a reasoning-capable model like "
+                "Qwen or DeepSeek Thinking models."
+            )
 
         # Format all samples
         formatted_samples = []
