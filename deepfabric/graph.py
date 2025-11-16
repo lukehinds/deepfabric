@@ -365,17 +365,35 @@ class Graph(TopicModel):
     def get_all_paths(self) -> list[list[str]]:
         """Returns all paths from the root to leaf nodes."""
         paths = []
-        self._dfs_paths(self.root, [self.root.topic], paths)
+        visited: set[int] = set()
+        self._dfs_paths(self.root, [self.root.topic], paths, visited)
         return paths
 
-    def _dfs_paths(self, node: Node, current_path: list[str], paths: list[list[str]]) -> None:
-        """Helper function for DFS traversal to find all paths."""
-        if not node.children:
-            paths.append(current_path)
+    def _dfs_paths(
+        self, node: Node, current_path: list[str], paths: list[list[str]], visited: set[int]
+    ) -> None:
+        """Helper function for DFS traversal to find all paths.
+
+        Args:
+            node: Current node being visited
+            current_path: Path from root to current node
+            paths: Accumulated list of complete paths
+            visited: Set of node IDs already visited in current path to prevent cycles
+        """
+        # Prevent cycles by tracking visited nodes in the current path
+        if node.id in visited:
             return
 
-        for child in node.children:
-            self._dfs_paths(child, current_path + [child.topic], paths)
+        visited.add(node.id)
+
+        if not node.children:
+            paths.append(current_path)
+        else:
+            for child in node.children:
+                self._dfs_paths(child, current_path + [child.topic], paths, visited)
+
+        # Remove node from visited when backtracking to allow it in other paths
+        visited.remove(node.id)
 
     def _has_cycle_util(self, node: Node, visited: set[int], recursion_stack: set[int]) -> bool:
         """Utility function for cycle detection."""
