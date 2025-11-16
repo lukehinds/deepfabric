@@ -423,6 +423,81 @@ class HarmonyTextOutput(BaseModel):
     text: str = Field(..., description="Formatted text with Harmony tokens")
 
 
+class ReasoningConfig(BaseModel):
+    """Configuration for reasoning/thinking in HFChatTemplateFormatter."""
+
+    inject_mode: Literal["inline", "native", "structured", "omit"] = Field(
+        default="inline",
+        description="How to inject reasoning: inline (prepend text), native (use reasoning_content field), structured (wrap in tags), omit (skip reasoning)",
+    )
+    native_support: bool = Field(
+        default=False, description="Whether the model natively supports reasoning_content field"
+    )
+    start_tag: str = Field(default="<think>", description="Start tag for reasoning (when using structured mode)")
+    end_tag: str = Field(default="</think>", description="End tag for reasoning (when using structured mode)")
+    prefix: str = Field(default="", description="Prefix to add before reasoning text (inline mode)")
+    separator: str = Field(default="\n\n", description="Separator between reasoning and answer (inline mode)")
+    style: Literal["compact", "verbose"] = Field(
+        default="compact", description="Reasoning formatting style"
+    )
+    detected_tags: list[str] = Field(
+        default_factory=list, description="Reasoning tags detected in tokenizer"
+    )
+
+
+class ToolConfig(BaseModel):
+    """Configuration for tool/function calling in HFChatTemplateFormatter."""
+
+    format: Literal["native", "xml", "custom_xml"] = Field(
+        default="native", description="Tool calling format"
+    )
+    native_support: bool = Field(
+        default=False, description="Whether the model natively supports tool_calls"
+    )
+    start_tag: str = Field(default="<tool_call>", description="Start tag for tool calls (xml mode)")
+    end_tag: str = Field(default="</tool_call>", description="End tag for tool calls (xml mode)")
+    response_tag: str = Field(
+        default="<tool_response>", description="Tag for tool responses (xml mode)"
+    )
+    detected_tags: list[str] = Field(
+        default_factory=list, description="Tool tags detected in tokenizer"
+    )
+
+
+class HFModelConfig(BaseModel):
+    """Complete configuration for HFChatTemplateFormatter."""
+
+    model_config = {"extra": "allow"}  # Allow additional fields from YAML configs
+
+    reasoning: ReasoningConfig = Field(
+        default_factory=ReasoningConfig, description="Reasoning/thinking configuration"
+    )
+    tools: ToolConfig = Field(default_factory=ToolConfig, description="Tool calling configuration")
+    preprocessing: list[dict[str, str]] = Field(
+        default_factory=list, description="Preprocessing steps to apply"
+    )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "HFModelConfig":
+        """Create HFModelConfig from a dictionary, handling nested configs.
+
+        Args:
+            data: Configuration dictionary from model mappings
+
+        Returns:
+            Validated HFModelConfig instance
+        """
+        # Parse nested configs
+        reasoning_data = data.get("reasoning", {})
+        tools_data = data.get("tools", {})
+
+        return cls(
+            reasoning=ReasoningConfig.model_validate(reasoning_data),
+            tools=ToolConfig.model_validate(tools_data),
+            preprocessing=data.get("preprocessing", []),
+        )
+
+
 class UnifiedSample(BaseModel):
     """Unified model that can handle multiple input formats with type-safe detection."""
 

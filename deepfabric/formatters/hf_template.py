@@ -8,13 +8,33 @@ import json
 import logging
 
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
-from ..schemas import Conversation, ToolExecution
+from ..schemas import Conversation, ReasoningTrace, ToolExecution
 from .capability_detection import CapabilityDetector, TokenizerConfig
 from .model_mappings import ModelMappingLoader
+from .models import HFModelConfig
 
 logger = logging.getLogger(__name__)
+
+
+class StandardFormatDict(TypedDict):
+    """Standard message format with optional tools."""
+
+    messages: list[dict[str, str | list[dict] | None]]
+    tools: list[dict] | None
+
+
+class FineTuningMetadata(TypedDict):
+    """Metadata for fine-tuning configuration."""
+
+    model_id: str
+    model_max_length: int
+    padding_side: str
+    tokenizer_class: str
+    special_tokens: dict[str, str]
+    has_reasoning_support: bool
+    has_tool_support: bool
 
 
 class HFChatTemplateFormatter:
@@ -46,7 +66,10 @@ class HFChatTemplateFormatter:
 
         # Load model mappings
         self.mapping_loader = ModelMappingLoader(model_config_path)
-        self.model_config = self.mapping_loader.resolve(model_id)
+        model_config_dict = self.mapping_loader.resolve(model_id)
+
+        # Convert to validated Pydantic model
+        self.model_config = HFModelConfig.from_dict(model_config_dict)
 
         # Load tokenizer config and detect capabilities
         self.tokenizer_config = TokenizerConfig.from_model_id(model_id)
@@ -74,36 +97,38 @@ class HFChatTemplateFormatter:
         - Overlay model config, but only for keys that differ from defaults
         - This allows capability detection to work, while custom configs can override
         """
+        from .models import ReasoningConfig, ToolConfig  # noqa: PLC0415
+
         # Get defaults to identify which config values are custom vs default
         defaults = self.mapping_loader.defaults
 
-        # Reasoning
+        # Reasoning - merge detected capabilities with config
         detected_reasoning = self.capabilities["reasoning"]
-        config_reasoning = self.model_config.get("reasoning", {})
+        config_reasoning_dict = self.model_config.reasoning.model_dump()
         default_reasoning = defaults.get("reasoning", {})
 
         # Merge: detected + (config - defaults)
         merged_reasoning = detected_reasoning.copy()
-        for key, value in config_reasoning.items():
+        for key, value in config_reasoning_dict.items():
             # Only apply config value if it differs from default (i.e., explicitly set)
             if key not in default_reasoning or value != default_reasoning[key]:
                 merged_reasoning[key] = value
 
         self.capabilities["reasoning"] = merged_reasoning
-        self.model_config["reasoning"] = merged_reasoning
+        self.model_config.reasoning = ReasoningConfig.model_validate(merged_reasoning)
 
-        # Tools
+        # Tools - merge detected capabilities with config
         detected_tools = self.capabilities["tools"]
-        config_tools = self.model_config.get("tools", {})
+        config_tools_dict = self.model_config.tools.model_dump()
         default_tools = defaults.get("tools", {})
 
         merged_tools = detected_tools.copy()
-        for key, value in config_tools.items():
+        for key, value in config_tools_dict.items():
             if key not in default_tools or value != default_tools[key]:
                 merged_tools[key] = value
 
         self.capabilities["tools"] = merged_tools
-        self.model_config["tools"] = merged_tools
+        self.model_config.tools = ToolConfig.model_validate(merged_tools)
 
     def _init_tokenizer(self):
         """Initialize tokenizer (transformers or manual mode)."""
@@ -161,7 +186,7 @@ class HFChatTemplateFormatter:
             standard_format["messages"], tools=standard_format.get("tools"), **kwargs
         )
 
-    def _convert_to_standard(self, conversation: Conversation) -> dict[str, Any]:
+    def _convert_to_standard(self, conversation: Conversation) -> StandardFormatDict:
         """
         Convert DeepFabric Conversation to standard HF message format.
 
@@ -206,8 +231,7 @@ class HFChatTemplateFormatter:
             List of message dictionaries
         """
         messages = []
-        tool_config = self.model_config.get("tools", {})
-        tool_format = tool_config.get("format", "native")
+        tool_format = self.model_config.tools.format
 
         if tool_format == "native":
             # Native tool_calls format
@@ -270,10 +294,6 @@ class HFChatTemplateFormatter:
         Returns:
             Message dictionary or None
         """
-        reasoning_config = self.model_config.get("reasoning", {})
-        inject_mode = reasoning_config.get("inject_mode", "inline")
-        native_support = reasoning_config.get("native_support", False)
-
         # Get final answer content
         if conversation.final_answer:
             content = conversation.final_answer
@@ -288,31 +308,33 @@ class HFChatTemplateFormatter:
         # Build message dictionary
         message = {"role": "assistant", "content": content}
 
-        # Handle reasoning
-        if conversation.reasoning:
+        # Handle reasoning - only inject if template supports it
+        if self._should_inject_reasoning(conversation):
+            reasoning_config = self.model_config.reasoning
+            # Type narrowing: _should_inject_reasoning guarantees reasoning is not None
+            if conversation.reasoning is None:
+                # This should never happen, but satisfies type checker
+                return message
             reasoning_text = self._format_reasoning(conversation.reasoning)
 
-            if native_support and inject_mode == "native":
+            if reasoning_config.inject_mode == "native":
                 # Pass reasoning as separate field for chat template to handle
                 # (e.g., Qwen Thinking models use reasoning_content field)
                 message["reasoning_content"] = reasoning_text
-            elif inject_mode == "native":
-                # Inject tags manually into content
-                start_tag = reasoning_config.get("start_tag", "<think>")
-                end_tag = reasoning_config.get("end_tag", "</think>")
-                message["content"] = f"{start_tag}\n{reasoning_text}\n{end_tag}\n\n{content}"
-            else:
-                # Inline mode - prepend reasoning to content
-                prefix = reasoning_config.get("prefix", "")
-                separator = reasoning_config.get("separator", "\n\n")
-                if prefix:
-                    message["content"] = f"{prefix}{reasoning_text}{separator}{content}"
+            elif reasoning_config.inject_mode == "structured":
+                # Wrap reasoning in tags (e.g., <think>...</think>)
+                message["content"] = f"{reasoning_config.start_tag}\n{reasoning_text}\n{reasoning_config.end_tag}\n\n{content}"
+            elif reasoning_config.inject_mode == "inline":
+                # Prepend reasoning text to content
+                if reasoning_config.prefix:
+                    message["content"] = f"{reasoning_config.prefix}{reasoning_text}{reasoning_config.separator}{content}"
                 else:
-                    message["content"] = f"{reasoning_text}{separator}{content}"
+                    message["content"] = f"{reasoning_text}{reasoning_config.separator}{content}"
+            # Note: inject_mode == "omit" is handled by _should_inject_reasoning returning False
 
         return message
 
-    def _format_reasoning(self, reasoning) -> str:
+    def _format_reasoning(self, reasoning: ReasoningTrace) -> str:
         """
         Format reasoning trace to text.
 
@@ -323,22 +345,92 @@ class HFChatTemplateFormatter:
             Formatted reasoning text
         """
         if reasoning.style == "freetext":
-            return reasoning.content if isinstance(reasoning.content, str) else ""
+            # For freetext, content is a string
+            return str(reasoning.content) if reasoning.content else ""
 
-        if reasoning.style in ("structured", "hybrid") and isinstance(reasoning.content, list):
+        if reasoning.style in ("structured", "hybrid"):
+            # For structured/hybrid, content is a list of ReasoningStep objects
+            if not isinstance(reasoning.content, list):
+                return ""
+
             # Format structured steps
             parts = []
             for step in reasoning.content:
-                if hasattr(step, "thought"):
-                    thought = step.thought
-                    action = getattr(step, "action", None)
-                    if action:
-                        parts.append(f"{thought} → {action}")
-                    else:
-                        parts.append(thought)
+                # Type narrowing ensures step is ReasoningStep
+                thought = step.thought
+                action = step.action
+                if action:
+                    parts.append(f"{thought} → {action}")
+                else:
+                    parts.append(thought)
             return " ".join(parts)
 
         return ""
+
+    def _chat_template_supports_reasoning(self) -> bool:
+        """
+        Check if the chat template supports reasoning/thinking.
+
+        Inspects the template string for keywords indicating reasoning support.
+        Looks for: 'reasoning', 'think', 'thought', 'reasoning_content' (case-insensitive).
+
+        Returns:
+            True if template contains reasoning-related keywords
+        """
+        # Get template string based on mode
+        template = None
+        if self.use_transformers and self.tokenizer:
+            template = getattr(self.tokenizer, "chat_template", None)
+        elif self.tokenizer_config and self.tokenizer_config.chat_template:
+            template = self.tokenizer_config.chat_template
+
+        if not template:
+            return False
+
+        # Check for reasoning-related keywords (case-insensitive)
+        keywords = ["reasoning", "think", "thought", "reasoning_content"]
+        template_lower = template.lower()
+
+        detected = any(keyword in template_lower for keyword in keywords)
+
+        if detected:
+            logger.debug("Chat template supports reasoning (detected keywords in template)")
+        else:
+            logger.debug("Chat template does not support reasoning (no keywords found)")
+
+        return detected
+
+    def _should_inject_reasoning(self, conversation: Conversation) -> bool:
+        """
+        Determine if reasoning should be injected into the formatted output.
+
+        Checks:
+        1. Conversation has reasoning content
+        2. Model config does not specify 'omit' for reasoning injection
+        3. Chat template supports reasoning keywords
+
+        Args:
+            conversation: DeepFabric Conversation object
+
+        Returns:
+            True if reasoning should be injected, False otherwise
+        """
+        # No reasoning in conversation or explicitly set to omit
+        if not conversation.reasoning or self.model_config.reasoning.inject_mode == "omit":
+            return False
+
+        # Check if template supports reasoning
+        template_supports = self._chat_template_supports_reasoning()
+        if not template_supports:
+            # Don't warn here - dataset.py already warns at the dataset level
+            # This avoids spamming the same warning for every sample
+            logger.debug(
+                f"Omitting reasoning for sample (template for {self.model_id} "
+                "does not support reasoning keywords)"
+            )
+            return False
+
+        return True
 
     def _apply_template(
         self, messages: list[dict], tools: list[dict] | None = None, **kwargs
@@ -396,7 +488,7 @@ class HFChatTemplateFormatter:
         """
         return self.capabilities.copy()
 
-    def get_fine_tuning_metadata(self) -> dict[str, Any]:
+    def get_fine_tuning_metadata(self) -> FineTuningMetadata:
         """
         Get metadata useful for fine-tuning.
 
