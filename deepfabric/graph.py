@@ -388,9 +388,9 @@ class Graph(TopicModel):
 
         if not node.children:
             paths.append(current_path)
-        else:
-            for child in node.children:
-                self._dfs_paths(child, current_path + [child.topic], paths, visited)
+
+        for child in node.children:
+            self._dfs_paths(child, current_path + [child.topic], paths, visited)
 
         # Remove node from visited when backtracking to allow it in other paths
         visited.remove(node.id)
