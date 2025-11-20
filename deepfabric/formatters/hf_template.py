@@ -323,11 +323,15 @@ class HFChatTemplateFormatter:
                 message["reasoning_content"] = reasoning_text
             elif reasoning_config.inject_mode == "structured":
                 # Wrap reasoning in tags (e.g., <think>...</think>)
-                message["content"] = f"{reasoning_config.start_tag}\n{reasoning_text}\n{reasoning_config.end_tag}\n\n{content}"
+                message["content"] = (
+                    f"{reasoning_config.start_tag}\n{reasoning_text}\n{reasoning_config.end_tag}\n\n{content}"
+                )
             elif reasoning_config.inject_mode == "inline":
                 # Prepend reasoning text to content
                 if reasoning_config.prefix:
-                    message["content"] = f"{reasoning_config.prefix}{reasoning_text}{reasoning_config.separator}{content}"
+                    message["content"] = (
+                        f"{reasoning_config.prefix}{reasoning_text}{reasoning_config.separator}{content}"
+                    )
                 else:
                     message["content"] = f"{reasoning_text}{reasoning_config.separator}{content}"
             # Note: inject_mode == "omit" is handled by _should_inject_reasoning returning False
