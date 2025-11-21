@@ -433,10 +433,16 @@ class ReasoningConfig(BaseModel):
     native_support: bool = Field(
         default=False, description="Whether the model natively supports reasoning_content field"
     )
-    start_tag: str = Field(default="<think>", description="Start tag for reasoning (when using structured mode)")
-    end_tag: str = Field(default="</think>", description="End tag for reasoning (when using structured mode)")
+    start_tag: str = Field(
+        default="<think>", description="Start tag for reasoning (when using structured mode)"
+    )
+    end_tag: str = Field(
+        default="</think>", description="End tag for reasoning (when using structured mode)"
+    )
     prefix: str = Field(default="", description="Prefix to add before reasoning text (inline mode)")
-    separator: str = Field(default="\n\n", description="Separator between reasoning and answer (inline mode)")
+    separator: str = Field(
+        default="\n\n", description="Separator between reasoning and answer (inline mode)"
+    )
     style: Literal["compact", "verbose"] = Field(
         default="compact", description="Reasoning formatting style"
     )
