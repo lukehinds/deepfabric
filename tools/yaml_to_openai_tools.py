@@ -15,6 +15,16 @@ from pathlib import Path
 
 import yaml
 
+# Type mapping from YAML types to OpenAI/JSON Schema types
+_TYPE_MAPPING = {
+    'str': 'string',
+    'int': 'integer',
+    'float': 'number',
+    'bool': 'boolean',
+    'list': 'array',
+    'dict': 'object'
+}
+
 
 def yaml_tools_to_openai_format(yaml_tools):
     """
@@ -36,16 +46,7 @@ def yaml_tools_to_openai_format(yaml_tools):
 
         for param in tool.get('parameters', []):
             param_name = param['name']
-
-            type_mapping = {
-                'str': 'string',
-                'int': 'integer',
-                'float': 'number',
-                'bool': 'boolean',
-                'list': 'array',
-                'dict': 'object'
-            }
-            param_type = type_mapping.get(param['type'], param['type'])
+            param_type = _TYPE_MAPPING.get(param['type'], param['type'])
 
             properties[param_name] = {
                 'type': param_type,
