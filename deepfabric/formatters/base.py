@@ -7,7 +7,7 @@ All formatters (built-in and custom) must inherit from BaseFormatter.
 import time
 
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, ValidationError
 
@@ -246,7 +246,7 @@ class BaseFormatter(ABC):
         metadata = FormatterMetadata(
             formatter_name=self.__class__.__name__,
             formatter_version="1.0",
-            processing_timestamp=datetime.now(tz=UTC).isoformat(),
+            processing_timestamp=datetime.now(tz=timezone.utc).isoformat(),
             validation_passed=len(errors) == 0,
             original_format="generic",
         )
