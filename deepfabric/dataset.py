@@ -417,6 +417,8 @@ class Dataset:
         use_transformers: bool = True,
         return_info: bool = False,
         tokenizer: Any = None,
+        include_system: bool = True,
+        include_tools: bool = True,
         **kwargs,
     ) -> "Dataset": ...
 
@@ -429,6 +431,8 @@ class Dataset:
         *,
         return_info: bool = True,
         tokenizer: Any = None,
+        include_system: bool = True,
+        include_tools: bool = True,
         **kwargs,
     ) -> tuple["Dataset", dict[str, Any]]: ...
 
@@ -439,6 +443,8 @@ class Dataset:
         use_transformers: bool = True,
         return_info: bool = False,
         tokenizer: Any = None,
+        include_system: bool = True,
+        include_tools: bool = True,
         **kwargs,
     ) -> "Dataset | tuple[Dataset, dict[str, Any]]":
         """
@@ -474,6 +480,10 @@ class Dataset:
             tokenizer: Optional pre-loaded transformers tokenizer. If provided, skips
                       tokenizer loading and uses this instance directly. Useful for
                       fine-tuning workflows where tokenizer is already loaded.
+            include_system: Whether to include system messages in formatted output (default: True).
+                           Set to False to exclude system prompts from training data.
+            include_tools: Whether to include tool definitions in formatted output (default: True).
+                          Set to False to exclude tools from the system block.
             **kwargs: Additional arguments passed to apply_chat_template
 
         Returns:
@@ -569,8 +579,23 @@ class Dataset:
                 if not isinstance(sample, Conversation):
                     continue
 
+                # Handle system messages and tools based on flags
+                sample_to_format = sample
+                if not include_system or not include_tools:
+                    sample_to_format = sample.model_copy(deep=True)
+
+                    if not include_system:
+                        # Remove all system messages
+                        sample_to_format.messages = [
+                            msg for msg in sample_to_format.messages if msg.role != "system"
+                        ]
+
+                    if not include_tools:
+                        # Remove tool_context to exclude tools from system block
+                        sample_to_format.tool_context = None
+
                 # Format using HF chat template
-                formatted_text = formatter.format(sample, **kwargs)
+                formatted_text = formatter.format(sample_to_format, **kwargs)
 
                 # Store as FormattedSample Pydantic model
                 formatted_samples.append(FormattedSample(text=formatted_text))
