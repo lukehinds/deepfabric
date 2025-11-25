@@ -415,7 +415,7 @@ wheels = [
 
 [[package]]
 name = "deepfabric"
-version = "3.7.3"
+version = "3.8.0"
 source = { editable = "." }
 dependencies = [
     { name = "accelerate" },

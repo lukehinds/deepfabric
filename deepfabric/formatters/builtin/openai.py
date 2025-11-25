@@ -218,7 +218,11 @@ class OpenAISchemaFormatter(BaseFormatter):
 
         # Handle system prompt
         messages = formatted_sample.get("messages", [])
-        if messages and config.include_system_prompt:
+        if not config.include_system_prompt:
+            # Remove system message if present
+            messages = [m for m in messages if m.get("role") != "system"]
+            formatted_sample["messages"] = messages
+        elif messages:
             # Check if first message is system message
             has_system = messages[0].get("role") == "system" if messages else False
 

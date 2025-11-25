@@ -493,6 +493,28 @@ class Conversation(BaseModel):
         json_schema_extra = {"additionalProperties": False}
 
 
+class FormattedSample(BaseModel):
+    """Output from chat template formatting.
+
+    This model represents a dataset sample after applying a model-specific
+    chat template via the Dataset.format() method. The text field contains
+    the fully formatted prompt ready for training or inference.
+
+    Attributes:
+        text: Formatted text with chat template applied (e.g., ChatML, Llama format)
+
+    Example:
+        >>> sample = FormattedSample(text="<|im_start|>user\\nHello<|im_end|>...")
+        >>> sample.text[:20]
+        '<|im_start|>user\\nHe'
+    """
+
+    text: str = Field(..., min_length=1, description="Chat template formatted text")
+
+    class Config:
+        extra = "forbid"
+
+
 # Unified conversation schema mapping
 CONVERSATION_SCHEMAS = {
     "basic": Conversation,

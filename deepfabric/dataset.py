@@ -1,9 +1,9 @@
 import json
 import logging
-import re
 
 from typing import Any, overload
 
+from datasets import Dataset as HFDataset
 from datasets import load_dataset
 from datasets.exceptions import DatasetNotFoundError, UnexpectedSplitsError
 from pydantic import ValidationError
@@ -12,75 +12,129 @@ from .formatters import FormatterRegistry
 from .formatters.base import FormatterError
 from .formatters.hf_template import HFChatTemplateFormatter
 from .formatters.models import FormatterConfigModel
-from .schemas import Conversation
+from .schemas import Conversation, FormattedSample
 
 logger = logging.getLogger(__name__)
+
 
 class Dataset:
     """
     A class to represent a dataset consisting of samples, where each sample contains messages with specific roles.
+
+    Loading methods (from_jsonl, from_list, from_hub) validate data and raise ValidationError for malformed inputs.
+
     Methods:
         __init__():
             Initialize an empty dataset.
         from_jsonl(file_path: str) -> "Dataset":
-            Create a Dataset instance from a JSONL file.
+            Create a Dataset instance from a JSONL file with validation.
         from_list(sample_list: list[dict]) -> "Dataset":
-            Create a Dataset instance from a list of samples.
-        validate_sample(sample: dict) -> bool:
-            Validate if a sample has the correct format.
-        add_samples(samples: list[dict]) -> tuple[list[dict], list[str]]:
-            Add multiple samples to the dataset and return any failures.
-        remove_linebreaks_and_spaces(input_string: str) -> str:
-            Clean up a string by removing extra whitespace and normalizing linebreaks.
+            Create a Dataset instance from a list of dicts with validation.
+        from_hub(repo_id: str, split: str) -> "Dataset":
+            Load and validate dataset from HuggingFace Hub.
+        add_samples(samples: list[Conversation | FormattedSample]) -> tuple[list, list[str]]:
+            Add validated Pydantic samples to the dataset.
         save(save_path: str):
             Save the dataset to a JSONL file.
+        to_hf_dataset() -> Dataset:
+            Convert to HuggingFace datasets.Dataset.
+        format(target_model: str | None, tokenizer: Any) -> "Dataset":
+            Apply chat template formatting, returns Dataset with FormattedSample objects.
         __len__() -> int:
             Get the number of samples in the dataset.
-        __getitem__(idx: int) -> dict:
+        __getitem__(idx: int) -> Conversation | FormattedSample:
             Get a sample from the dataset by index.
-        filter_by_role(role: str) -> list[dict]:
+        filter_by_role(role: str) -> list[Conversation]:
             Filter samples to only include messages with a specific role.
         get_statistics() -> dict:
             Calculate basic statistics about the dataset.
     """
 
     def __init__(self):
-        """Initialize an empty dataset."""
-        self.samples = []
-        self.failed_samples = []
+        """Initialize an empty dataset with strict Pydantic typing.
+
+        Note: samples can contain:
+        - Conversation: Validated conversation data
+        - FormattedSample: Formatted text output
+        - dict[str, Any]: Raw formatter outputs (Alpaca, ShareGPT, etc.) - bypasses validation
+        """
+        self.samples: list[Conversation | FormattedSample | dict[str, Any]] = []
+        self.failed_samples: list = []
         self.formatter_registry = FormatterRegistry()
         self.tool_registry = None
 
     @classmethod
     def from_jsonl(cls, file_path: str) -> "Dataset":
-        """Create a Dataset instance from a JSONL file.
+        """Create a Dataset instance from a JSONL file with strict validation.
+
+        Each line must contain valid JSON that can be parsed into a Conversation model.
+        Invalid lines will raise ValidationError with the line number.
 
         Args:
             file_path: Path to the JSONL file containing the dataset.
 
         Returns:
-            A new Dataset instance populated with the data from the file.
+            A new Dataset instance populated with validated Conversation objects.
+
+        Raises:
+            ValidationError: If any line contains invalid data that doesn't match Conversation schema.
+            json.JSONDecodeError: If any line contains invalid JSON.
+
+        Example:
+            >>> dataset = Dataset.from_jsonl("samples.jsonl")
+            >>> isinstance(dataset.samples[0], Conversation)
+            True
         """
         instance = cls()
         with open(file_path) as f:
-            for line in f:
-                sample = json.loads(line)
-                instance.samples.append(sample)
+            for line_num, line in enumerate(f, start=1):
+                try:
+                    sample_dict = json.loads(line)
+                    conversation = Conversation(**sample_dict)
+                    instance.samples.append(conversation)
+                except ValidationError:
+                    logger.exception(f"Validation error on line {line_num} of {file_path}")
+                    raise
+                except json.JSONDecodeError as e:
+                    raise json.JSONDecodeError(
+                        f"Invalid JSON on line {line_num} of {file_path}: {e.msg}",
+                        e.doc,
+                        e.pos,
+                    ) from e
 
         return instance
 
     @classmethod
     def from_list(cls, sample_list: list[dict]) -> "Dataset":
-        """Create a Dataset instance from a list of samples.
+        """Create a Dataset instance from a list of dicts with strict validation.
+
+        Each dict must contain valid data that can be parsed into a Conversation model.
+        Invalid dicts will raise ValidationError with the index.
 
         Args:
             sample_list: List of dictionaries containing the samples.
 
         Returns:
-            A new Dataset instance populated with the provided samples.
+            A new Dataset instance populated with validated Conversation objects.
+
+        Raises:
+            ValidationError: If any dict contains invalid data that doesn't match Conversation schema.
+
+        Example:
+            >>> samples = [{"messages": [{"role": "user", "content": "Hello"}]}]
+            >>> dataset = Dataset.from_list(samples)
+            >>> isinstance(dataset.samples[0], Conversation)
+            True
         """
         instance = cls()
-        instance.samples.extend(sample_list)
+        for idx, sample_dict in enumerate(sample_list):
+            try:
+                conversation = Conversation(**sample_dict)
+                instance.samples.append(conversation)
+            except ValidationError:
+                logger.exception(f"Validation error at index {idx}")
+                raise
+
         return instance
 
     @classmethod
@@ -139,41 +193,30 @@ class Dataset:
         self.samples.extend(samples)
         return [], []
 
-    @staticmethod
-    def remove_linebreaks_and_spaces(input_string: str) -> str:
-        """Clean up a string by removing extra whitespace and normalizing linebreaks.
-
-        Args:
-            input_string: The string to clean up.
-
-        Returns:
-            str: The cleaned string.
-        """
-        # Remove line breaks
-        no_linebreaks = re.sub(r"\s+", " ", input_string)
-        # Remove extra spaces
-        return " ".join(no_linebreaks.split())
-
     def save(self, save_path: str):
         """Save the dataset to a JSONL file.
+
+        FormattedSample objects (text-only) are saved as raw text per line.
+        Conversation objects and formatter dicts are saved as compact JSON per line.
 
         Args:
             save_path: Path where the JSONL file should be saved.
         """
         with open(save_path, "w") as f:
             for sample in self.samples:
-                sample_dict = (
-                    sample if isinstance(sample, dict) else sample.model_dump(exclude_none=True)
-                )
+                # FormattedSample: write raw text for training compatibility
+                if isinstance(sample, FormattedSample):
+                    f.write(sample.text + "\n")
+                    continue
 
-                # Special handling for text-only format (e.g., ChatML text output)
-                # If sample is a dict with only "text" key, write raw text for training
-                if isinstance(sample_dict, dict) and list(sample_dict.keys()) == ["text"]:
-                    f.write(sample_dict["text"] + "\n")
+                # Handle both Pydantic models and raw dicts (from formatters)
+                if isinstance(sample, dict):
+                    sample_dict = sample
                 else:
-                    # Standard JSON output for all other formats
-                    clean_json = self.remove_linebreaks_and_spaces(json.dumps(sample_dict))
-                    f.write(clean_json + "\n")
+                    sample_dict = sample.model_dump(exclude_none=True)
+
+                # Standard compact JSON output for Conversation and formatter outputs
+                f.write(json.dumps(sample_dict, separators=(",", ":")) + "\n")
 
     def __len__(self) -> int:
         """Get the number of samples in the dataset.
@@ -183,63 +226,87 @@ class Dataset:
         """
         return len(self.samples)
 
-    def __getitem__(self, idx: int) -> dict:
+    def __getitem__(self, idx: int) -> Conversation | FormattedSample | dict[str, Any]:
         """Get a sample from the dataset by index.
 
         Args:
             idx: Index of the sample to retrieve.
 
         Returns:
-            dict: The sample at the specified index.
+            Conversation | FormattedSample | dict[str, Any]: The sample at the specified index.
         """
         return self.samples[idx]
 
-    def filter_by_role(self, role: str) -> list[dict]:
+    def filter_by_role(self, role: str) -> list[Conversation]:
         """Filter samples to only include messages with a specific role.
+
+        Only works with Conversation samples. Skips FormattedSample and dict samples.
 
         Args:
             role: The role to filter by ('user', 'assistant', or 'system').
 
         Returns:
-            List[dict]: Filtered list of samples.
+            List[Conversation]: Filtered list of Conversation objects with only messages matching the role.
         """
         filtered_samples = []
         for sample in self.samples:
-            filtered_messages = [msg for msg in sample["messages"] if msg["role"] == role]
+            # Skip non-Conversation samples (dicts, FormattedSample)
+            if not isinstance(sample, Conversation):
+                continue
+
+            filtered_messages = [msg for msg in sample.messages if msg.role == role]
             if filtered_messages:
-                filtered_sample = sample.copy()
-                filtered_sample["messages"] = filtered_messages
+                filtered_sample = sample.model_copy(deep=True)
+                filtered_sample.messages = filtered_messages
                 filtered_samples.append(filtered_sample)
         return filtered_samples
 
     def get_statistics(self) -> dict:
         """Calculate basic statistics about the dataset.
 
+        Only analyzes Conversation samples. Skips FormattedSample and dict samples.
+
         Returns:
             dict: Statistics about the dataset including:
                 - Total number of samples
+                - Conversation samples count
                 - Average messages per sample
                 - Role distribution
                 - Average content length
+
+        Note:
+            Call this method before formatting for complete statistics.
         """
         if not self.samples:
             return {"error": "Dataset is empty"}
 
-        total_samples = len(self.samples)
-        total_messages = sum(len(sample["messages"]) for sample in self.samples)
+        # Filter to only Conversation samples
+        conversation_samples = [s for s in self.samples if isinstance(s, Conversation)]
+
+        if not conversation_samples:
+            return {
+                "total_samples": len(self.samples),
+                "conversation_samples": 0,
+                "note": "No Conversation samples found (only FormattedSample or dict samples)",
+            }
+
+        total_messages = sum(len(sample.messages) for sample in conversation_samples)
         role_counts = {"user": 0, "assistant": 0, "system": 0}
         total_content_length = 0
         message_count = 0
 
-        for sample in self.samples:
-            for message in sample["messages"]:
-                role_counts[message["role"]] += 1
-                total_content_length += len(message["content"])
+        for sample in conversation_samples:
+            for message in sample.messages:
+                role_counts[message.role] += 1
+                # message.content is always str, never None in valid Conversation
+                content = message.content or ""
+                total_content_length += len(content)
                 message_count += 1
 
         return {
-            "total_samples": total_samples,
-            "avg_messages_per_sample": total_messages / total_samples,
+            "total_samples": len(self.samples),
+            "conversation_samples": len(conversation_samples),
+            "avg_messages_per_sample": total_messages / len(conversation_samples),
             "role_distribution": {
                 role: count / message_count for role, count in role_counts.items()
             },
@@ -306,25 +373,16 @@ class Dataset:
                         formatted_samples = formatted_result
 
                 # Create a new dataset with the formatted samples
+                # Note: Formatters output various schemas (Alpaca, ShareGPT, etc.)
+                # These are stored as raw dicts, not validated as Pydantic models
                 formatted_dataset = Dataset()
-                # Convert FormattedOutput objects to dicts if needed
-                if formatted_samples:
-                    first_sample = formatted_samples[0]
-                    if hasattr(first_sample, "model_dump"):
-                        dump = "model_dump"
-                    elif hasattr(first_sample, "dict"):
-                        dump = "dict"
-                    else:
-                        dump = None
 
-                    if dump is not None:
-                        formatted_dataset.samples = [
-                            getattr(sample, dump)(exclude_none=True) for sample in formatted_samples
-                        ]
-                    else:
-                        formatted_dataset.samples = formatted_samples
+                if formatted_samples:
+                    # Type annotation help: formatted_samples can be various types
+                    # Cast to our union type for type checker
+                    formatted_dataset.samples = formatted_samples  # type: ignore[assignment]
                 else:
-                    formatted_dataset.samples = formatted_samples if formatted_samples else []
+                    formatted_dataset.samples = []
 
                 # Save to file if output path is specified
                 if output_path:
@@ -359,6 +417,8 @@ class Dataset:
         use_transformers: bool = True,
         return_info: bool = False,
         tokenizer: Any = None,
+        include_system: bool = True,
+        include_tools: bool = True,
         **kwargs,
     ) -> "Dataset": ...
 
@@ -371,6 +431,8 @@ class Dataset:
         *,
         return_info: bool = True,
         tokenizer: Any = None,
+        include_system: bool = True,
+        include_tools: bool = True,
         **kwargs,
     ) -> tuple["Dataset", dict[str, Any]]: ...
 
@@ -381,6 +443,8 @@ class Dataset:
         use_transformers: bool = True,
         return_info: bool = False,
         tokenizer: Any = None,
+        include_system: bool = True,
+        include_tools: bool = True,
         **kwargs,
     ) -> "Dataset | tuple[Dataset, dict[str, Any]]":
         """
@@ -416,6 +480,10 @@ class Dataset:
             tokenizer: Optional pre-loaded transformers tokenizer. If provided, skips
                       tokenizer loading and uses this instance directly. Useful for
                       fine-tuning workflows where tokenizer is already loaded.
+            include_system: Whether to include system messages in formatted output (default: True).
+                           Set to False to exclude system prompts from training data.
+            include_tools: Whether to include tool definitions in formatted output (default: True).
+                          Set to False to exclude tools from the system block.
             **kwargs: Additional arguments passed to apply_chat_template
 
         Returns:
@@ -487,7 +555,7 @@ class Dataset:
         # Check for reasoning/template mismatch before formatting
         # This helps users catch configuration issues early
         has_reasoning_samples = any(
-            isinstance(sample, dict) and "reasoning" in sample and sample["reasoning"] is not None
+            isinstance(sample, Conversation) and sample.reasoning is not None
             for sample in self.samples
         )
         template_supports_reasoning = formatter._chat_template_supports_reasoning()
@@ -507,14 +575,30 @@ class Dataset:
 
         for sample in self.samples:
             try:
-                # Convert sample to Conversation if needed
-                conversation = Conversation(**sample) if isinstance(sample, dict) else sample
+                # Only format Conversation samples, skip others
+                if not isinstance(sample, Conversation):
+                    continue
+
+                # Handle system messages and tools based on flags
+                sample_to_format = sample
+                if not include_system or not include_tools:
+                    sample_to_format = sample.model_copy(deep=True)
+
+                    if not include_system:
+                        # Remove all system messages
+                        sample_to_format.messages = [
+                            msg for msg in sample_to_format.messages if msg.role != "system"
+                        ]
+
+                    if not include_tools:
+                        # Remove tool_context to exclude tools from system block
+                        sample_to_format.tool_context = None
 
                 # Format using HF chat template
-                formatted_text = formatter.format(conversation, **kwargs)
+                formatted_text = formatter.format(sample_to_format, **kwargs)
 
-                # Store as dict with text field
-                formatted_samples.append({"text": formatted_text})
+                # Store as FormattedSample Pydantic model
+                formatted_samples.append(FormattedSample(text=formatted_text))
 
             except Exception as e:
                 error_msg = str(e)
@@ -556,3 +640,40 @@ class Dataset:
             return formatted_dataset, info
 
         return formatted_dataset
+
+    def to_hf_dataset(self):
+        """Convert DeepFabric Dataset to HuggingFace datasets.Dataset.
+
+        This method enables seamless integration with HuggingFace training frameworks
+        like TRL's SFTTrainer and Axolotl. All Pydantic models are serialized to dicts.
+
+        Works with:
+        - Conversation samples (messages, reasoning, tools, etc.)
+        - FormattedSample objects (text field from .format() method)
+        - Raw dicts (formatter outputs like Alpaca, ShareGPT, etc.)
+
+        Returns:
+            HFDataset: HuggingFace Dataset instance ready for training or upload.
+
+        Raises:
+            ValueError: If dataset is empty.
+
+        Example:
+            >>> # Training workflow
+            >>> dataset = Dataset.from_hub("deepfabric/my-dataset")
+            >>> formatted = dataset.format(tokenizer=tokenizer)
+            >>> hf_dataset = formatted.to_hf_dataset()
+            >>> trainer = SFTTrainer(model=model, train_dataset=hf_dataset, ...)
+            >>>
+            >>> # Upload to Hub
+            >>> hf_dataset.push_to_hub("username/my-training-data")
+        """
+        if not self.samples:
+            raise ValueError("Cannot convert empty dataset to HuggingFace Dataset")
+
+        # Handle both Pydantic models and raw dicts
+        sample_dicts = [
+            s if isinstance(s, dict) else s.model_dump(exclude_none=True) for s in self.samples
+        ]
+
+        return HFDataset.from_list(sample_dicts)
