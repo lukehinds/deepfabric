@@ -696,3 +696,26 @@ class DeepFabricConfig(BaseModel):
     def get_formatter_configs(self) -> list[dict]:
         """Get list of formatter configurations."""
         return [formatter.model_dump() for formatter in self.dataset.formatters]
+
+    def get_configured_providers(self, mode: str = "tree") -> set[str]:
+        """Get the set of LLM providers configured in this config.
+
+        Args:
+            mode: Either "tree" or "graph" to determine which topic config to use
+
+        Returns:
+            Set of unique provider names used across topic and engine configs
+        """
+        providers = set()
+
+        # Get topic provider based on mode
+        if mode == "tree" and self.topic_tree:
+            providers.add(self.topic_tree.provider)
+        elif mode == "graph" and self.topic_graph:
+            providers.add(self.topic_graph.provider)
+
+        # Get engine provider
+        if self.data_engine:
+            providers.add(self.data_engine.provider)
+
+        return providers
