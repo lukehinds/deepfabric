@@ -85,10 +85,10 @@ async def handle_dataset_events_async(
                         left = Layout(name="left", ratio=3)
                         right = Layout(name="right", ratio=2)
                         right.minimum_size = STREAM_PANEL_WIDTH
-                        # Right column: status on top, streaming preview fixed height
+                        # Right column: status on top, streaming preview fills remaining space
                         right.split(
-                            Layout(name="status", size=6),
-                            Layout(name="preview", size=_get_preview_lines()),
+                            Layout(name="status", size=8),
+                            Layout(name="preview"),
                         )
                         left.split(
                             Layout(name="header", size=4),

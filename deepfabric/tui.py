@@ -253,10 +253,10 @@ class TreeBuildingTUI(StreamObserver):
         left["params"].update(params_panel)
         left["context"].update(self._context_panel())
         left["events"].update(self.tui.build_events_panel(list(self.events_log)))
-        # Right column: status + fixed-height preview
+        # Right column: status + preview (preview fills remaining space)
         right.split(
-            Layout(name="status", size=6),
-            Layout(name="preview", size=get_preview_lines()),
+            Layout(name="status", size=8),
+            Layout(name="preview"),
         )
         layout["main"].split_row(left, right)
         right["status"].update(self._status_panel())
@@ -325,8 +325,9 @@ class TreeBuildingTUI(StreamObserver):
             display_text = accumulated_text.replace("\r", "")
             display_text = re.sub(r"[^\S\n]+", " ", display_text)
 
-            # Compute fixed-height preview tail
-            target_lines = get_preview_lines()
+            # Compute dynamic preview lines based on terminal height
+            terminal_height = self.console.size.height
+            target_lines = max(MIN_PREVIEW_LINES, terminal_height - 20)
             lines = display_text.splitlines()
             visible = "\n".join(lines[-target_lines:])
 
@@ -478,9 +479,10 @@ class GraphBuildingTUI(StreamObserver):
         left["params"].update(params_panel)
         left["context"].update(self._context_panel())
         left["events"].update(self.tui.build_events_panel(list(self.events_log)))
+        # Right column: status + preview (preview fills remaining space)
         right.split(
-            Layout(name="status", size=6),
-            Layout(name="preview", size=get_preview_lines()),
+            Layout(name="status", size=8),
+            Layout(name="preview"),
         )
         layout["main"].split_row(left, right)
         right["status"].update(self._status_panel())
@@ -544,7 +546,9 @@ class GraphBuildingTUI(StreamObserver):
             display_text = accumulated_text.replace("\r", "")
             display_text = re.sub(r"[^\S\n]+", " ", display_text)
 
-            target_lines = get_preview_lines()
+            # Compute dynamic preview lines based on terminal height
+            terminal_height = self.console.size.height
+            target_lines = max(MIN_PREVIEW_LINES, terminal_height - 20)
             lines = display_text.splitlines()
             visible = "\n".join(lines[-target_lines:])
 
@@ -891,8 +895,10 @@ class DatasetGenerationTUI(StreamObserver):
         normalized = accumulated_text.replace("\r", "")
         normalized = re.sub(r"[^\S\n]+", " ", normalized)
 
-        # Use fixed number of lines to keep motion stable
-        target_lines = STREAM_FIXED_LINES
+        # Calculate target lines based on terminal height
+        # Layout: footer=3, status=8, panel borders ~4, so preview gets rest
+        terminal_height = self.console.size.height
+        target_lines = max(MIN_PREVIEW_LINES, terminal_height - 20)
         lines = normalized.splitlines()
         if len(lines) >= int(target_lines / 2):
             # Plenty of newlines: take the last N lines
@@ -904,7 +910,7 @@ class DatasetGenerationTUI(StreamObserver):
             tail = normalized[-char_tail:]
             visible_lines = tail.splitlines()[-target_lines:]
 
-        # Fixed-height layout handles stability; render just the last N lines
+        # Flexible-height layout handles stability; render just the last N lines
         visible = "\n".join(visible_lines)
 
         # Skip update if content suffix hasn't changed
