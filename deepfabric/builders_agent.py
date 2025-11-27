@@ -405,8 +405,9 @@ Based on these results, provide a clear, helpful response to the user."""
         # Add user message
         messages.append(user_message)
 
-        # Build tool_calls in OpenAI format
+        # Build tool_calls and tool_responses in a single pass
         tool_calls_openai = []
+        tool_responses = []
         for idx, result in enumerate(tool_results):
             tool_call_id = f"call_{idx}"
             tool_calls_openai.append(
@@ -415,6 +416,9 @@ Based on these results, provide a clear, helpful response to the user."""
                     "type": "function",
                     "function": {"name": result.function_name, "arguments": result.arguments},
                 }
+            )
+            tool_responses.append(
+                ChatMessage(role="tool", content=result.result, tool_call_id=tool_call_id)
             )
 
         # Add first assistant message with tool_calls
@@ -428,12 +432,8 @@ Based on these results, provide a clear, helpful response to the user."""
             )
         )
 
-        # Add tool response messages with tool_call_id
-        for idx, result in enumerate(tool_results):
-            tool_call_id = f"call_{idx}"
-            messages.append(
-                ChatMessage(role="tool", content=result.result, tool_call_id=tool_call_id)
-            )
+        # Add tool response messages
+        messages.extend(tool_responses)
 
         # Add final assistant response with the answer
         messages.append(agent_response)
