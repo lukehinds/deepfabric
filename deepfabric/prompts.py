@@ -135,10 +135,12 @@ class AgentPromptBuilder:
     """Build structured prompts for agent tool-calling training."""
 
     @staticmethod
-    def build_tool_context_prompt(
-        tool_registry, instructions: str = "", subtopics: str = "", max_tools_per_query: int = 3
-    ) -> str:
-        """Build a minimal context prompt that relies on structured generation."""
+    def build_tool_context_prompt(tool_registry, max_tools_per_query: int = 3) -> str:
+        """Build a minimal context prompt that relies on structured generation.
+
+        Returns a template with {{{{instructions}}}} and {{{{subtopics}}}} placeholders
+        that will be filled in by build_prompt() with actual topic paths from the tree.
+        """
         tool_signatures = []
         for tool in tool_registry.tools:
             tool_signatures.append(f"- {tool.to_signature()}")
@@ -152,16 +154,18 @@ You may use 1 to {max_tools_per_query} tools to complete the task.
 
 Focus on WHY each tool is selected and HOW parameters are constructed.
 
-{instructions}
-{subtopics}
+{{{{{{{{instructions}}}}}}}}
+{{{{{{{{subtopics}}}}}}}}
 
 Generate a complete agent reasoning example using structured output with tool_executions list."""
 
     @staticmethod
-    def build_multi_turn_context_prompt(
-        tool_registry, instructions: str = "", subtopics: str = "", max_tools_per_query: int = 3
-    ) -> str:
-        """Build context for multi-turn conversations."""
+    def build_multi_turn_context_prompt(tool_registry, max_tools_per_query: int = 3) -> str:
+        """Build context for multi-turn conversations.
+
+        Returns a template with {{{{instructions}}}} and {{{{subtopics}}}} placeholders
+        that will be filled in by build_prompt() with actual topic paths from the tree.
+        """
         tool_signatures = []
         for tool in tool_registry.tools:
             tool_signatures.append(f"- {tool.to_signature()}")
@@ -173,8 +177,8 @@ Available tools:
 
 You may use 1 to {max_tools_per_query} tools per query. Show tool dependencies and reasoning across conversation turns.
 
-{instructions}
-{subtopics}
+{{{{{{{{instructions}}}}}}}}
+{{{{{{{{subtopics}}}}}}}}
 
 Generate a complete multi-turn conversation using structured output with tool_executions list."""
 
