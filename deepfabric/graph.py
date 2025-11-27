@@ -74,6 +74,7 @@ class NodeModel(BaseModel):
     topic: str
     children: list[int] = Field(default_factory=list)
     parents: list[int] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class GraphModel(BaseModel):
@@ -86,11 +87,12 @@ class GraphModel(BaseModel):
 class Node:
     """Represents a node in the Graph for runtime manipulation."""
 
-    def __init__(self, topic: str, node_id: int):
+    def __init__(self, topic: str, node_id: int, metadata: dict[str, Any] | None = None):
         self.topic: str = topic
         self.id: int = node_id
         self.children: list[Node] = []
         self.parents: list[Node] = []
+        self.metadata: dict[str, Any] = metadata or {}
 
     def to_pydantic(self) -> NodeModel:
         """Converts the runtime Node to its Pydantic model representation."""
@@ -99,6 +101,7 @@ class Node:
             topic=self.topic,
             children=[child.id for child in self.children],
             parents=[parent.id for parent in self.parents],
+            metadata=self.metadata,
         )
 
 
@@ -153,9 +156,9 @@ class Graph(TopicModel):
         """Wrap text to a specified width."""
         return "\n".join(textwrap.wrap(text, width=width))
 
-    def add_node(self, topic: str) -> Node:
+    def add_node(self, topic: str, metadata: dict[str, Any] | None = None) -> Node:
         """Adds a new node to the graph."""
-        node = Node(topic, self._next_node_id)
+        node = Node(topic, self._next_node_id, metadata)
         self.nodes[node.id] = node
         self._next_node_id += 1
         return node
@@ -199,7 +202,7 @@ class Graph(TopicModel):
 
         # Create nodes
         for node_model in graph_model.nodes.values():
-            node = Node(node_model.topic, node_model.id)
+            node = Node(node_model.topic, node_model.id, node_model.metadata)
             graph.nodes[node.id] = node
             if node.id == graph_model.root_id:
                 graph.root = node
