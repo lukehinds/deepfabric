@@ -405,11 +405,11 @@ Based on these results, provide a clear, helpful response to the user."""
         # Add user message
         messages.append(user_message)
 
-        # Build tool_calls in OpenAI format
-        tool_calls_openai = []
+        # Build tool_calls for this conversation
+        formatted_tool_calls = []
         for idx, result in enumerate(tool_results):
             tool_call_id = f"call_{idx}"
-            tool_calls_openai.append(
+            formatted_tool_calls.append(
                 {
                     "id": tool_call_id,
                     "type": "function",
@@ -417,23 +417,25 @@ Based on these results, provide a clear, helpful response to the user."""
                 }
             )
 
-        # Add first assistant message with tool_calls
-        # The ChatML formatter will add <think> tags and <tool_call> tags based on
-        # reasoning and tool_context.executions
-        messages.append(
-            ChatMessage(
-                role="assistant",
-                content="",
-                tool_calls=tool_calls_openai if tool_calls_openai else None,
-            )
-        )
-
-        # Add tool response messages with tool_call_id
-        for idx, result in enumerate(tool_results):
-            tool_call_id = f"call_{idx}"
+        # Only add tool-calling assistant message and tool responses if there are tool calls
+        if formatted_tool_calls:
+            # Add first assistant message with tool_calls
+            # The ChatML formatter will add <think> tags and <tool_call> tags based on
+            # reasoning and tool_context.executions
             messages.append(
-                ChatMessage(role="tool", content=result.result, tool_call_id=tool_call_id)
+                ChatMessage(
+                    role="assistant",
+                    content="",
+                    tool_calls=formatted_tool_calls,
+                )
             )
+
+            # Add tool response messages with tool_call_id
+            for idx, result in enumerate(tool_results):
+                tool_call_id = f"call_{idx}"
+                messages.append(
+                    ChatMessage(role="tool", content=result.result, tool_call_id=tool_call_id)
+                )
 
         # Add final assistant response with the answer
         messages.append(agent_response)
@@ -849,14 +851,14 @@ Is the user's original task/goal from the scenario fully completed?
             # User message
             messages.append(turn.user_message)
 
-            # Build tool_calls for this turn in OpenAI format
-            tool_calls_openai = []
+            # Build tool_calls for this turn
+            formatted_tool_calls = []
             turn_tool_call_ids = []
             for tool_exec in turn.tool_calls:
                 tool_call_id = f"call_{tool_call_counter}"
                 tool_call_counter += 1
                 turn_tool_call_ids.append(tool_call_id)
-                tool_calls_openai.append(
+                formatted_tool_calls.append(
                     {
                         "id": tool_call_id,
                         "type": "function",
@@ -867,23 +869,25 @@ Is the user's original task/goal from the scenario fully completed?
                     }
                 )
 
-            # First assistant message with tool_calls
-            # This represents the assistant's "thinking" phase where it plans tool usage
-            messages.append(
-                ChatMessage(
-                    role="assistant",
-                    content="",
-                    tool_calls=tool_calls_openai if tool_calls_openai else None,
-                )
-            )
-
-            # Tool response messages with tool_call_id
-            for idx, tool_exec in enumerate(turn.tool_calls):
+            # Only add tool-calling assistant message and tool responses if there are tool calls
+            if formatted_tool_calls:
+                # First assistant message with tool_calls
+                # This represents the assistant's "thinking" phase where it plans tool usage
                 messages.append(
                     ChatMessage(
-                        role="tool", content=tool_exec.result, tool_call_id=turn_tool_call_ids[idx]
+                        role="assistant",
+                        content="",
+                        tool_calls=formatted_tool_calls,
                     )
                 )
+
+                # Tool response messages with tool_call_id
+                for idx, tool_exec in enumerate(turn.tool_calls):
+                    messages.append(
+                        ChatMessage(
+                            role="tool", content=tool_exec.result, tool_call_id=turn_tool_call_ids[idx]
+                        )
+                    )
 
             # Final assistant response with the answer
             messages.append(turn.agent_response)
