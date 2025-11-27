@@ -793,7 +793,7 @@ Is the user's original task/goal from the scenario fully completed?
         response = await self.llm.generate_async(
             prompt=prompt,
             schema=ConclusionDecision,
-            max_tokens=10,
+            max_tokens=100,
             temperature=0.3,
         )
 
