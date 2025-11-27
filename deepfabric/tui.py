@@ -32,6 +32,9 @@ EVENT_LOG_MAX_LINES = 8
 STREAM_RENDER_THROTTLE_S = 0.06
 STREAM_FIXED_LINES = 16  # Fixed visible lines for streaming preview (used by all previews)
 MIN_PREVIEW_LINES = 4  # Minimum preview lines to enforce
+# Vertical space occupied by other UI elements when calculating dynamic preview height.
+# Accounts for: footer (3) + status panel (8) + panel borders and margins (~9)
+PREVIEW_VERTICAL_OFFSET = 20
 
 
 @dataclass
@@ -327,7 +330,7 @@ class TreeBuildingTUI(StreamObserver):
 
             # Compute dynamic preview lines based on terminal height
             terminal_height = self.console.size.height
-            target_lines = max(MIN_PREVIEW_LINES, terminal_height - 20)
+            target_lines = max(MIN_PREVIEW_LINES, terminal_height - PREVIEW_VERTICAL_OFFSET)
             lines = display_text.splitlines()
             visible = "\n".join(lines[-target_lines:])
 
@@ -548,7 +551,7 @@ class GraphBuildingTUI(StreamObserver):
 
             # Compute dynamic preview lines based on terminal height
             terminal_height = self.console.size.height
-            target_lines = max(MIN_PREVIEW_LINES, terminal_height - 20)
+            target_lines = max(MIN_PREVIEW_LINES, terminal_height - PREVIEW_VERTICAL_OFFSET)
             lines = display_text.splitlines()
             visible = "\n".join(lines[-target_lines:])
 
@@ -896,9 +899,8 @@ class DatasetGenerationTUI(StreamObserver):
         normalized = re.sub(r"[^\S\n]+", " ", normalized)
 
         # Calculate target lines based on terminal height
-        # Layout: footer=3, status=8, panel borders ~4, so preview gets rest
         terminal_height = self.console.size.height
-        target_lines = max(MIN_PREVIEW_LINES, terminal_height - 20)
+        target_lines = max(MIN_PREVIEW_LINES, terminal_height - PREVIEW_VERTICAL_OFFSET)
         lines = normalized.splitlines()
         if len(lines) >= int(target_lines / 2):
             # Plenty of newlines: take the last N lines
