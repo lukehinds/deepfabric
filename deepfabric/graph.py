@@ -92,7 +92,7 @@ class Node:
         self.id: int = node_id
         self.children: list[Node] = []
         self.parents: list[Node] = []
-        self.metadata: dict[str, Any] = metadata or {}
+        self.metadata: dict[str, Any] = metadata.copy() if metadata is not None else {}
 
     def to_pydantic(self) -> NodeModel:
         """Converts the runtime Node to its Pydantic model representation."""
