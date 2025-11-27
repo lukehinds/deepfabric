@@ -17,6 +17,7 @@ from .exceptions import ConfigurationError
 from .format_command import format_cli
 from .generator import DataSetGenerator
 from .graph import Graph
+from .llm import validate_provider_api_key
 from .metrics import set_trace_debug, trace
 from .topic_manager import load_or_build_topic_model, save_topic_model
 from .topic_model import TopicModel
@@ -134,6 +135,43 @@ class GenerationPreparation(BaseModel):
         return self
 
 
+def _validate_api_keys(
+    config: DeepFabricConfig,
+    mode: str,
+    provider_override: str | None = None,
+) -> None:
+    """Validate that required API keys are present for configured providers.
+
+    Args:
+        config: The loaded configuration
+        mode: Either "tree" or "graph"
+        provider_override: Optional CLI provider override that takes precedence
+
+    Raises:
+        ConfigurationError: If any required API key is missing
+    """
+    # Get providers from config
+    providers = config.get_configured_providers(mode)
+
+    # If there's a provider override from CLI, that takes precedence for all components
+    if provider_override:
+        providers = {provider_override}
+
+    # Validate each provider
+    errors = []
+    for provider in providers:
+        is_valid, error_msg = validate_provider_api_key(provider)
+        if not is_valid and error_msg:
+            errors.append(f"  - Provider '{provider}': {error_msg}")
+
+    if errors:
+        error_list = "\n".join(errors)
+        raise ConfigurationError(
+            f"API key validation failed:\n{error_list}\n\n"
+            "Please set the required environment variable(s) before running."
+        )
+
+
 def _load_and_prepare_generation_context(options: GenerateOptions) -> GenerationPreparation:
     """Load configuration, compute overrides, and validate derived parameters."""
 
@@ -158,6 +196,9 @@ def _load_and_prepare_generation_context(options: GenerateOptions) -> Generation
         reasoning_style=options.reasoning_style,
         agent_mode=options.agent_mode,
     )
+
+    # Validate API keys early before any LLM operations
+    _validate_api_keys(config, options.mode, options.provider)
 
     tree_overrides_raw, graph_overrides_raw, engine_overrides_raw = apply_cli_overrides(
         config=config,

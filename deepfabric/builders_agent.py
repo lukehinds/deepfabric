@@ -52,7 +52,7 @@ class AgentResponse(BaseModel):
     content: str = Field(
         description="The agent's response text - clear and concise",
         min_length=10,
-        max_length=2000,  # Prevent truncation at max_tokens limit
+        max_length=500,  # Prevent truncation at max_tokens limit
     )
 
 

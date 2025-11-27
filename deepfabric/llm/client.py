@@ -27,6 +27,66 @@ def _raise_api_key_error(env_var: str) -> None:
     raise DataSetGeneratorError(msg)
 
 
+# Provider to environment variable mapping
+PROVIDER_API_KEY_MAP: dict[str, list[str]] = {
+    "openai": ["OPENAI_API_KEY"],
+    "anthropic": ["ANTHROPIC_API_KEY"],
+    "gemini": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+    "openrouter": ["OPENROUTER_API_KEY"],
+    "ollama": [],  # No API key required
+    # Test providers for unit tests, no API key required
+    "test": [],
+    "override": [],
+}
+
+
+def validate_provider_api_key(provider: str) -> tuple[bool, str | None]:
+    """Validate that the required API key exists for a provider.
+
+    Args:
+        provider: Provider name (openai, anthropic, gemini, ollama, openrouter)
+
+    Returns:
+        Tuple of (is_valid, error_message). If valid, error_message is None.
+    """
+    env_vars = PROVIDER_API_KEY_MAP.get(provider)
+
+    if env_vars is None:
+        return False, f"Unknown provider: {provider}"
+
+    # Ollama doesn't need an API key
+    if not env_vars:
+        return True, None
+
+    # Check if any of the required env vars are set
+    for env_var in env_vars:
+        if os.getenv(env_var):
+            return True, None
+
+    # Build helpful error message
+    if len(env_vars) == 1:
+        return False, f"Missing API key: {env_vars[0]} environment variable is not set"
+    var_list = " or ".join(env_vars)
+    return False, f"Missing API key: Set {var_list} environment variable"
+
+
+def get_required_api_key_env_var(provider: str) -> str | None:
+    """Get the environment variable name(s) required for a provider.
+
+    Args:
+        provider: Provider name
+
+    Returns:
+        Human-readable string of required env var(s), or None if no key required
+    """
+    env_vars = PROVIDER_API_KEY_MAP.get(provider)
+    if not env_vars:
+        return None
+    if len(env_vars) == 1:
+        return env_vars[0]
+    return " or ".join(env_vars)
+
+
 def _raise_unsupported_provider_error(provider: str) -> None:
     """Raise an error for unsupported provider."""
     msg = f"Unsupported provider: {provider}"
