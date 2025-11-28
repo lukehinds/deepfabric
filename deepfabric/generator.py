@@ -158,6 +158,12 @@ class DataSetGeneratorConfig(BaseModel):
         le=10,
         description="Maximum number of conversation turns for multi-turn agent mode",
     )
+    min_tool_calls: int = Field(
+        default=2,
+        ge=0,
+        le=20,
+        description="Minimum number of tool calls required before allowing early conversation conclusion",
+    )
 
 
 class DataSetGenerator:
