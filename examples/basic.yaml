@@ -1,0 +1,44 @@
+#####################################################################
+# Basic Dataset Configuration #
+#####################################################################
+# This configuration file sets up a basic dataset generation
+# process using topic generation and data generation engines.
+# The dataset focuses on Python programming fundamentals.
+# There are no advanced features like Tool Use or Reasoning enabled.
+####################################################################
+
+dataset_system_prompt: |
+  You are a helpful AI assistant that provides accurate and informative responses.
+
+# Topic generation - creates a tree of related topics
+topic_tree:
+  topic_prompt: "Python programming fundamentals"
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.8
+  degree: 2  # Number of subtopics per branch
+  depth: 2  # Tree depth (2-3 is usually sufficient)
+  save_as: "basic-topics.jsonl"
+
+# Data generation - creates the actual training examples
+data_engine:
+  generation_system_prompt: "Generate clear, educational Q&A pairs about Python programming."
+  instructions: "Create diverse questions and detailed answers suitable for learning Python."
+
+  # Conversation configuration
+  conversation_type: "basic"  # Simple Q&A format
+
+  # Model configuration
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.7
+  max_retries: 3  # Retry on API failures
+
+# Dataset configuration
+dataset:
+  save_as: "basic-dataset.jsonl"
+  creation:
+    num_steps: 1      # Number of examples to generate
+    batch_size: 1      # Parallel generation batch size
+    sys_msg: true      # Include system message in output
+

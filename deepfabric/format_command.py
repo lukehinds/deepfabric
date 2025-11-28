@@ -114,7 +114,7 @@ def _warn_formatter_incompatibilities(dataset: Dataset, formatter_configs: list[
         },
         "chatml": {
             "incompatible_with": {
-                "reasoning_style": ["structured", "hybrid"],
+                "reasoning_style": ["agent"],
             },
             "warning": "ChatML format may reject samples with complex reasoning structures. Consider using 'conversations' format for chain-of-thought data.",
         },

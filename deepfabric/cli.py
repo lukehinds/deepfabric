@@ -89,7 +89,7 @@ class GenerateOptions(BaseModel):
 
     # Modular conversation configuration
     conversation_type: Literal["basic", "chain_of_thought"] | None = None
-    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = None
+    reasoning_style: Literal["freetext", "agent", "structured", "hybrid"] | None = None
     agent_mode: Literal["single_turn", "multi_turn"] | None = None
 
     @model_validator(mode="after")
@@ -386,8 +386,8 @@ def _run_generation(
 )
 @click.option(
     "--reasoning-style",
-    type=click.Choice(["freetext", "structured", "hybrid"]),
-    help="Reasoning style for chain_of_thought: freetext (natural language), structured (step-by-step), hybrid (both)",
+    type=click.Choice(["freetext", "agent", "structured", "hybrid"]),
+    help="Reasoning style for chain_of_thought: freetext (natural language) or agent (structured for tool-calling). Note: 'structured' and 'hybrid' are deprecated.",
 )
 @click.option(
     "--agent-mode",
@@ -418,7 +418,7 @@ def generate(  # noqa: PLR0913
     debug: bool = False,
     topic_only: bool = False,
     conversation_type: Literal["basic", "chain_of_thought"] | None = None,
-    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = None,
+    reasoning_style: Literal["freetext", "agent", "structured", "hybrid"] | None = None,
     agent_mode: Literal["single_turn", "multi_turn"] | None = None,
     tui: Literal["rich", "simple"] = "rich",
 ) -> None:

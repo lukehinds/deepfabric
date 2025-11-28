@@ -1,8 +1,10 @@
+import warnings
+
 from typing import Any, Literal
 
 import yaml
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .constants import (
     DEFAULT_MAX_RETRIES,
@@ -17,6 +19,34 @@ from .constants import (
 )
 from .exceptions import ConfigurationError
 from .metrics import trace
+
+
+def _normalize_reasoning_style(value: str | None) -> str | None:
+    """Normalize reasoning_style with deprecation warnings for old values.
+
+    Args:
+        value: The reasoning_style value to normalize
+
+    Returns:
+        Normalized value ('freetext', 'agent', or None)
+    """
+    if value is None:
+        return None
+    if value == "structured":
+        warnings.warn(
+            "reasoning_style='structured' is deprecated. Use 'agent' instead.",
+            DeprecationWarning,
+            stacklevel=4,
+        )
+        return "agent"
+    if value == "hybrid":
+        warnings.warn(
+            "reasoning_style='hybrid' is deprecated and was non-functional. Use 'agent' instead.",
+            DeprecationWarning,
+            stacklevel=4,
+        )
+        return "agent"
+    return value
 
 
 class TopicTreeConfig(BaseModel):
@@ -147,10 +177,16 @@ class DataEngineConfig(BaseModel):
         description="Base conversation type: basic (simple chat), chain_of_thought (with reasoning traces)",
     )
 
-    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = Field(
+    reasoning_style: Literal["freetext", "agent", "structured", "hybrid"] | None = Field(
         default=None,
-        description="Reasoning style for chain_of_thought type: freetext (natural language), structured (step-by-step), hybrid (both)",
+        description="Reasoning style for chain_of_thought type: freetext (natural language) or agent (structured step-by-step for tool-calling). Note: 'structured' and 'hybrid' are deprecated.",
     )
+
+    @field_validator("reasoning_style", mode="before")
+    @classmethod
+    def normalize_reasoning_style(cls, v: str | None) -> str | None:
+        """Normalize deprecated reasoning_style values."""
+        return _normalize_reasoning_style(v)
 
     agent_mode: Literal["single_turn", "multi_turn"] | None = Field(
         default=None,
@@ -190,7 +226,7 @@ class DataEngineConfig(BaseModel):
         if self.conversation_type == "chain_of_thought" and self.reasoning_style is None:
             raise ValueError(
                 "reasoning_style must be specified when conversation_type='chain_of_thought'. "
-                "Choose from: 'freetext', 'structured', 'hybrid'"
+                "Choose from: 'freetext' or 'agent'"
             )
 
         # Validate agent_mode requires tools
@@ -201,6 +237,13 @@ class DataEngineConfig(BaseModel):
                     "agent_mode requires tools to be configured. "
                     "Specify at least one of: available_tools, custom_tools, or tool_registry_path"
                 )
+
+        # Validate freetext reasoning is not used with agent_mode
+        if self.agent_mode is not None and self.reasoning_style == "freetext":
+            raise ValueError(
+                "reasoning_style='freetext' is not compatible with agent_mode. "
+                "Agent mode requires structured reasoning. Use reasoning_style='agent' instead."
+            )
 
         return self
 
@@ -281,10 +324,17 @@ class EvaluationConfig(BaseModel):
         ...,
         description="Conversation type (must match dataset generation)",
     )
-    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = Field(
+    reasoning_style: Literal["freetext", "agent", "structured", "hybrid"] | None = Field(
         default=None,
-        description="Reasoning style for chain_of_thought type",
+        description="Reasoning style for chain_of_thought type: freetext (natural language) or agent (structured step-by-step for tool-calling). Note: 'structured' and 'hybrid' are deprecated.",
     )
+
+    @field_validator("reasoning_style", mode="before")
+    @classmethod
+    def normalize_reasoning_style(cls, v: str | None) -> str | None:
+        """Normalize deprecated reasoning_style values."""
+        return _normalize_reasoning_style(v)
+
     agent_mode: Literal["single_turn", "multi_turn"] | None = Field(
         default=None,
         description="Agent mode if tools are used",
@@ -351,7 +401,14 @@ class EvaluationConfig(BaseModel):
         if self.conversation_type == "chain_of_thought" and self.reasoning_style is None:
             raise ValueError(
                 "reasoning_style must be specified when conversation_type='chain_of_thought'. "
-                "Choose from: 'freetext', 'structured', 'hybrid'"
+                "Choose from: 'freetext' or 'agent'"
+            )
+
+        # Validate freetext reasoning is not used with agent_mode
+        if self.agent_mode is not None and self.reasoning_style == "freetext":
+            raise ValueError(
+                "reasoning_style='freetext' is not compatible with agent_mode. "
+                "Agent mode requires structured reasoning. Use reasoning_style='agent' instead."
             )
 
         return self
@@ -393,7 +450,7 @@ class DeepFabricConfig(BaseModel):
             },
             "chatml": {
                 "incompatible_with": {
-                    "reasoning_style": ["structured", "hybrid"],
+                    "reasoning_style": ["agent"],
                 },
                 "warning": "ChatML format may reject samples with complex reasoning structures. Consider using 'conversations' format for chain-of-thought data.",
             },

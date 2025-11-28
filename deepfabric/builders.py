@@ -246,7 +246,7 @@ class SingleShotBuilder(ConversationBuilder):
                     "DO NOT use numbered steps or structured outlines. "
                     "Use the 'content' field in reasoning as a plain string (not a list)."
                 )
-            elif self.config.reasoning_style == "structured":
+            elif self.config.reasoning_style == "agent":
                 prompt_parts.append(
                     "\nREASONING FORMAT: Generate structured reasoning steps as a list of ReasoningStep objects. "
                     "Each step should have clear thought and action fields."

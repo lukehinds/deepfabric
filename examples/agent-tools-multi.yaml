@@ -1,0 +1,61 @@
+#####################################################################
+# Agent Tools Dataset Configuration                                 
+#####################################################################
+# This configuration file sets up a dataset generation process using
+# topic generation and data generation engines.
+# The dataset focuses on Python programming fundamentals.
+# Advanced features like Tool Use with a reasoning style
+# A multi-turn agent mode of tool usage occurs.
+#####################################################################
+
+dataset_system_prompt: |
+  You are an AI assistant with access to various tools and functions.
+  When given a task:
+  1. Analyze what tools are needed
+  2. Execute tools with proper parameters
+  3. Interpret results and provide a clear answer
+
+topic_tree:
+  topic_prompt: "Python programming fundamentals"
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.8
+  degree: 2
+  depth: 2
+  save_as: "tools-topics.jsonl"
+
+data_engine:
+  generation_system_prompt: |
+    Generate examples of tool usage with clear reasoning.
+    Show why tools are chosen and how results are interpreted.
+    The tools available are defined in the tool registry.
+
+  instructions: "Create realistic scenarios requiring tool usage to complete tasks."
+
+  # Chain of thought with agent mode
+  conversation_type: "chain_of_thought"
+  reasoning_style: "agent"
+
+  # As the reasoning style is "agent", specify the agent mode
+  # This is used to determine if single-turn or multi-turn tool use is desired
+  # For this example, we use multi-turn tool use
+  agent_mode: "multi_turn"
+
+  # Built-in tools available for use
+  tool_registry_path: "custom-tools.yaml"
+
+  max_tools_per_query: 3  # Maximum tools per example
+  max_tools_strict: false  # Keep samples with extra tools, just truncate to limit
+
+  # Model configuration
+  provider: "gemini"
+  model: "gemini-2.5-flash-lite"
+  temperature: 0.7
+  max_retries: 3  # Retry on API failures
+
+dataset:
+  save_as: "agent-tools-multi-dataset.jsonl"
+  creation:
+    num_steps: 1
+    batch_size: 1
+    sys_msg: true

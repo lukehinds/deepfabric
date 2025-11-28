@@ -6,9 +6,10 @@ import random
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .builders import ConversationBuilderFactory
+from .config import _normalize_reasoning_style
 from .constants import (
     API_ERROR_INDICATORS,
     DEFAULT_MAX_RETRIES,
@@ -27,12 +28,10 @@ from .llm import LLMClient
 from .metrics import trace
 from .progress import ProgressReporter
 from .prompts import (
-    AGENT_COT_HYBRID_PROMPT,
     AGENT_COT_MULTI_TURN_PROMPT,
     AGENT_COT_TOOLS_PROMPT,
     CONVERSATION_GENERATION_PROMPT,
     FREETEXT_COT_PROMPT,
-    HYBRID_COT_PROMPT,
     STRUCTURED_COT_PROMPT,
     AgentPromptBuilder,
 )
@@ -117,10 +116,16 @@ class DataSetGeneratorConfig(BaseModel):
         description="Base conversation type: basic (simple chat), chain_of_thought (with reasoning traces)",
     )
 
-    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = Field(
+    reasoning_style: Literal["freetext", "agent", "structured", "hybrid"] | None = Field(
         default=None,
-        description="Reasoning style for chain_of_thought type: freetext (natural language), structured (step-by-step), hybrid (both)",
+        description="Reasoning style for chain_of_thought type: freetext (natural language) or agent (structured step-by-step for tool-calling). Note: 'structured' and 'hybrid' are deprecated.",
     )
+
+    @field_validator("reasoning_style", mode="before")
+    @classmethod
+    def normalize_reasoning_style(cls, v: str | None) -> str | None:
+        """Normalize deprecated reasoning_style values."""
+        return _normalize_reasoning_style(v)
 
     agent_mode: Literal["single_turn", "multi_turn"] | None = Field(
         default=None,
@@ -877,14 +882,7 @@ class DataSetGenerator:
         if self.config.conversation_type == "chain_of_thought":
             # Agent mode with tools - use agent prompts
             if self.config.agent_mode == "single_turn" and self.tool_registry:
-                # Choose between simple or hybrid based on reasoning style
-                if self.config.reasoning_style == "hybrid":
-                    return (
-                        AgentPromptBuilder.build_tool_context_prompt(
-                            self.tool_registry, max_tools_per_query=self.config.max_tools_per_query
-                        )
-                        or AGENT_COT_HYBRID_PROMPT
-                    )
+                # Use agent prompt for single-turn tool calling
                 return (
                     AgentPromptBuilder.build_tool_context_prompt(
                         self.tool_registry, max_tools_per_query=self.config.max_tools_per_query
@@ -904,10 +902,8 @@ class DataSetGenerator:
             # Non-agent CoT - select based on reasoning style
             if self.config.reasoning_style == "freetext":
                 return FREETEXT_COT_PROMPT
-            if self.config.reasoning_style == "structured":
+            if self.config.reasoning_style == "agent":
                 return STRUCTURED_COT_PROMPT
-            if self.config.reasoning_style == "hybrid":
-                return HYBRID_COT_PROMPT
 
         # Fallback to basic conversation prompt
         return CONVERSATION_GENERATION_PROMPT

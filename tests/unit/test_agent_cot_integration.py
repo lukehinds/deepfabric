@@ -44,7 +44,7 @@ class TestAgentCoTIntegration:
             "question": "Test question",
             "final_answer": "Test answer",
             "reasoning": {
-                "style": "structured",
+                "style": "agent",
                 "content": [
                     {"step_number": 1, "thought": "Step 1", "action": None},
                     {"step_number": 2, "thought": "Step 2", "action": None},
@@ -67,7 +67,7 @@ class TestAgentCoTIntegration:
         assert isinstance(instance, Conversation)
         assert instance.question == "Test question"
         assert instance.reasoning is not None
-        assert instance.reasoning.style == "structured"
+        assert instance.reasoning.style == "agent"
         assert instance.tool_context is not None
         assert len(instance.tool_context.executions) == 1
         assert instance.tool_context.executions[0].function_name == "test_tool"
@@ -81,7 +81,7 @@ class TestAgentCoTIntegration:
             "provider": "openai",
             "model_name": "gpt-4",
             "conversation_type": "chain_of_thought",
-            "reasoning_style": "structured",
+            "reasoning_style": "agent",
             "agent_mode": "single_turn",
             "available_tools": ["get_weather", "calculate"],
             "num_samples": 1,
@@ -275,7 +275,7 @@ class TestAgentCoTIntegration:
                 "provider": "openai",
                 "model": "gpt-4",
                 "conversation_type": "chain_of_thought",
-                "reasoning_style": "structured",
+                "reasoning_style": "agent",
                 "agent_mode": "single_turn",
                 "available_tools": ["get_weather", "calculate"],
                 "num_samples": 10,
@@ -300,7 +300,7 @@ class TestAgentCoTIntegration:
 
         # Verify modular configuration is accepted
         assert config.data_engine.conversation_type == "chain_of_thought"
-        assert config.data_engine.reasoning_style == "structured"
+        assert config.data_engine.reasoning_style == "agent"
         assert config.data_engine.agent_mode == "single_turn"
         assert config.data_engine.available_tools == ["get_weather", "calculate"]
 
@@ -320,7 +320,7 @@ class TestToolSystemIntegration:
             generator = DataSetGenerator(
                 generation_system_prompt="Test prompt",
                 conversation_type="chain_of_thought",
-                reasoning_style="structured",
+                reasoning_style="agent",
                 agent_mode="single_turn",
                 available_tools=["get_weather", "calculate"],
                 provider="openai",

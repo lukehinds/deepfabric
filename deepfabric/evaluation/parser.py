@@ -33,7 +33,7 @@ class GroundTruth(BaseModel):
     conversation_type: Literal["basic", "chain_of_thought"] = Field(
         description="Type of conversation",
     )
-    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = Field(
+    reasoning_style: Literal["freetext", "agent", "structured", "hybrid"] | None = Field(
         default=None,
         description="Reasoning style if chain_of_thought",
     )
@@ -57,7 +57,7 @@ class GroundTruthParser:
     def __init__(
         self,
         conversation_type: Literal["basic", "chain_of_thought"],
-        reasoning_style: Literal["freetext", "structured", "hybrid"] | None = None,
+        reasoning_style: Literal["freetext", "agent", "structured", "hybrid"] | None = None,
         agent_mode: Literal["single_turn", "multi_turn"] | None = None,
     ):
         """Initialize parser with conversation configuration.
@@ -68,7 +68,9 @@ class GroundTruthParser:
             agent_mode: Agent mode if tools are used
         """
         self.conversation_type: Literal["basic", "chain_of_thought"] = conversation_type
-        self.reasoning_style: Literal["freetext", "structured", "hybrid"] | None = reasoning_style
+        self.reasoning_style: Literal["freetext", "agent", "structured", "hybrid"] | None = (
+            reasoning_style
+        )
         self.agent_mode: Literal["single_turn", "multi_turn"] | None = agent_mode
 
     def parse(self, conversation: Conversation) -> GroundTruth:
@@ -232,7 +234,7 @@ class GroundTruthParser:
 def parse_batch(
     conversations: list[Conversation],
     conversation_type: Literal["basic", "chain_of_thought"],
-    reasoning_style: Literal["freetext", "structured", "hybrid"] | None = None,
+    reasoning_style: Literal["freetext", "agent", "structured", "hybrid"] | None = None,
     agent_mode: Literal["single_turn", "multi_turn"] | None = None,
 ) -> list[GroundTruth]:
     """Parse a batch of conversations to extract ground truth.

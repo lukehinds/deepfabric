@@ -459,7 +459,7 @@ Remember: You have access to the tools listed above and have used them in this c
 
         # Build reasoning trace
         reasoning_trace = ReasoningTrace(
-            style=self.config.reasoning_style or "structured", content=reasoning
+            style=self.config.reasoning_style or "agent", content=reasoning
         )
 
         # Build agent context
@@ -930,7 +930,7 @@ Is the user's original task/goal from the scenario fully completed?
 
         # Build reasoning trace
         reasoning_trace = ReasoningTrace(
-            style=self.config.reasoning_style or "structured",
+            style=self.config.reasoning_style or "agent",
             content=all_reasoning,
         )
 
