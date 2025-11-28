@@ -348,10 +348,7 @@ The output should be realistic and appropriate for the tool and arguments provid
         # Build context section if provided
         context_section = ""
         if context:
-            context_section = f"""Previous conversation:
-{context}
-
-"""
+            context_section = f"Previous conversation:\n{context}\n\n"
 
         prompt = f"""{self.config.dataset_system_prompt}
 
@@ -587,24 +584,22 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
         """
         tools_info = self._format_tools_for_prompt()
 
-        prompt = f"""Generate a realistic scenario for this topic that requires {num_turns} user-agent interaction turns:
-{topic_prompt}
-
-Available tools:
-{tools_info}
-
-The scenario MUST:
-- Require at least {num_turns} distinct tool calls across different turns
-- Have tool dependencies (e.g., read before modify, search before create, fetch before analyze)
-- Build progressively - each turn depends on results from previous turns
-- NOT be completable in a single turn
-
-Example structure for a {num_turns}-turn scenario:
-- Turn 1: User asks to find/read/search something
-- Turn 2: User asks to modify/create based on what was found
-- Turn 3+: User asks to verify, take action, or build further on previous results
-
-Keep it brief (2-3 sentences) but ensure multi-step complexity with clear tool dependencies."""
+        prompt = (
+            f"Generate a realistic scenario for this topic that requires {num_turns} user-agent interaction turns:\n"
+            f"{topic_prompt}\n\n"
+            f"Available tools:\n"
+            f"{tools_info}\n\n"
+            f"The scenario MUST:\n"
+            f"- Require at least {num_turns} distinct tool calls across different turns\n"
+            f"- Have tool dependencies (e.g., read before modify, search before create, fetch before analyze)\n"
+            f"- Build progressively - each turn depends on results from previous turns\n"
+            f"- NOT be completable in a single turn\n\n"
+            f"Example structure for a {num_turns}-turn scenario:\n"
+            f"- Turn 1: User asks to find/read/search something\n"
+            f"- Turn 2: User asks to modify/create based on what was found\n"
+            f"- Turn 3+: User asks to verify, take action, or build further on previous results\n\n"
+            f"Keep it brief (2-3 sentences) but ensure multi-step complexity with clear tool dependencies."
+        )
 
         response: Scenario
         if self.progress_reporter:
