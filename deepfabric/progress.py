@@ -8,7 +8,10 @@ The system uses the Observer pattern to enable multiple observers (TUI, logging,
 metrics, etc.) to react to progress events.
 """
 
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from .error_codes import ClassifiedError
 
 
 class StreamObserver(Protocol):
@@ -47,6 +50,15 @@ class StreamObserver(Protocol):
         Args:
             step_name: Human-readable name of the step
             metadata: Additional context including results (tokens_used, duration, success, etc.)
+        """
+        ...
+
+    def on_error(self, error: "ClassifiedError", metadata: dict[str, Any]) -> None:
+        """Called when an error occurs during generation.
+
+        Args:
+            error: ClassifiedError with error code and details
+            metadata: Additional context (sample_idx, step, etc.)
         """
         ...
 
@@ -117,6 +129,17 @@ class ProgressReporter:
         """
         for observer in self._observers:
             observer.on_step_complete(step_name, metadata)
+
+    def emit_error(self, error: "ClassifiedError", **metadata) -> None:
+        """Emit an error event to all observers.
+
+        Args:
+            error: ClassifiedError with error code and details
+            **metadata: Additional context as keyword arguments
+        """
+        for observer in self._observers:
+            if hasattr(observer, "on_error"):
+                observer.on_error(error, metadata)
 
 
 # Convenience context manager for tracking steps

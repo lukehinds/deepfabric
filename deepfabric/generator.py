@@ -21,6 +21,7 @@ from .constants import (
     INTERRUPTED_DATASET_FILENAME,
 )
 from .dataset import Dataset
+from .error_codes import classify_error
 from .exceptions import DataSetGeneratorError
 from .llm import LLMClient
 from .metrics import trace
@@ -422,7 +423,7 @@ class DataSetGenerator:
             tasks.append(asyncio.create_task(_generate(prompt, start_sample_idx + idx, path_info)))
         results = await asyncio.gather(*tasks)
 
-        for success, payload in results:
+        for idx, (success, payload) in enumerate(results):
             if success:
                 samples.append(payload)
             else:
@@ -433,6 +434,18 @@ class DataSetGenerator:
                     str(error), error=error if isinstance(error, Exception) else None
                 )
                 self.failure_analysis[failure_type].append(error_msg)
+
+                # Classify and emit error to progress reporter
+                classified = classify_error(
+                    error if isinstance(error, Exception) else str(error),
+                    provider=self.provider,
+                    context={"error_type": failure_type},
+                )
+                if self.progress_reporter:
+                    self.progress_reporter.emit_error(
+                        classified,
+                        sample_idx=start_sample_idx + idx,
+                    )
 
         return samples, failed_responses
 
