@@ -2,7 +2,7 @@
   <h1>DeepFabric</h1>
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./assets/logo-light.png" />
-    <img alt="DeepFabric logo" src="./assets/logo-light.png" style="width:50%;max-width:50%;height:auto;display:block;margin:0 auto;" />
+    <img alt="DeepFabric logo" src="./assets/logo-light.png" style="width:40%;max-width:40%;height:auto;display:block;margin:0 auto;" />
   </picture>
   <h3>Training Model Behavior in Agentic Systems</h3>
 
