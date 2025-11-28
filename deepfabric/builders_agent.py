@@ -32,7 +32,6 @@ class UserQuestion(BaseModel):
     content: str = Field(
         description="The user's question or request text - just the question itself, nothing else",
         min_length=10,
-        max_length=1000,
     )
 
 
@@ -42,7 +41,6 @@ class Scenario(BaseModel):
     description: str = Field(
         description="Brief scenario description requiring multiple turns",
         min_length=20,
-        max_length=500,
     )
 
 
@@ -52,7 +50,6 @@ class AgentResponse(BaseModel):
     content: str = Field(
         description="The agent's response text - clear and concise",
         min_length=10,
-        max_length=500,  # Prevent truncation at max_tokens limit
     )
 
 
