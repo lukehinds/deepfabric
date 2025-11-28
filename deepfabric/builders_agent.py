@@ -274,9 +274,11 @@ Provide step-by-step reasoning (2-4 steps) and identify which tools to call with
 
 Tool: {tool_def.name}
 Description: {tool_def.description}
+Expected return: {tool_def.returns}
 Arguments called with: {tool_call.arguments}
 
-Generate the tool's output/result. Make it realistic and appropriate for the tool and arguments."""
+Generate the tool's output/result that matches the expected return format exactly.
+The output should be realistic and appropriate for the tool and arguments provided."""
 
             result: ToolOutput
             if self.progress_reporter:
@@ -322,6 +324,7 @@ Generate the tool's output/result. Make it realistic and appropriate for the too
         user_message: ChatMessage,
         _reasoning: list[ReasoningStep],
         tool_results: list[ToolExecution],
+        context: str = "",
     ) -> ChatMessage:
         """Generate agent's final response interpreting tool results.
 
@@ -329,6 +332,7 @@ Generate the tool's output/result. Make it realistic and appropriate for the too
             user_message: Original user question
             _reasoning: Agent's reasoning steps (unused, kept for interface consistency)
             tool_results: Tool execution results
+            context: Previous conversation context (for multi-turn)
 
         Returns:
             Agent's final response message
@@ -338,14 +342,26 @@ Generate the tool's output/result. Make it realistic and appropriate for the too
             [f"Tool: {r.function_name}\nResult: {r.result}" for r in tool_results]
         )
 
+        # Format available tools for context
+        tools_info = self._format_tools_for_prompt()
+
+        # Build context section if provided
+        context_section = ""
+        if context:
+            context_section = f"Previous conversation:\n{context}\n\n"
+
         prompt = f"""{self.config.dataset_system_prompt}
 
-User request: {user_message.content}
+Available tools:
+{tools_info}
+
+{context_section}User request: {user_message.content}
 
 You executed these tools:
 {results_text}
 
-Based on these results, provide a clear, helpful response to the user."""
+Based on these results, provide a clear, helpful response to the user.
+Remember: You have access to the tools listed above and have used them in this conversation."""
 
         response: AgentResponse
         if self.progress_reporter:
@@ -544,9 +560,12 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
                 ]
             )
 
+            # Count total tool calls so far
+            total_tool_calls = sum(len(t.tool_calls) for t in turns)
+
             # Check if we should conclude early
             if turn_idx >= self.config.min_turns - 1 and await self._should_conclude_early(
-                all_messages, scenario, turn_idx + 1
+                all_messages, scenario, turn_idx + 1, total_tool_calls
             ):
                 break
 
@@ -563,15 +582,24 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
         Returns:
             Scenario description that requires multiple interactions
         """
-        prompt = f"""Generate a realistic scenario for this topic that requires {num_turns} user-agent interaction turns:
-{topic_prompt}
+        tools_info = self._format_tools_for_prompt()
 
-The scenario should:
-- Require multiple steps to complete
-- Each turn should build on previous turns
-- Use tools progressively (different tools in different turns)
-
-Keep it brief (2-3 sentences)."""
+        prompt = (
+            f"Generate a realistic scenario for this topic that requires {num_turns} user-agent interaction turns:\n"
+            f"{topic_prompt}\n\n"
+            f"Available tools:\n"
+            f"{tools_info}\n\n"
+            f"The scenario MUST:\n"
+            f"- Require at least {num_turns} distinct tool calls across different turns\n"
+            f"- Have tool dependencies (e.g., read before modify, search before create, fetch before analyze)\n"
+            f"- Build progressively - each turn depends on results from previous turns\n"
+            f"- NOT be completable in a single turn\n\n"
+            f"Example structure for a {num_turns}-turn scenario:\n"
+            f"- Turn 1: User asks to find/read/search something\n"
+            f"- Turn 2: User asks to modify/create based on what was found\n"
+            f"- Turn 3+: User asks to verify, take action, or build further on previous results\n\n"
+            f"Keep it brief (2-3 sentences) but ensure multi-step complexity with clear tool dependencies."
+        )
 
         response: Scenario
         if self.progress_reporter:
@@ -630,9 +658,9 @@ Keep it brief (2-3 sentences)."""
         # Simulate tools
         tool_results = await self._simulate_tool_results(tool_calls)
 
-        # Generate agent response
+        # Generate agent response with conversation context
         agent_response = await self._generate_agent_conclusion(
-            user_message, reasoning, tool_results
+            user_message, reasoning, tool_results, context=context_text
         )
 
         return AgentTurnData(
@@ -766,7 +794,7 @@ Provide step-by-step reasoning (1-3 steps) and identify which tools are needed."
         return response.reasoning_steps, response.tool_calls
 
     async def _should_conclude_early(
-        self, messages: list[ChatMessage], scenario: str, current_turn: int
+        self, messages: list[ChatMessage], scenario: str, current_turn: int, total_tool_calls: int
     ) -> bool:
         """Determine if conversation should conclude before max_turns.
 
@@ -774,10 +802,15 @@ Provide step-by-step reasoning (1-3 steps) and identify which tools are needed."
             messages: All messages so far
             scenario: Original scenario
             current_turn: Current turn number
+            total_tool_calls: Total number of tool calls made so far
 
         Returns:
             True if conversation should end
         """
+        # Don't conclude early if we haven't met the minimum tool calls requirement
+        if total_tool_calls < self.config.min_tool_calls:
+            return False
+
         # Format conversation so far
         conversation_text = self._format_message_context(messages)
 
@@ -793,7 +826,7 @@ Is the user's original task/goal from the scenario fully completed?
         response = await self.llm.generate_async(
             prompt=prompt,
             schema=ConclusionDecision,
-            max_tokens=10,
+            max_tokens=100,
             temperature=0.3,
         )
 
