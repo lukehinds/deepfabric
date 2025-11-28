@@ -238,6 +238,13 @@ class DataEngineConfig(BaseModel):
                     "Specify at least one of: available_tools, custom_tools, or tool_registry_path"
                 )
 
+        # Validate freetext reasoning is not used with agent_mode
+        if self.agent_mode is not None and self.reasoning_style == "freetext":
+            raise ValueError(
+                "reasoning_style='freetext' is not compatible with agent_mode. "
+                "Agent mode requires structured reasoning. Use reasoning_style='agent' instead."
+            )
+
         return self
 
 
@@ -395,6 +402,13 @@ class EvaluationConfig(BaseModel):
             raise ValueError(
                 "reasoning_style must be specified when conversation_type='chain_of_thought'. "
                 "Choose from: 'freetext' or 'agent'"
+            )
+
+        # Validate freetext reasoning is not used with agent_mode
+        if self.agent_mode is not None and self.reasoning_style == "freetext":
+            raise ValueError(
+                "reasoning_style='freetext' is not compatible with agent_mode. "
+                "Agent mode requires structured reasoning. Use reasoning_style='agent' instead."
             )
 
         return self

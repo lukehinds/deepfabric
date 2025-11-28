@@ -51,6 +51,19 @@ class TestModularConfigValidation:
                 # Missing tools configuration
             )
 
+    def test_freetext_not_compatible_with_agent_mode(self):
+        """Test that freetext reasoning style cannot be used with agent_mode."""
+        with pytest.raises(ValueError, match="freetext.*not compatible with agent_mode"):
+            DataEngineConfig(
+                generation_system_prompt="Test",
+                provider="test",
+                model="model",
+                conversation_type="chain_of_thought",
+                reasoning_style="freetext",
+                agent_mode="single_turn",
+                available_tools=["get_weather"],
+            )
+
 
 class TestModularConfigCombinations:
     """Test valid combinations of modular configuration options."""
@@ -141,7 +154,7 @@ class TestModularConfigDefaultValues:
             provider="test",
             model="model",
             conversation_type="chain_of_thought",
-            reasoning_style="freetext",
+            reasoning_style="agent",
             agent_mode="single_turn",
             available_tools=["tool1"],
         )
@@ -237,7 +250,7 @@ class TestAgentModeOptions:
             provider="test",
             model="model",
             conversation_type="chain_of_thought",
-            reasoning_style="freetext",
+            reasoning_style="agent",
             agent_mode="single_turn",
             available_tools=["tool1"],
         )
