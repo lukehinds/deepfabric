@@ -352,8 +352,8 @@ class HFChatTemplateFormatter:
             # For freetext, content is a string
             return str(reasoning.content) if reasoning.content else ""
 
-        if reasoning.style in ("structured", "hybrid"):
-            # For structured/hybrid, content is a list of ReasoningStep objects
+        if reasoning.style == "agent":
+            # For agent style, content is a list of ReasoningStep objects
             if not isinstance(reasoning.content, list):
                 return ""
 

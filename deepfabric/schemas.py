@@ -374,11 +374,11 @@ class MathematicalAnswerMixin:
 class ReasoningTrace(BaseModel):
     """Reasoning capability - present when conversation_type='chain_of_thought'."""
 
-    style: Literal["freetext", "structured", "hybrid"] = Field(
-        description="The reasoning style: freetext (natural language), structured (step-by-step), or hybrid (both)"
+    style: Literal["freetext", "agent"] = Field(
+        description="The reasoning style: freetext (natural language) or agent (structured step-by-step for tool-calling)"
     )
     content: str | list[ReasoningStep] = Field(
-        description="Reasoning content - string for freetext, list of ReasoningStep for structured/hybrid"
+        description="Reasoning content - string for freetext, list of ReasoningStep for agent"
     )
 
     class Config:
@@ -465,7 +465,7 @@ class Conversation(BaseModel):
         if v is None:
             return None
 
-        if v.style in ("structured", "hybrid") and not isinstance(v.content, list):
+        if v.style == "agent" and not isinstance(v.content, list):
             msg = (
                 f"Reasoning style '{v.style}' requires list of ReasoningStep, got {type(v.content)}"
             )

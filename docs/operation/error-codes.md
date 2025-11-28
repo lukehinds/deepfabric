@@ -1,6 +1,6 @@
 # Error Codes
 
-DeepFabric uses standardized error codes to provide consistent, actionable feedback during dataset generation. Error codes appear in the TUI Events panel and help diagnose issues without enabling debug mode.
+DeepFabric uses standardized error codes to provide consistent, actionable feedback during dataset generation. Error codes appear in the TUI Events panel and help diagnose issues with sample failures.
 
 ## Overview
 

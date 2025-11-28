@@ -81,7 +81,7 @@ class TestUnifiedConversationSchema:
             "question": "Test question",
             "final_answer": "Test answer",
             "reasoning": {
-                "style": "structured",
+                "style": "agent",
                 "content": [
                     {"step_number": 1, "thought": "Step 1", "action": None},
                     {"step_number": 2, "thought": "Step 2", "action": None},
@@ -103,7 +103,7 @@ class TestUnifiedConversationSchema:
         instance = schema(**sample_data)
         assert instance.question == "Test question"
         assert instance.reasoning is not None
-        assert instance.reasoning.style == "structured"
+        assert instance.reasoning.style == "agent"
         assert instance.tool_context is not None
         assert len(instance.tool_context.executions) == 1
 

@@ -1470,7 +1470,7 @@ class TestOpenAISchemaFormatter:
             ],
             # DeepFabric-specific fields that should be removed
             "metadata": {"conversation_type": "chain_of_thought"},
-            "reasoning": {"style": "structured", "content": []},
+            "reasoning": {"style": "agent", "content": []},
             "tool_context": {"available_tools": [], "executions": []},
             "agent_context": {"mode": "single_turn"},
             "question": "Test question",

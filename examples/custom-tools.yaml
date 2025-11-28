@@ -1,0 +1,93 @@
+- name: "github_create_issue"
+  description: "Create a GitHub issue in a repository"
+  parameters:
+    - name: repository
+      type: str
+      description: "Repository in format 'owner/repo'"
+      required: true
+    - name: title
+      type: str
+      description: "Issue title"
+      required: true
+    - name: body
+      type: str
+      description: "Issue description"
+      required: true
+    - name: labels
+      type: list
+      description: "List of label names to apply"
+      required: false
+    - name: assignees
+      type: list
+      description: "List of GitHub usernames to assign"
+      required: false
+  returns: "Created issue number and URL"
+
+- name: "github_make_pr"
+  description: "Create a GitHub pull request"
+  parameters:
+    - name: repository
+      type: str
+      description: "Repository in format 'owner/repo'"
+      required: true
+    - name: title
+      type: str
+      description: "Pull request title"
+      required: true
+    - name: body
+      type: str
+      description: "Pull request description"
+      required: true
+    - name: head_branch
+      type: str
+      description: "Name of the branch where changes are implemented"
+      required: true
+    - name: base_branch
+      type: str
+      description: "Name of the branch you want to merge into"
+      required: true
+  returns: "Created pull request number and URL"
+
+- name: "execute_cmd"
+  description: "Execute a shell command and return the output"
+  parameters:
+    - name: command
+      type: str
+      description: "The shell command to execute"
+      required: true 
+  returns: "Execution output or error message"
+
+- name: "search_file"
+  description: "Search for a keyword in a text file"
+  parameters:
+    - name: file_path
+      type: str
+      description: "Path to the text file"
+      required: true
+    - name: keyword
+      type: str
+      description: "Keyword to search for"
+
+  returns: "List of line numbers where the keyword was found"
+
+- name: "write_file"
+  description: "Write content to a text file"
+  parameters:
+    - name: file_path
+      type: str
+      description: "Path to the text file"
+      required: true
+    - name: content
+      type: str
+      description: "Content to write to the file"
+      required: true
+  returns: "Confirmation message with file path"
+
+- name: "read_file"
+  description: "Read content from a text file"
+  parameters:
+    - name: file_path
+      type: str
+      description: "Path to the text file"
+      required: true
+  returns: "Content of the file as a string"

@@ -493,7 +493,7 @@ class ChatmlFormatter(BaseFormatter):
             if reasoning_steps:
                 reasoning_text = self._format_reasoning_steps(
                     reasoning_steps,
-                    conversation.reasoning.style if conversation.reasoning else "structured",
+                    conversation.reasoning.style if conversation.reasoning else "agent",
                 )
                 if reasoning_text:
                     content_parts.append(f"<think>\n{reasoning_text}\n</think>\n")
@@ -557,7 +557,7 @@ class ChatmlFormatter(BaseFormatter):
             content = reasoning.content if isinstance(reasoning.content, str) else ""
             # Normalize whitespace: replace blank lines with single space
             return self._normalize_whitespace(content)
-        if reasoning.style in ("structured", "hybrid") and isinstance(reasoning.content, list):
+        if reasoning.style == "agent" and isinstance(reasoning.content, list):
             # Format structured reasoning steps
             return self._format_reasoning_steps(reasoning.content, reasoning.style)
         return ""

@@ -6,6 +6,8 @@ conversation types, reasoning styles, agent modes, and output formats
 are separate, orthogonal concerns that can be combined.
 """
 
+import warnings
+
 import pytest
 
 from deepfabric.config import DataEngineConfig
@@ -44,7 +46,7 @@ class TestModularConfigValidation:
                 provider="test",
                 model="model",
                 conversation_type="chain_of_thought",
-                reasoning_style="hybrid",
+                reasoning_style="agent",
                 agent_mode="single_turn",
                 # Missing tools configuration
             )
@@ -87,13 +89,13 @@ class TestModularConfigCombinations:
             provider="test",
             model="model",
             conversation_type="chain_of_thought",
-            reasoning_style="structured",
+            reasoning_style="agent",
             agent_mode="single_turn",
             available_tools=["get_weather", "calculate"],
         )
 
         assert config.conversation_type == "chain_of_thought"
-        assert config.reasoning_style == "structured"
+        assert config.reasoning_style == "agent"
         assert config.agent_mode == "single_turn"
         assert "get_weather" in config.available_tools
         assert "calculate" in config.available_tools
@@ -105,13 +107,13 @@ class TestModularConfigCombinations:
             provider="test",
             model="model",
             conversation_type="chain_of_thought",
-            reasoning_style="hybrid",
+            reasoning_style="agent",
             agent_mode="multi_turn",
             available_tools=["tool1", "tool2"],
         )
 
         assert config.conversation_type == "chain_of_thought"
-        assert config.reasoning_style == "hybrid"
+        assert config.reasoning_style == "agent"
         assert config.agent_mode == "multi_turn"
         assert len(config.available_tools) == 2  # noqa: PLR2004
 
@@ -174,29 +176,55 @@ class TestReasoningStyleOptions:
 
         assert config.reasoning_style == "freetext"
 
-    def test_structured_reasoning(self):
-        """Test structured reasoning style."""
+    def test_agent_reasoning(self):
+        """Test agent reasoning style."""
         config = DataEngineConfig(
             generation_system_prompt="Test",
             provider="test",
             model="model",
             conversation_type="chain_of_thought",
-            reasoning_style="structured",
+            reasoning_style="agent",
         )
 
-        assert config.reasoning_style == "structured"
+        assert config.reasoning_style == "agent"
 
-    def test_hybrid_reasoning(self):
-        """Test hybrid reasoning style."""
-        config = DataEngineConfig(
-            generation_system_prompt="Test",
-            provider="test",
-            model="model",
-            conversation_type="chain_of_thought",
-            reasoning_style="hybrid",
-        )
+    def test_deprecated_structured_normalizes_to_agent(self):
+        """Test that deprecated 'structured' value normalizes to 'agent'."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = DataEngineConfig(
+                generation_system_prompt="Test",
+                provider="test",
+                model="model",
+                conversation_type="chain_of_thought",
+                reasoning_style="structured",
+            )
 
-        assert config.reasoning_style == "hybrid"
+            # Should normalize to 'agent'
+            assert config.reasoning_style == "agent"
+            # Should emit deprecation warning
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "structured" in str(w[0].message)
+
+    def test_deprecated_hybrid_normalizes_to_agent(self):
+        """Test that deprecated 'hybrid' value normalizes to 'agent'."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            config = DataEngineConfig(
+                generation_system_prompt="Test",
+                provider="test",
+                model="model",
+                conversation_type="chain_of_thought",
+                reasoning_style="hybrid",
+            )
+
+            # Should normalize to 'agent'
+            assert config.reasoning_style == "agent"
+            # Should emit deprecation warning
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "hybrid" in str(w[0].message)
 
 
 class TestAgentModeOptions:
@@ -223,7 +251,7 @@ class TestAgentModeOptions:
             provider="test",
             model="model",
             conversation_type="chain_of_thought",
-            reasoning_style="hybrid",
+            reasoning_style="agent",
             agent_mode="multi_turn",
             available_tools=["tool1", "tool2"],
         )
