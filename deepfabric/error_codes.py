@@ -303,7 +303,7 @@ class ErrorClassifier:
 
         # Check for rate limit errors first (most common during generation)
         if self._is_rate_limit(error_str, context):
-            return self._classify_rate_limit(error_str, context)
+            return self._classify_rate_limit(error_str, context, error)
 
         # Check for authentication errors
         if self._is_auth_error(error_str):
@@ -329,7 +329,7 @@ class ErrorClassifier:
 
         # Check for tool errors
         if self._is_tool_error(error_str, context):
-            return self._classify_tool_error(error_str, error)
+            return self._classify_tool_error(error_str, context, error)
 
         # Check for generic API errors
         if self._is_api_error(error_str):
@@ -348,7 +348,7 @@ class ErrorClassifier:
             original_error=str(error),
         )
 
-    def _is_rate_limit(self, error_str: str, context: dict) -> bool:
+    def _is_rate_limit(self, error_str: str, context: dict[str, Any]) -> bool:
         """Check if error is a rate limit error."""
         rate_limit_indicators = [
             "rate limit",
@@ -363,9 +363,12 @@ class ErrorClassifier:
             return True
         return context.get("is_rate_limit", False)
 
-    def _classify_rate_limit(self, error_str: str, context: dict) -> ClassifiedError:
+    def _classify_rate_limit(
+        self, error_str: str, context: dict[str, Any], error: Exception | str
+    ) -> ClassifiedError:
         """Classify rate limit error into specific type."""
         retry_after = context.get("retry_after")
+        original = str(error)
 
         # Daily quota exhausted
         if context.get("daily_quota_exhausted") or "per_day" in error_str:
@@ -373,7 +376,7 @@ class ErrorClassifier:
                 error_code=DF_R02,
                 detail="daily quota",
                 retry_after=retry_after,
-                original_error=error_str,
+                original_error=original,
             )
 
         # Token limit
@@ -382,7 +385,7 @@ class ErrorClassifier:
             return ClassifiedError(
                 error_code=DF_R03,
                 retry_after=retry_after,
-                original_error=error_str,
+                original_error=original,
             )
 
         # RPM (requests per minute) - most common
@@ -390,14 +393,14 @@ class ErrorClassifier:
             return ClassifiedError(
                 error_code=DF_R01,
                 retry_after=retry_after,
-                original_error=error_str,
+                original_error=original,
             )
 
         # Generic rate limit
         return ClassifiedError(
             error_code=DF_R04,
             retry_after=retry_after,
-            original_error=error_str,
+            original_error=original,
         )
 
     def _is_auth_error(self, error_str: str) -> bool:
@@ -453,7 +456,7 @@ class ErrorClassifier:
             original_error=str(error),
         )
 
-    def _is_parse_error(self, error_str: str, context: dict) -> bool:
+    def _is_parse_error(self, error_str: str, context: dict[str, Any]) -> bool:
         """Check if error is a parsing/schema error."""
         parse_indicators = [
             "json",
@@ -473,7 +476,7 @@ class ErrorClassifier:
         ]
 
     def _classify_parse_error(
-        self, error_str: str, context: dict, error: Exception | str
+        self, error_str: str, context: dict[str, Any], error: Exception | str
     ) -> ClassifiedError:
         """Classify parse error into specific type."""
         error_type = context.get("error_type", "")
@@ -501,7 +504,7 @@ class ErrorClassifier:
             original_error=str(error),
         )
 
-    def _is_tool_error(self, error_str: str, context: dict) -> bool:
+    def _is_tool_error(self, error_str: str, context: dict[str, Any]) -> bool:
         """Check if error is tool-related."""
         tool_indicators = ["tool", "execution", "agent mode"]
         if any(ind in error_str for ind in tool_indicators):
@@ -511,7 +514,8 @@ class ErrorClassifier:
     def _classify_tool_error(
         self,
         error_str: str,
-        error: Exception | str,  # noqa: ARG002
+        context: dict[str, Any],  # noqa: ARG002
+        error: Exception | str,
     ) -> ClassifiedError:
         """Classify tool error into specific type."""
         if "exceeds limit" in error_str or "max_tools" in error_str:
