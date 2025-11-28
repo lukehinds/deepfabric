@@ -5,7 +5,7 @@ import re
 from collections import deque
 from dataclasses import dataclass
 from time import monotonic
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console, RenderableType
 from rich.layout import Layout
@@ -23,6 +23,67 @@ from rich.table import Column, Table
 from rich.text import Text
 
 from .progress import StreamObserver
+
+if TYPE_CHECKING:
+    from .error_codes import ClassifiedError
+
+
+class TopicBuildingMixin:
+    """Mixin providing shared functionality for Tree and Graph building TUIs.
+
+    Provides common implementations for:
+    - _refresh_left(): Update events panel in left column
+    - on_error(): Handle error events from progress reporter
+    - on_step_start()/on_step_complete(): No-op handlers for step events
+    - update_status_panel(): Update status panel (requires _status_panel() in subclass)
+
+    Subclasses must have these attributes:
+    - tui: DeepFabricTUI instance
+    - live_layout: Layout | None
+    - events_log: deque
+    """
+
+    tui: "DeepFabricTUI"
+    live_layout: "Layout | None"
+    events_log: "deque"
+
+    def _refresh_left(self) -> None:
+        """Update events panel in left column."""
+        if self.live_layout is not None:
+            try:
+                self.live_layout["main"]["left"]["events"].update(
+                    self.tui.build_events_panel(list(self.events_log))
+                )
+            except Exception:
+                return
+
+    def on_error(self, error: "ClassifiedError", metadata: dict[str, Any]) -> None:  # noqa: ARG002
+        """Handle error events - log to events panel."""
+        error_event = error.to_event()
+        self.events_log.append(f"X {error_event}")
+        self._refresh_left()
+
+    def on_step_start(self, step_name: str, metadata: dict[str, Any]) -> None:  # noqa: ARG002
+        """Handle step start - topic building doesn't need specific handling."""
+        pass
+
+    def on_step_complete(self, step_name: str, metadata: dict[str, Any]) -> None:  # noqa: ARG002
+        """Handle step complete - topic building doesn't need specific handling."""
+        pass
+
+    def update_status_panel(self) -> None:
+        """Update the status panel in the right column."""
+        if self.live_layout is None:
+            return
+        try:
+            self.live_layout["main"]["right"]["status"].update(self._status_panel())
+        except Exception:
+            return
+
+    def _status_panel(self) -> Panel:
+        """Create status panel - must be implemented by subclass."""
+        raise NotImplementedError
+
 
 # Constants
 STREAM_BUFFER_DISPLAY_THRESHOLD = 1000  # Show ellipsis if accumulated text exceeds this
@@ -104,7 +165,19 @@ class DeepFabricTUI:
             text = Text("Waiting...", style="dim")
         else:
             # Keep events short; show newest at bottom
-            text = Text("\n".join(events[-EVENT_LOG_MAX_LINES:]))
+            # Colorize based on prefix: X = red (error), checkmark = green (success)
+            text = Text()
+            for i, event in enumerate(events[-EVENT_LOG_MAX_LINES:]):
+                if i > 0:
+                    text.append("\n")
+                if event.startswith("X "):
+                    text.append("X ", style="bold red")
+                    text.append(event[2:])
+                elif event.startswith("✓ ") or event.startswith("✔ "):
+                    text.append(event[0] + " ", style="bold green")
+                    text.append(event[2:])
+                else:
+                    text.append(event)
         return Panel(text, title=title, border_style="dim", padding=(0, 1))
 
     def create_footer(self, layout: Layout, title: str = "Run Status") -> Progress:
@@ -183,7 +256,7 @@ class DeepFabricTUI:
         self.console.print(f" {message}", style="blue")
 
 
-class TreeBuildingTUI(StreamObserver):
+class TreeBuildingTUI(TopicBuildingMixin, StreamObserver):
     """TUI for tree building operations with simplified progress and streaming."""
 
     def __init__(self, tui: DeepFabricTUI):
@@ -355,24 +428,6 @@ class TreeBuildingTUI(StreamObserver):
             except Exception:
                 return
 
-    def _refresh_left(self) -> None:
-        if self.live_layout is not None:
-            try:
-                # Update events panel in left column
-                self.live_layout["main"]["left"]["events"].update(
-                    self.tui.build_events_panel(list(self.events_log))
-                )
-            except Exception:
-                return
-
-    def on_step_start(self, step_name: str, metadata: dict[str, Any]) -> None:
-        """Handle step start - tree building doesn't need specific handling."""
-        pass
-
-    def on_step_complete(self, step_name: str, metadata: dict[str, Any]) -> None:
-        """Handle step complete - tree building doesn't need specific handling."""
-        pass
-
     def finish_building(self, total_paths: int, failed_generations: int) -> None:
         """Finish the tree building process."""
         if self.live_display:
@@ -400,16 +455,8 @@ class TreeBuildingTUI(StreamObserver):
             table.add_row("Failed:", str(self.failed_attempts))
         return Panel(table, title="Status", border_style="dim", padding=(0, 1))
 
-    def update_status_panel(self) -> None:
-        if self.live_layout is None:
-            return
-        try:
-            self.live_layout["main"]["right"]["status"].update(self._status_panel())
-        except Exception:
-            return
 
-
-class GraphBuildingTUI(StreamObserver):
+class GraphBuildingTUI(TopicBuildingMixin, StreamObserver):
     """TUI for graph building operations with simplified progress and streaming."""
 
     def __init__(self, tui: DeepFabricTUI):
@@ -576,23 +623,6 @@ class GraphBuildingTUI(StreamObserver):
             except Exception:
                 return
 
-    def _refresh_left(self) -> None:
-        if self.live_layout is not None:
-            try:
-                self.live_layout["main"]["left"]["events"].update(
-                    self.tui.build_events_panel(list(self.events_log))
-                )
-            except Exception:
-                return
-
-    def on_step_start(self, step_name: str, metadata: dict[str, Any]) -> None:
-        """Handle step start - graph building doesn't need specific handling."""
-        pass
-
-    def on_step_complete(self, step_name: str, metadata: dict[str, Any]) -> None:
-        """Handle step complete - graph building doesn't need specific handling."""
-        pass
-
     def finish_building(self, failed_generations: int) -> None:
         """Finish the graph building process."""
         if self.live_display:
@@ -628,14 +658,6 @@ class GraphBuildingTUI(StreamObserver):
         if self.failed_attempts:
             table.add_row("Failed:", str(self.failed_attempts))
         return Panel(table, title="Status", border_style="dim", padding=(0, 1))
-
-    def update_status_panel(self) -> None:
-        if self.live_layout is None:
-            return
-        try:
-            self.live_layout["main"]["right"]["status"].update(self._status_panel())
-        except Exception:
-            return
 
 
 class DatasetGenerationTUI(StreamObserver):
@@ -944,6 +966,27 @@ class DatasetGenerationTUI(StreamObserver):
             self.live_layout["main"]["left"]["events"].update(
                 self.tui.build_events_panel(list(self.events_log))
             )
+
+    def on_error(self, error: "ClassifiedError", metadata: dict[str, Any]) -> None:
+        """Handle error events from the progress reporter.
+
+        Displays concise error information in the Events panel using
+        standardized DeepFabric error codes.
+
+        Args:
+            error: ClassifiedError with error code and details
+            metadata: Additional context (sample_idx, etc.)
+        """
+        # Format concise error message for Events panel
+        error_event = error.to_event()
+
+        # Add sample context if available
+        sample_idx = metadata.get("sample_idx")
+        if sample_idx is not None:
+            error_event = f"[{sample_idx}] {error_event}"
+
+        # Log to events panel with error indicator
+        self.log_event(f"X {error_event}")
 
 
 # Global TUI instances
