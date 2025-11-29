@@ -247,10 +247,34 @@ class ToolReasoningStep(BaseModel):
 class ToolExecution(BaseModel):
     """Represents actual execution of a tool with reasoning context."""
 
-    function_name: str = Field(description="Name of the function/tool being called")
-    arguments: str = Field(description="JSON string of arguments passed to the function")
-    reasoning: str = Field(description="Brief explanation of why executing now")
-    result: str = Field(description="The result returned from the tool execution")
+    function_name: str = Field(min_length=1, description="Name of the function/tool being called")
+    arguments: str = Field(min_length=2, description="JSON string of arguments passed to the function")
+    reasoning: str = Field(min_length=1, description="Brief explanation of why executing now")
+    result: str = Field(min_length=1, description="The result returned from the tool execution")
+
+    @field_validator("arguments")
+    @classmethod
+    def validate_arguments_not_empty(cls, v: str) -> str:
+        """Validate that arguments contain actual values, not empty/null placeholders."""
+        stripped = v.strip()
+
+        # Reject empty argument objects
+        if stripped == "{}":
+            raise ValueError("Arguments cannot be empty - must provide actual parameter values")
+
+        # Parse JSON to check for null and empty values
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, dict):
+                for key, value in parsed.items():
+                    if value is None:
+                        raise ValueError(f"Argument '{key}' is null - must provide actual value")
+                    if isinstance(value, str) and value == "":
+                        raise ValueError(f"Argument '{key}' is empty string - must provide actual value")
+        except json.JSONDecodeError:
+            pass
+
+        return v
 
     @property
     def parsed_arguments(self) -> dict[str, Any]:
