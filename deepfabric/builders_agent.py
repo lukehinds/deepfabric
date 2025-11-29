@@ -216,8 +216,8 @@ Generate your reasoning and tool calls to handle this request.
 Provide step-by-step reasoning (2-4 steps) and identify which tools to call with specific arguments."""
 
         class AgentThinking(BaseModel):
-            reasoning_steps: list[ReasoningStep]
-            tool_calls: list[ToolExecution]
+            reasoning_steps: list[ReasoningStep] = Field(min_length=1)
+            tool_calls: list[ToolExecution] = Field(min_length=1)
 
         response: AgentThinking
         if self.progress_reporter:
@@ -760,8 +760,8 @@ Generate your reasoning and tool calls for THIS specific request only.
 Provide step-by-step reasoning (1-3 steps) and identify which tools are needed."""
 
         class AgentThinking(BaseModel):
-            reasoning_steps: list[ReasoningStep]
-            tool_calls: list[ToolExecution]
+            reasoning_steps: list[ReasoningStep] = Field(min_length=1)
+            tool_calls: list[ToolExecution] = Field(min_length=1)
 
         response: AgentThinking
         if self.progress_reporter:
