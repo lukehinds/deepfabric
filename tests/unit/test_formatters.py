@@ -709,7 +709,7 @@ class TestToolCallingFormatter:
                 executions=[
                     ToolExecution(
                         function_name="test_tool",
-                        arguments="{}",
+                        arguments='{"param": "value"}',
                         reasoning="Test tool reasoning",
                         result="test output",
                     )

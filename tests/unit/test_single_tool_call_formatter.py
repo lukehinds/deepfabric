@@ -196,7 +196,7 @@ class TestSingleToolCallFormatter:
                 executions=[
                     ToolExecution(
                         function_name="test_tool",
-                        arguments="{}",
+                        arguments='{"param": "value"}',
                         reasoning="Test",
                         result='{"temperature": 20, "unit": "celsius"}',
                     )
