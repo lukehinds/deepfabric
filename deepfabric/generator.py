@@ -434,7 +434,13 @@ class DataSetGenerator:
             else:
                 error = payload
                 error_msg = f"Generation failed: {error}"
-                failed_responses.append(error_msg)
+                # Build failure record with raw content if available
+                failure_record = {"error": error_msg}
+                if isinstance(error, Exception):
+                    context = getattr(error, "context", None)
+                    if isinstance(context, dict) and "raw_content" in context:
+                        failure_record["raw_content"] = context["raw_content"]
+                failed_responses.append(failure_record)
                 failure_type = self.analyze_failure(
                     str(error), error=error if isinstance(error, Exception) else None
                 )

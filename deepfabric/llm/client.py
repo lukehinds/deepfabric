@@ -644,7 +644,13 @@ class LLMClient:
 
         # Parse and validate the JSON response with the ORIGINAL schema
         # This ensures we still get proper validation
-        return schema.model_validate_json(json_output)
+        try:
+            return schema.model_validate_json(json_output)
+        except Exception as e:
+            raise DataSetGeneratorError(
+                f"Generation validation failed: {e}",
+                context={"raw_content": json_output},
+            ) from e
 
     async def generate_async(self, prompt: str, schema: Any, max_retries: int = 3, **kwargs) -> Any:  # noqa: ARG002
         """Asynchronously generate structured output using provider async clients.
@@ -700,7 +706,13 @@ class LLMClient:
         # Call the async model (guaranteed non-None by check above)
         json_output = await async_model(prompt, generation_schema, **kwargs)
         # Validate with original schema to ensure proper validation
-        return schema.model_validate_json(json_output)
+        try:
+            return schema.model_validate_json(json_output)
+        except Exception as e:
+            raise DataSetGeneratorError(
+                f"Async generation validation failed: {e}",
+                context={"raw_content": json_output},
+            ) from e
 
     async def generate_async_stream(self, prompt: str, schema: Any, max_retries: int = 3, **kwargs):  # noqa: ARG002
         """Asynchronously generate structured output with streaming text chunks.
@@ -787,8 +799,12 @@ class LLMClient:
             yield (None, result)
 
         except Exception as e:
-            # Wrap and raise error
-            raise DataSetGeneratorError(f"Streaming generation failed: {e}") from e
+            # Wrap and raise error with raw content for debugging
+            raw_content = "".join(accumulated_text) if accumulated_text else None
+            raise DataSetGeneratorError(
+                f"Streaming generation failed: {e}",
+                context={"raw_content": raw_content},
+            ) from e
 
     def _convert_generation_params(self, **kwargs) -> dict:
         """Convert generic parameters to provider-specific ones."""
