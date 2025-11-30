@@ -459,7 +459,7 @@ Remember: You have access to the tools listed above and have used them in this c
 
         # Build reasoning trace
         reasoning_trace = ReasoningTrace(
-            style=self.config.reasoning_style or "agent", content=reasoning
+            style=self.config.reasoning_style or "agent", content=reasoning # type: ignore
         )
 
         # Build agent context

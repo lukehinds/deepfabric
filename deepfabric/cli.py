@@ -314,7 +314,7 @@ def _run_generation(
 
     dataset_config = preparation.config.get_dataset_config()
     dataset_save_path = options.dataset_save_as or dataset_config["save_as"]
-    save_dataset(dataset, dataset_save_path, preparation.config)
+    save_dataset(dataset, dataset_save_path, preparation.config, engine=engine)
 
     trace(
         "dataset_generated",

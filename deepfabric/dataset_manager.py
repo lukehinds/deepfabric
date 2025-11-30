@@ -1,9 +1,11 @@
 import asyncio
 import contextlib
+import json
 import os
 import traceback
 
 from collections.abc import AsyncIterator
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from rich.layout import Layout
@@ -408,7 +410,54 @@ def _upload_to_kaggle(dataset_path: str, kaggle_config: dict, tui) -> None:
     )
 
 
-def save_dataset(dataset: Dataset, save_path: str, config: DeepFabricConfig | None = None) -> None:
+def _save_failed_samples(save_path: str, failed_samples: list, tui) -> None:
+    """Save failed samples to a timestamped file alongside the main dataset.
+
+    Args:
+        save_path: Path to the main dataset file (e.g., "my-dataset.jsonl")
+        failed_samples: List of failed samples - can be dicts with 'error' and 'raw_content' keys,
+                       or plain strings/other types for legacy compatibility
+        tui: TUI instance for output
+    """
+    # Generate timestamped filename: my-dataset.jsonl -> my-dataset_failures_20231130_143022.jsonl
+    base_path = save_path.rsplit(".", 1)[0] if "." in save_path else save_path
+    timestamp = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
+    failures_path = f"{base_path}_failures_{timestamp}.jsonl"
+
+    try:
+        with open(failures_path, "w") as f:
+            for idx, failure in enumerate(failed_samples):
+                # Structure each failure as a JSON object with metadata
+                if isinstance(failure, dict):
+                    # New format: dict with 'error' and optionally 'raw_content'
+                    failure_record = {
+                        "index": idx,
+                        "error": failure.get("error", str(failure)),
+                        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                    }
+                    # Include raw LLM output if available for debugging
+                    if "raw_content" in failure:
+                        failure_record["raw_content"] = failure["raw_content"]
+                else:
+                    # Legacy format: plain string or other type
+                    failure_record = {
+                        "index": idx,
+                        "error": str(failure),
+                        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                    }
+                f.write(json.dumps(failure_record) + "\n")
+
+        tui.warning(f"Failed samples saved to: {failures_path} ({len(failed_samples)} failures)")
+    except Exception as e:
+        tui.error(f"Could not save failed samples: {str(e)}")
+
+
+def save_dataset(
+    dataset: Dataset,
+    save_path: str,
+    config: DeepFabricConfig | None = None,
+    engine: DataSetGenerator | None = None,
+) -> None:
     """
     Save dataset to file and apply formatters if configured.
 
@@ -416,6 +465,7 @@ def save_dataset(dataset: Dataset, save_path: str, config: DeepFabricConfig | No
         dataset: Dataset object to save
         save_path: Path where to save the dataset
         config: Optional configuration containing formatter settings
+        engine: Optional DataSetGenerator to save failed samples from
 
     Raises:
         ConfigurationError: If saving fails
@@ -425,6 +475,10 @@ def save_dataset(dataset: Dataset, save_path: str, config: DeepFabricConfig | No
         # Save the raw dataset
         dataset.save(save_path)
         tui.success(f"Dataset saved to: {save_path}")
+
+        # Save failed samples if engine has any
+        if engine and hasattr(engine, "failed_samples") and engine.failed_samples:
+            _save_failed_samples(save_path, engine.failed_samples, tui)
 
         # Apply formatters if configured
         if config:
