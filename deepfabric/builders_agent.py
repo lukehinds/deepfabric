@@ -930,7 +930,7 @@ Is the user's original task/goal from the scenario fully completed?
 
         # Build reasoning trace
         reasoning_trace = ReasoningTrace(
-            style=self.config.reasoning_style or "agent",
+            style=self.config.reasoning_style or "agent", # type: ignore
             content=all_reasoning,
         )
 

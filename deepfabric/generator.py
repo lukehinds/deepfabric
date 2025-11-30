@@ -436,10 +436,10 @@ class DataSetGenerator:
                 error_msg = f"Generation failed: {error}"
                 # Build failure record with raw content if available
                 failure_record = {"error": error_msg}
-                if isinstance(error, Exception) and hasattr(error, "context"):
-                    ctx = getattr(error, "context", {})
-                    if ctx and isinstance(ctx, dict) and "raw_content" in ctx:
-                        failure_record["raw_content"] = ctx["raw_content"]
+                if isinstance(error, Exception):
+                    context = getattr(error, "context", None)
+                    if isinstance(context, dict) and "raw_content" in context:
+                        failure_record["raw_content"] = context["raw_content"]
                 failed_responses.append(failure_record)
                 failure_type = self.analyze_failure(
                     str(error), error=error if isinstance(error, Exception) else None

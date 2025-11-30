@@ -428,25 +428,19 @@ def _save_failed_samples(save_path: str, failed_samples: list, tui) -> None:
         with open(failures_path, "w") as f:
             for idx, failure in enumerate(failed_samples):
                 # Structure each failure as a JSON object with metadata
+                failure_record = {
+                    "index": idx,
+                    "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                }
                 if isinstance(failure, dict):
                     # New format: dict with 'error' and optionally 'raw_content'
-                    failure_record = {
-                        "index": idx,
-                        "error": failure.get("error", str(failure)),
-                        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-                    }
-                    # Include raw LLM output if available for debugging
+                    failure_record["error"] = failure.get("error", str(failure))
                     if "raw_content" in failure:
                         failure_record["raw_content"] = failure["raw_content"]
                 else:
                     # Legacy format: plain string or other type
-                    failure_record = {
-                        "index": idx,
-                        "error": str(failure),
-                        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-                    }
+                    failure_record["error"] = str(failure)
                 f.write(json.dumps(failure_record) + "\n")
-
         tui.warning(f"Failed samples saved to: {failures_path} ({len(failed_samples)} failures)")
     except Exception as e:
         tui.error(f"Could not save failed samples: {str(e)}")
@@ -477,7 +471,7 @@ def save_dataset(
         tui.success(f"Dataset saved to: {save_path}")
 
         # Save failed samples if engine has any
-        if engine and hasattr(engine, "failed_samples") and engine.failed_samples:
+        if engine and engine.failed_samples:
             _save_failed_samples(save_path, engine.failed_samples, tui)
 
         # Apply formatters if configured
