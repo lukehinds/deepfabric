@@ -8,7 +8,6 @@ from .builders import ConversationBuilder
 from .constants import DEFAULT_SAMPLE_RETRIES
 from .exceptions import DataSetGeneratorError
 from .progress import ProgressReporter
-from .utils import is_validation_error
 from .schemas import (
     AgentContext,
     ChatMessage,
@@ -19,6 +18,7 @@ from .schemas import (
     ToolDefinition,
     ToolExecution,
 )
+from .utils import is_validation_error
 
 if TYPE_CHECKING:
     from .generator import DataSetGeneratorConfig
@@ -619,7 +619,9 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
     """
 
     async def generate(
-        self, topic_prompt: str, error_feedback: str | None = None  # noqa: ARG002
+        self,
+        topic_prompt: str,
+        error_feedback: str | None = None,  # noqa: ARG002
     ) -> Conversation:
         """Generate multi-turn agent conversation.
 
