@@ -25,67 +25,70 @@ def cli_runner():
 
 @pytest.fixture
 def sample_yaml_content():
-    """Sample YAML content for testing."""
+    """Sample YAML content for testing (new format)."""
     return """
-dataset_system_prompt: "Test system prompt"
-topic_tree:
-  args:
-    topic_prompt: "Test root prompt"
-    topic_system_prompt: "Test system prompt"
-    degree: 3
-    depth: 2
-    temperature: 0.7
+topics:
+  prompt: "Test root prompt"
+  mode: tree
+  system_prompt: "Test topic system prompt"
+  depth: 2
+  degree: 3
+  save_as: "test_tree.jsonl"
+  llm:
     provider: "test"
     model: "model"
-  save_as: "test_tree.jsonl"
-data_engine:
-  args:
-    instructions: "Test instructions"
-    generation_system_prompt: "Test system prompt"
+    temperature: 0.7
+
+generation:
+  system_prompt: "Test generation system prompt"
+  instructions: "Test instructions"
+  conversation:
+    type: basic
+  max_retries: 2
+  llm:
     provider: "test"
     model: "model"
     temperature: 0.9
-    max_retries: 2
-dataset:
-  creation:
-    num_steps: 5
-    batch_size: 1
-    provider: "test"
-    model: "model"
-    sys_msg: true
+
+output:
+  system_prompt: "Test output system prompt"
+  include_system_message: true
+  num_samples: 5
+  batch_size: 1
   save_as: "test_dataset.jsonl"
 """
 
 
 @pytest.fixture
 def sample_yaml_content_no_sys_msg():
-    """Sample YAML content without sys_msg setting."""
+    """Sample YAML content without include_system_message setting."""
     return """
-dataset_system_prompt: "Test system prompt"
-topic_tree:
-  args:
-    topic_prompt: "Test root prompt"
-    topic_system_prompt: "Test system prompt"
-    degree: 3
-    depth: 2
-    temperature: 0.7
+topics:
+  prompt: "Test root prompt"
+  mode: tree
+  system_prompt: "Test topic system prompt"
+  depth: 2
+  degree: 3
+  save_as: "test_tree.jsonl"
+  llm:
     provider: "test"
     model: "model"
-  save_as: "test_tree.jsonl"
-data_engine:
-  args:
-    instructions: "Test instructions"
-    generation_system_prompt: "Test system prompt"
+    temperature: 0.7
+
+generation:
+  system_prompt: "Test generation system prompt"
+  instructions: "Test instructions"
+  conversation:
+    type: basic
+  max_retries: 2
+  llm:
     provider: "test"
     model: "model"
     temperature: 0.9
-    max_retries: 2
-dataset:
-  creation:
-    num_steps: 5
-    batch_size: 1
-    provider: "test"
-    model: "model"
+
+output:
+  num_samples: 5
+  batch_size: 1
   save_as: "test_dataset.jsonl"
 """
 
@@ -106,7 +109,7 @@ def sample_config_file(sample_yaml_content):
 
 @pytest.fixture
 def sample_config_file_no_sys_msg(sample_yaml_content_no_sys_msg):
-    """Create a temporary config file without sys_msg setting."""
+    """Create a temporary config file without include_system_message setting."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write(sample_yaml_content_no_sys_msg)
         temp_path = f.name
@@ -130,7 +133,7 @@ def test_generate_help(cli_runner):
     result = cli_runner.invoke(cli, ["generate", "--help"])
     assert result.exit_code == 0
     assert "Generate training data from a YAML configuration file" in result.output
-    assert "--sys-msg" in result.output
+    assert "--include-system-message" in result.output
 
 
 @patch("deepfabric.topic_manager.create_topic_generator")
@@ -184,7 +187,7 @@ def test_generate_command_basic(
 def test_generate_command_with_sys_msg_override(
     mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
 ):
-    """Test start command with sys_msg override."""
+    """Test start command with include_system_message override."""
     # Setup mocks
     from deepfabric.dataset import Dataset  # noqa: PLC0415
     from deepfabric.tree import Tree  # noqa: PLC0415
@@ -204,14 +207,13 @@ def test_generate_command_with_sys_msg_override(
         [{"event": "generation_complete", "total_samples": 5, "failed_samples": 0}, mock_dataset]
     )
 
-    # Run command with sys_msg override
+    # Run command with include_system_message override (using --no-system-message)
     result = cli_runner.invoke(
         cli,
         [
             "generate",
             sample_config_file,
-            "--sys-msg",
-            "false",
+            "--no-system-message",
         ],
     )
 
@@ -228,7 +230,7 @@ def test_generate_command_with_sys_msg_override(
 def test_generate_command_default_sys_msg(
     mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file_no_sys_msg
 ):
-    """Test start command with default sys_msg behavior."""
+    """Test start command with default include_system_message behavior."""
     # Setup mocks
     from deepfabric.dataset import Dataset  # noqa: PLC0415
     from deepfabric.tree import Tree  # noqa: PLC0415
@@ -248,13 +250,13 @@ def test_generate_command_default_sys_msg(
         [{"event": "generation_complete", "total_samples": 5, "failed_samples": 0}, mock_dataset]
     )
 
-    # Run command without sys_msg override
+    # Run command without include_system_message override
     result = cli_runner.invoke(cli, ["generate", sample_config_file_no_sys_msg])
 
     # Verify command executed successfully
     assert result.exit_code == 0
 
-    # Verify create_data was called with default sys_msg (should be None to use engine default)
+    # Verify create_data was called with default sys_msg (should be None to use config default)
     args, kwargs = mock_engine_instance.create_data_with_events_async.call_args
     assert "sys_msg" not in kwargs or kwargs["sys_msg"] is None
 
@@ -284,15 +286,15 @@ def test_generate_command_with_overrides(
         [{"event": "generation_complete", "total_samples": 5, "failed_samples": 0}, mock_dataset]
     )
 
-    # Run command with overrides
+    # Run command with overrides (using new CLI flags)
     result = cli_runner.invoke(
         cli,
         [
             "generate",
             sample_config_file,
-            "--save-tree",
+            "--topics-save-as",
             "override_tree.jsonl",
-            "--dataset-save-as",
+            "--output-save-as",
             "override_dataset.jsonl",
             "--provider",
             "override",
@@ -304,12 +306,11 @@ def test_generate_command_with_overrides(
             "4",
             "--depth",
             "3",
-            "--num-steps",
+            "--num-samples",
             "10",
             "--batch-size",
             "2",
-            "--sys-msg",
-            "false",
+            "--no-system-message",
         ],
     )
 
@@ -360,10 +361,10 @@ def test_generate_command_with_jsonl(
         temp_jsonl_path = f.name
 
     try:
-        # Run command with JSONL file
+        # Run command with JSONL file (using new flag name)
         result = cli_runner.invoke(
             cli,
-            ["generate", sample_config_file, "--load-tree", temp_jsonl_path],
+            ["generate", sample_config_file, "--topics-load", temp_jsonl_path],
         )
 
         # Print output if command fails
@@ -510,8 +511,59 @@ def test_visualize_command(mock_from_json, cli_runner):
             os.unlink(temp_path)
 
 
+@pytest.fixture
+def sample_yaml_content_tree_save():
+    """Sample YAML with topics.save_as for tree mode."""
+    return """
+topics:
+  prompt: "Test root prompt"
+  mode: tree
+  system_prompt: "Test topic system prompt"
+  depth: 2
+  degree: 3
+  save_as: "test_tree.jsonl"
+  llm:
+    provider: "test"
+    model: "model"
+    temperature: 0.7
+
+generation:
+  system_prompt: "Test generation system prompt"
+  instructions: "Test instructions"
+  conversation:
+    type: basic
+  max_retries: 2
+  llm:
+    provider: "test"
+    model: "model"
+    temperature: 0.9
+
+output:
+  system_prompt: "Test output system prompt"
+  include_system_message: true
+  num_samples: 5
+  batch_size: 1
+  save_as: "test_dataset.jsonl"
+"""
+
+
+@pytest.fixture
+def sample_config_file_tree_save(sample_yaml_content_tree_save):
+    """Create a temporary config file with tree save path."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(sample_yaml_content_tree_save)
+        temp_path = f.name
+
+    yield temp_path
+
+    if os.path.exists(temp_path):
+        os.unlink(temp_path)
+
+
 @patch("deepfabric.topic_manager.create_topic_generator")
-def test_topic_only_flag_tree(mock_create_topic_generator, cli_runner, sample_config_file):
+def test_topic_only_flag_tree(
+    mock_create_topic_generator, cli_runner, sample_config_file_tree_save
+):
     """Test --topic-only flag with tree mode."""
     from deepfabric.tree import Tree  # noqa: PLC0415
 
@@ -524,7 +576,7 @@ def test_topic_only_flag_tree(mock_create_topic_generator, cli_runner, sample_co
     mock_create_topic_generator.return_value = mock_tree_instance
 
     # Run command with --topic-only
-    result = cli_runner.invoke(cli, ["generate", sample_config_file, "--topic-only"])
+    result = cli_runner.invoke(cli, ["generate", sample_config_file_tree_save, "--topic-only"])
 
     # Verify command executed successfully
     assert result.exit_code == 0
@@ -550,34 +602,36 @@ def test_topic_only_flag_graph(mock_create_topic_generator, cli_runner):
     )
     mock_create_topic_generator.return_value = mock_graph_instance
 
-    # Create sample graph config
+    # Create sample graph config with new format
     graph_yaml = """
-dataset_system_prompt: "Test system prompt"
-topic_graph:
-  args:
-    topic_prompt: "Test root prompt"
-    topic_system_prompt: "Test system prompt"
-    degree: 3
-    depth: 2
-    temperature: 0.7
+topics:
+  prompt: "Test root prompt"
+  mode: graph
+  system_prompt: "Test topic system prompt"
+  depth: 2
+  degree: 3
+  save_as: "test_graph.json"
+  llm:
     provider: "test"
     model: "model"
-  save_as: "test_graph.json"
-data_engine:
-  args:
-    instructions: "Test instructions"
-    generation_system_prompt: "Test system prompt"
+    temperature: 0.7
+
+generation:
+  system_prompt: "Test generation system prompt"
+  instructions: "Test instructions"
+  conversation:
+    type: basic
+  max_retries: 2
+  llm:
     provider: "test"
     model: "model"
     temperature: 0.9
-    max_retries: 2
-dataset:
-  creation:
-    num_steps: 5
-    batch_size: 1
-    provider: "test"
-    model: "model"
-    sys_msg: true
+
+output:
+  system_prompt: "Test output system prompt"
+  include_system_message: true
+  num_samples: 5
+  batch_size: 1
   save_as: "test_dataset.jsonl"
 """
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -606,8 +660,8 @@ dataset:
             os.unlink(temp_config)
 
 
-def test_topic_only_with_load_tree_fails(cli_runner, sample_config_file):
-    """Test that --topic-only fails when used with --load-tree."""
+def test_topic_only_with_topics_load_fails(cli_runner, sample_config_file):
+    """Test that --topic-only fails when used with --topics-load."""
     # Create a temporary JSONL file
     with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
         f.write('{"path": ["root", "child"]}\n')
@@ -616,35 +670,13 @@ def test_topic_only_with_load_tree_fails(cli_runner, sample_config_file):
     try:
         result = cli_runner.invoke(
             cli,
-            ["generate", sample_config_file, "--topic-only", "--load-tree", temp_jsonl_path],
+            ["generate", sample_config_file, "--topic-only", "--topics-load", temp_jsonl_path],
         )
 
         # Should fail validation
         assert result.exit_code != 0
-        assert "--topic-only cannot be used with --load-tree or --load-graph" in result.output
+        assert "--topic-only cannot be used with --topics-load" in result.output
 
     finally:
         if os.path.exists(temp_jsonl_path):
             os.unlink(temp_jsonl_path)
-
-
-def test_topic_only_with_load_graph_fails(cli_runner, sample_config_file):
-    """Test that --topic-only fails when used with --load-graph."""
-    # Create a temporary JSON file
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        f.write('{"nodes": {}, "edges": []}')
-        temp_json_path = f.name
-
-    try:
-        result = cli_runner.invoke(
-            cli,
-            ["generate", sample_config_file, "--topic-only", "--load-graph", temp_json_path],
-        )
-
-        # Should fail validation
-        assert result.exit_code != 0
-        assert "--topic-only cannot be used with --load-tree or --load-graph" in result.output
-
-    finally:
-        if os.path.exists(temp_json_path):
-            os.unlink(temp_json_path)

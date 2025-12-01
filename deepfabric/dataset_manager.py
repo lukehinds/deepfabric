@@ -195,12 +195,12 @@ def create_dataset(
     engine: DataSetGenerator,
     topic_model: "TopicModel",
     config: DeepFabricConfig,
-    num_steps: int | None = None,
+    num_samples: int | None = None,
     batch_size: int | None = None,
-    sys_msg: bool | None = None,
+    include_system_message: bool | None = None,
     provider: str | None = None,  # noqa: ARG001
     model: str | None = None,
-    engine_overrides: dict | None = None,
+    generation_overrides: dict | None = None,
     debug: bool = False,
 ) -> Dataset:
     """
@@ -210,12 +210,12 @@ def create_dataset(
         engine: DataSetGenerator instance
         topic_model: TopicModel (Tree or Graph) to use for generation
         config: DeepFabricConfig object
-        num_steps: Override for number of steps
+        num_samples: Override for number of samples
         batch_size: Override for batch size
-        sys_msg: Override for including system message
+        include_system_message: Override for including system message
         provider: Override for LLM provider
         model: Override for model name
-        engine_overrides: Additional engine parameter overrides
+        generation_overrides: Additional generation parameter overrides
 
     Returns:
         Generated Dataset object
@@ -229,12 +229,12 @@ def create_dataset(
             engine=engine,
             topic_model=topic_model,
             config=config,
-            num_steps=num_steps,
+            num_samples=num_samples,
             batch_size=batch_size,
-            sys_msg=sys_msg,
+            include_system_message=include_system_message,
             provider=provider,
             model=model,
-            engine_overrides=engine_overrides,
+            generation_overrides=generation_overrides,
             debug=debug,
         )
     )
@@ -244,22 +244,21 @@ async def create_dataset_async(
     engine: DataSetGenerator,
     topic_model: "TopicModel",
     config: DeepFabricConfig,
-    num_steps: int | None = None,
+    num_samples: int | None = None,
     batch_size: int | None = None,
-    sys_msg: bool | None = None,
+    include_system_message: bool | None = None,
     provider: str | None = None,  # noqa: ARG001
     model: str | None = None,
-    engine_overrides: dict | None = None,
+    generation_overrides: dict | None = None,
     debug: bool = False,
 ) -> Dataset:
-    dataset_config = config.get_dataset_config()
-    dataset_params = dataset_config["creation"]
+    output_config = config.get_output_config()
 
-    final_num_steps = num_steps or dataset_params["num_steps"]
-    final_batch_size = batch_size or dataset_params["batch_size"]
+    final_num_samples = num_samples or output_config["num_samples"]
+    final_batch_size = batch_size or output_config["batch_size"]
 
-    engine_params = config.get_engine_params(**(engine_overrides or {}))
-    final_model = model or engine_params.get("model_name", DEFAULT_MODEL)
+    generation_params = config.get_generation_params(**(generation_overrides or {}))
+    final_model = model or generation_params.get("model_name", DEFAULT_MODEL)
 
     # Create progress reporter and attach TUI as observer for streaming feedback
     progress_reporter = ProgressReporter()
@@ -271,12 +270,12 @@ async def create_dataset_async(
 
     try:
         generator = engine.create_data_with_events_async(
-            num_steps=final_num_steps,
+            num_steps=final_num_samples,
             batch_size=final_batch_size,
             topic_model=topic_model,
             model_name=final_model,
-            sys_msg=sys_msg,
-            num_example_demonstrations=dataset_params.get("num_example_demonstrations") or 3,
+            sys_msg=include_system_message,
+            num_example_demonstrations=output_config.get("num_example_demonstrations") or 3,
         )
         dataset = await handle_dataset_events_async(generator, engine=engine, debug=debug)
     except Exception as e:  # noqa: BLE001

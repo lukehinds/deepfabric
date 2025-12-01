@@ -1,5 +1,5 @@
 #####################################################################
-# Reasoning Dataset Configuration                                   
+# Reasoning Dataset Configuration
 #####################################################################
 # This configuration file sets up a dataset generation process using
 # topic generation and data generation engines.
@@ -8,36 +8,47 @@
 # explanations are enabled to enhance the quality of generated data.
 ####################################################################
 
-dataset_system_prompt: |
-  You are an AI assistant that shows clear reasoning before answering questions.
-  Think through problems step-by-step and explain your thought process.
-
-topic_tree:
-  topic_prompt: "Python programming fundamentals"
-  provider: "gemini"
-  model: "gemini-2.5-flash-lite"
-  temperature: 0.8
-  degree: 2
+# Topic generation - creates a tree of related topics
+topics:
+  prompt: "Python programming fundamentals"
+  mode: tree
+  system_prompt: ""
   depth: 2
+  degree: 2
   save_as: "reasoning-topics.jsonl"
 
-data_engine:
-  generation_system_prompt: "Generate clear, educational Q&A pairs about Python programming."
+  # LLM configuration for topic generation
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash-lite"
+    temperature: 0.8
+
+# Data generation - creates the actual training examples
+generation:
+  system_prompt: "Generate clear, educational Q&A pairs about Python programming."
   instructions: "Create diverse questions and detailed answers suitable for learning Python."
 
-  # Chain of thought with freetext reasoning style of freetext
-  conversation_type: "chain_of_thought"
-  reasoning_style: "freetext"
+  # Chain of thought with freetext reasoning style
+  conversation:
+    type: chain_of_thought
+    reasoning_style: freetext
 
-  # Model configuration
-  provider: "gemini"
-  model: "gemini-2.5-flash-lite"
-  temperature: 0.7
   max_retries: 3  # Retry on API failures
 
-dataset:
+  # LLM configuration for generation
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash-lite"
+    temperature: 0.7
+
+# Output configuration
+output:
+  # System prompt that goes INTO the training data
+  system_prompt: |
+    You are an AI assistant that shows clear reasoning before answering questions.
+    Think through problems step-by-step and explain your thought process.
+
+  include_system_message: true
+  num_samples: 1       # Number of examples to generate
+  batch_size: 1        # Parallel generation batch size
   save_as: "reasoning-dataset.jsonl"
-  creation:
-    num_steps: 1      # Number of examples to generate
-    batch_size: 1      # Parallel generation batch size
-    sys_msg: true      # Include system message in output

@@ -6,29 +6,21 @@ from .tree import Tree
 
 def create_topic_generator(
     config: DeepFabricConfig,
-    tree_overrides: dict | None = None,
-    graph_overrides: dict | None = None,
+    topics_overrides: dict | None = None,
 ) -> TopicModel:
-    """Factory function to create a topic generator based on the configuration."""
-    # Auto-detect based on which sections are present
-    has_tree = config.topic_tree is not None
-    has_graph = config.topic_graph is not None
+    """Factory function to create a topic generator based on the configuration.
 
-    if has_tree and has_graph:
-        # Both sections present
-        msg = "Both 'topic_tree' and 'topic_graph' sections present in config - please specify only one"
-        raise ValueError(msg)
+    Args:
+        config: DeepFabricConfig object with topics configuration
+        topics_overrides: Override parameters for topic generation
 
-    if has_graph:
-        # Only graph section present - use graph
-        graph_params = config.get_topic_graph_params(**(graph_overrides or {}))
-        return Graph(**graph_params)
+    Returns:
+        TopicModel (Tree or Graph) based on topics.mode
+    """
+    topics_params = config.get_topics_params(**(topics_overrides or {}))
 
-    if has_tree:
-        # Only tree section present - use tree
-        tree_params = config.get_topic_tree_params(**(tree_overrides or {}))
-        return Tree(**tree_params)
+    if config.topics.mode == "graph":
+        return Graph(**topics_params)
 
-    # Neither section present - error
-    msg = "Configuration must contain either 'topic_tree' or 'topic_graph' section"
-    raise ValueError(msg)
+    # Default to tree mode
+    return Tree(**topics_params)

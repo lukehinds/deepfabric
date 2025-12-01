@@ -129,7 +129,7 @@ async def _process_tree_events(tree: Tree, debug: bool = False) -> dict | None:
                 final_event = event
 
                 if debug and failed_generations > 0 and hasattr(tree, "failed_generations"):
-                    get_tui().error("\n🔍 Debug: Tree generation failures:")
+                    get_tui().error("\nDebug: Tree generation failures:")
                     for idx, failure in enumerate(tree.failed_generations, 1):
                         get_tui().error(
                             f"  [{idx}] Path: {' -> '.join(failure.get('node_path', []))}"
@@ -137,7 +137,7 @@ async def _process_tree_events(tree: Tree, debug: bool = False) -> dict | None:
                         get_tui().error(f"      Error: {failure.get('error', 'Unknown error')}")
     except Exception as e:
         if debug:
-            get_tui().error(f"🔍 Debug: Full traceback:\n{traceback.format_exc()}")
+            get_tui().error(f"Debug: Full traceback:\n{traceback.format_exc()}")
         get_tui().error(f"Tree build failed: {str(e)}")
         raise
     else:
@@ -189,10 +189,8 @@ async def handle_tree_events_async(tree: Tree, debug: bool = False) -> dict | No
 
 def load_or_build_topic_model(
     config: DeepFabricConfig,
-    load_tree: str | None = None,
-    load_graph: str | None = None,
-    tree_overrides: dict | None = None,
-    graph_overrides: dict | None = None,
+    topics_load: str | None = None,
+    topics_overrides: dict | None = None,
     provider: str | None = None,
     model: str | None = None,
     base_url: str | None = None,
@@ -203,13 +201,12 @@ def load_or_build_topic_model(
 
     Args:
         config: DeepFabricConfig object
-        load_tree: Path to existing tree JSONL file
-        load_graph: Path to existing graph JSON file
-        tree_overrides: Override parameters for tree
-        graph_overrides: Override parameters for graph
+        topics_load: Path to existing topics file (JSONL for tree, JSON for graph)
+        topics_overrides: Override parameters for topic generation
         provider: LLM provider
         model: Model name
         base_url: Base URL for LLM API
+        debug: Enable debug output
 
     Returns:
         TopicModel (Tree or Graph)
@@ -219,9 +216,16 @@ def load_or_build_topic_model(
     """
     tui = get_tui()
 
-    if load_tree:
-        tui.info(f"Reading topic tree from JSONL file: {load_tree}")
-        dict_list = read_topic_tree_from_jsonl(load_tree)
+    if topics_load:
+        # Determine mode from config or file extension
+        is_graph = config.topics.mode == "graph" or topics_load.endswith(".json")
+
+        if is_graph:
+            tui.info(f"Reading topic graph from JSON file: {topics_load}")
+            topics_params = config.get_topics_params(**(topics_overrides or {}))
+            return Graph.from_json(topics_load, topics_params)
+        tui.info(f"Reading topic tree from JSONL file: {topics_load}")
+        dict_list = read_topic_tree_from_jsonl(topics_load)
 
         final_provider = provider or "ollama"
         final_model = model or "mistral:latest"
@@ -239,15 +243,8 @@ def load_or_build_topic_model(
         topic_model.from_dict_list(dict_list)
         return topic_model
 
-    if load_graph:
-        tui.info(f"Reading topic graph from JSON file: {load_graph}")
-        graph_params = config.get_topic_graph_params(**(graph_overrides or {}))
-        return Graph.from_json(load_graph, graph_params)
-
     # Build new topic model
-    topic_model = create_topic_generator(
-        config, tree_overrides=tree_overrides, graph_overrides=graph_overrides
-    )
+    topic_model = create_topic_generator(config, topics_overrides=topics_overrides)
 
     # Build with appropriate event handler
     if isinstance(topic_model, Graph):
@@ -261,8 +258,7 @@ def load_or_build_topic_model(
 def save_topic_model(
     topic_model: TopicModel,
     config: DeepFabricConfig,
-    save_tree: str | None = None,
-    save_graph: str | None = None,
+    topics_save_as: str | None = None,
 ) -> None:
     """
     Save topic model to file.
@@ -270,8 +266,7 @@ def save_topic_model(
     Args:
         topic_model: TopicModel to save (Tree or Graph)
         config: DeepFabricConfig object
-        save_tree: Override path for saving tree
-        save_graph: Override path for saving graph
+        topics_save_as: Override path for saving topics
 
     Raises:
         ConfigurationError: If saving fails
@@ -280,11 +275,7 @@ def save_topic_model(
 
     if isinstance(topic_model, Tree):
         try:
-            tree_save_path = (
-                save_tree
-                or (config.topic_tree.save_as if config.topic_tree else None)
-                or "topic_tree.jsonl"
-            )
+            tree_save_path = topics_save_as or config.topics.save_as or "topic_tree.jsonl"
             topic_model.save(tree_save_path)
             tui.success(f"Topic tree saved to {tree_save_path}")
             tui.info(f"Total paths: {len(topic_model.tree_paths)}")
@@ -293,11 +284,7 @@ def save_topic_model(
 
     elif isinstance(topic_model, Graph):
         try:
-            graph_save_path = (
-                save_graph
-                or (config.topic_graph.save_as if config.topic_graph else None)
-                or "topic_graph.json"
-            )
+            graph_save_path = topics_save_as or config.topics.save_as or "topic_graph.json"
             topic_model.save(graph_save_path)
             tui.success(f"Topic graph saved to {graph_save_path}")
         except Exception as e:

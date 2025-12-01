@@ -1,31 +1,31 @@
 #####################################################################
-# Agent Tools Dataset Configuration                                 
+# Agent Tools Dataset Configuration (Multi-Turn)
 #####################################################################
 # This configuration file sets up a dataset generation process using
 # topic generation and data generation engines.
 # The dataset focuses on Python programming fundamentals.
-# Advanced features like Tool Use with a reasoning style
+# Advanced features like Tool Use with agent reasoning style.
 # A multi-turn agent mode of tool usage occurs.
 #####################################################################
 
-dataset_system_prompt: |
-  You are an AI assistant with access to various tools and functions.
-  When given a task:
-  1. Analyze what tools are needed
-  2. Execute tools with proper parameters
-  3. Interpret results and provide a clear answer
-
-topic_tree:
-  topic_prompt: "Python programming fundamentals"
-  provider: "gemini"
-  model: "gemini-2.5-flash-lite"
-  temperature: 0.8
-  degree: 2
+# Topic generation - creates a tree of related topics
+topics:
+  prompt: "Python programming fundamentals"
+  mode: tree
+  system_prompt: ""
   depth: 2
+  degree: 2
   save_as: "tools-topics.jsonl"
 
-data_engine:
-  generation_system_prompt: |
+  # LLM configuration for topic generation
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash-lite"
+    temperature: 0.8
+
+# Data generation - creates the actual training examples
+generation:
+  system_prompt: |
     Generate examples of tool usage with clear reasoning.
     Show why tools are chosen and how results are interpreted.
     The tools available are defined in the tool registry.
@@ -33,29 +33,40 @@ data_engine:
   instructions: "Create realistic scenarios requiring tool usage to complete tasks."
 
   # Chain of thought with agent mode
-  conversation_type: "chain_of_thought"
-  reasoning_style: "agent"
+  conversation:
+    type: chain_of_thought
+    reasoning_style: agent
+    # Multi-turn: extended conversations with multiple tool calls
+    agent_mode: multi_turn
+    min_turns: 2
+    max_turns: 4
+    min_tool_calls: 2
 
-  # As the reasoning style is "agent", specify the agent mode
-  # This is used to determine if single-turn or multi-turn tool use is desired
-  # For this example, we use multi-turn tool use
-  agent_mode: "multi_turn"
+  # Tool configuration
+  tools:
+    registry_path: "custom-tools.yaml"
+    max_per_query: 3  # Maximum tools per example
+    strict: false     # Keep samples with extra tools, just truncate to limit
 
-  # Built-in tools available for use
-  tool_registry_path: "custom-tools.yaml"
-
-  max_tools_per_query: 3  # Maximum tools per example
-  max_tools_strict: false  # Keep samples with extra tools, just truncate to limit
-
-  # Model configuration
-  provider: "gemini"
-  model: "gemini-2.5-flash-lite"
-  temperature: 0.7
   max_retries: 3  # Retry on API failures
 
-dataset:
+  # LLM configuration for generation
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash-lite"
+    temperature: 0.7
+
+# Output configuration
+output:
+  # System prompt that goes INTO the training data
+  system_prompt: |
+    You are an AI assistant with access to various tools and functions.
+    When given a task:
+    1. Analyze what tools are needed
+    2. Execute tools with proper parameters
+    3. Interpret results and provide a clear answer
+
+  include_system_message: true
+  num_samples: 1
+  batch_size: 1
   save_as: "agent-tools-multi-dataset.jsonl"
-  creation:
-    num_steps: 1
-    batch_size: 1
-    sys_msg: true

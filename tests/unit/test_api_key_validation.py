@@ -188,71 +188,93 @@ class TestCliApiKeyValidation:
 
     @pytest.fixture
     def sample_config_content(self):
-        """Sample YAML content with openai provider."""
+        """Sample YAML content with openai provider (new format)."""
         return """
-dataset_system_prompt: "Test system prompt"
-topic_tree:
-  topic_prompt: "Test topic"
-  provider: "openai"
-  model: "gpt-4o-mini"
-  degree: 2
+topics:
+  prompt: "Test topic"
+  mode: tree
+  system_prompt: ""
   depth: 2
-  temperature: 0.7
+  degree: 2
   save_as: "test_tree.jsonl"
-data_engine:
-  generation_system_prompt: "Test generation"
+  llm:
+    provider: "openai"
+    model: "gpt-4o-mini"
+    temperature: 0.7
+
+generation:
+  system_prompt: "Test generation"
   instructions: "Test instructions"
-  provider: "openai"
-  model: "gpt-4o-mini"
-  temperature: 0.7
-dataset:
+  conversation:
+    type: basic
+  llm:
+    provider: "openai"
+    model: "gpt-4o-mini"
+    temperature: 0.7
+
+output:
+  system_prompt: "Test system prompt"
+  include_system_message: true
+  num_samples: 1
+  batch_size: 1
   save_as: "test_dataset.jsonl"
-  creation:
-    num_steps: 1
-    batch_size: 1
 """
 
     @pytest.fixture
     def gemini_config_content(self):
-        """Sample YAML content with gemini provider."""
+        """Sample YAML content with gemini provider (new format)."""
         return """
-dataset_system_prompt: "Test system prompt"
-topic_tree:
-  topic_prompt: "Test topic"
-  provider: "gemini"
-  model: "gemini-2.0-flash"
-  degree: 2
+topics:
+  prompt: "Test topic"
+  mode: tree
+  system_prompt: ""
   depth: 2
-  temperature: 0.7
+  degree: 2
   save_as: "test_tree.jsonl"
-data_engine:
-  generation_system_prompt: "Test generation"
+  llm:
+    provider: "gemini"
+    model: "gemini-2.0-flash"
+    temperature: 0.7
+
+generation:
+  system_prompt: "Test generation"
   instructions: "Test instructions"
-  provider: "gemini"
-  model: "gemini-2.0-flash"
-  temperature: 0.7
-dataset:
+  conversation:
+    type: basic
+  llm:
+    provider: "gemini"
+    model: "gemini-2.0-flash"
+    temperature: 0.7
+
+output:
+  system_prompt: "Test system prompt"
+  include_system_message: true
+  num_samples: 1
+  batch_size: 1
   save_as: "test_dataset.jsonl"
-  creation:
-    num_steps: 1
-    batch_size: 1
 """
 
     def test_config_get_configured_providers_tree_mode(self, tmp_path):
         """Test get_configured_providers returns correct providers for tree mode."""
         config_content = """
-dataset_system_prompt: "Test"
-topic_tree:
-  topic_prompt: "Test"
-  provider: "openai"
-  model: "gpt-4o-mini"
-  degree: 2
+topics:
+  prompt: "Test"
+  mode: tree
   depth: 2
-data_engine:
-  generation_system_prompt: "Test"
-  provider: "anthropic"
-  model: "claude-3-haiku"
-dataset:
+  degree: 2
+  llm:
+    provider: "openai"
+    model: "gpt-4o-mini"
+
+generation:
+  system_prompt: "Test"
+  conversation:
+    type: basic
+  llm:
+    provider: "anthropic"
+    model: "claude-3-haiku"
+
+output:
   save_as: "test.jsonl"
 """
         config_file = tmp_path / "config.yaml"
@@ -260,25 +282,31 @@ dataset:
 
         config = DeepFabricConfig.from_yaml(str(config_file))
 
-        providers = config.get_configured_providers(mode="tree")
+        providers = config.get_configured_providers()
         assert "openai" in providers
         assert "anthropic" in providers
 
     def test_config_get_configured_providers_graph_mode(self, tmp_path):
         """Test get_configured_providers returns correct providers for graph mode."""
         config_content = """
-dataset_system_prompt: "Test"
-topic_graph:
-  topic_prompt: "Test"
-  provider: "gemini"
-  model: "gemini-2.0-flash"
-  degree: 2
+topics:
+  prompt: "Test"
+  mode: graph
   depth: 2
-data_engine:
-  generation_system_prompt: "Test"
-  provider: "openai"
-  model: "gpt-4o-mini"
-dataset:
+  degree: 2
+  llm:
+    provider: "gemini"
+    model: "gemini-2.0-flash"
+
+generation:
+  system_prompt: "Test"
+  conversation:
+    type: basic
+  llm:
+    provider: "openai"
+    model: "gpt-4o-mini"
+
+output:
   save_as: "test.jsonl"
 """
         config_file = tmp_path / "config.yaml"
@@ -286,7 +314,7 @@ dataset:
 
         config = DeepFabricConfig.from_yaml(str(config_file))
 
-        providers = config.get_configured_providers(mode="graph")
+        providers = config.get_configured_providers()
         assert "gemini" in providers
         assert "openai" in providers
 

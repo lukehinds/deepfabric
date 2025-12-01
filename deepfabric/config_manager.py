@@ -24,19 +24,19 @@ from .tui import get_tui
 def load_config(  # noqa: PLR0913
     config_file: str | None,
     topic_prompt: str | None = None,
-    dataset_system_prompt: str | None = None,
+    topics_system_prompt: str | None = None,
     generation_system_prompt: str | None = None,
+    output_system_prompt: str | None = None,
     provider: str | None = None,
     model: str | None = None,
     temperature: float | None = None,
     degree: int | None = None,
     depth: int | None = None,
-    num_steps: int | None = None,
+    num_samples: int | None = None,
     batch_size: int | None = None,
-    save_tree: str | None = None,
-    save_graph: str | None = None,
-    dataset_save_as: str | None = None,
-    sys_msg: bool | None = None,
+    topics_save_as: str | None = None,
+    output_save_as: str | None = None,
+    include_system_message: bool | None = None,
     mode: str = "tree",
     # Modular conversation configuration
     conversation_type: str | None = None,
@@ -48,23 +48,23 @@ def load_config(  # noqa: PLR0913
 
     Args:
         config_file: Path to YAML configuration file
-        topic_prompt: Starting topic/seed for tree/graph generation
-        dataset_system_prompt: System prompt for final dataset
+        topic_prompt: Starting topic/seed for topic generation
+        topics_system_prompt: System prompt for topic generation
         generation_system_prompt: System prompt for dataset content generation
+        output_system_prompt: System prompt for final dataset output
         provider: LLM provider
         model: Model name
         temperature: Temperature setting
         degree: Branching factor
         depth: Depth of tree/graph
-        num_steps: Number of generation steps
+        num_samples: Number of samples to generate
         batch_size: Batch size for generation
-        save_tree: Path to save tree
-        save_graph: Path to save graph
-        dataset_save_as: Path to save dataset
-        sys_msg: Include system message in dataset
+        topics_save_as: Path to save topics
+        output_save_as: Path to save dataset
+        include_system_message: Include system message in dataset
         mode: Topic generation mode (tree or graph)
         conversation_type: Base conversation type (basic, chain_of_thought)
-        reasoning_style: Reasoning style for chain_of_thought (freetext, structured, hybrid)
+        reasoning_style: Reasoning style for chain_of_thought (freetext, agent)
         agent_mode: Agent mode (single_turn, multi_turn)
 
     Returns:
@@ -90,55 +90,59 @@ def load_config(  # noqa: PLR0913
     tui = get_tui()
     tui.info("No config file provided - using CLI parameters")
 
-    # Create minimal config dict
+    # Create minimal config dict with new structure
     default_prompt = generation_system_prompt or "You are a helpful AI assistant."
+
+    # Build conversation config
+    conversation_config = {"type": conversation_type or "basic"}
+    if reasoning_style:
+        conversation_config["reasoning_style"] = reasoning_style
+    if agent_mode:
+        conversation_config["agent_mode"] = agent_mode
+
     minimal_config = {
-        "dataset_system_prompt": dataset_system_prompt,
-        "data_engine": {
-            "instructions": "Generate diverse and educational examples",
-            "generation_system_prompt": default_prompt,
-            "provider": provider or DEFAULT_PROVIDER,
-            "model": model or DEFAULT_MODEL,
-            "temperature": temperature or ENGINE_DEFAULT_TEMPERATURE,
-            "max_retries": DEFAULT_MAX_RETRIES,
-            # Add modular conversation config if provided
-            **({"conversation_type": conversation_type} if conversation_type else {}),
-            **({"reasoning_style": reasoning_style} if reasoning_style else {}),
-            **({"agent_mode": agent_mode} if agent_mode else {}),
-        },
-        "dataset": {
-            "creation": {
-                "num_steps": num_steps or ENGINE_DEFAULT_NUM_EXAMPLES,
-                "batch_size": batch_size or ENGINE_DEFAULT_BATCH_SIZE,
+        "topics": {
+            "prompt": topic_prompt,
+            "mode": mode,
+            "system_prompt": topics_system_prompt or "",
+            "depth": depth
+            or (TOPIC_GRAPH_DEFAULT_DEPTH if mode == "graph" else TOPIC_TREE_DEFAULT_DEPTH),
+            "degree": degree
+            or (TOPIC_GRAPH_DEFAULT_DEGREE if mode == "graph" else TOPIC_TREE_DEFAULT_DEGREE),
+            "save_as": topics_save_as
+            or ("topic_graph.json" if mode == "graph" else "topic_tree.jsonl"),
+            "llm": {
                 "provider": provider or DEFAULT_PROVIDER,
                 "model": model or DEFAULT_MODEL,
-                "sys_msg": sys_msg if sys_msg is not None else True,
+                "temperature": temperature
+                or (
+                    TOPIC_GRAPH_DEFAULT_TEMPERATURE
+                    if mode == "graph"
+                    else TOPIC_TREE_DEFAULT_TEMPERATURE
+                ),
             },
-            "save_as": dataset_save_as or "dataset.jsonl",
+        },
+        "generation": {
+            "system_prompt": default_prompt,
+            "instructions": "Generate diverse and educational examples",
+            "conversation": conversation_config,
+            "max_retries": DEFAULT_MAX_RETRIES,
+            "llm": {
+                "provider": provider or DEFAULT_PROVIDER,
+                "model": model or DEFAULT_MODEL,
+                "temperature": temperature or ENGINE_DEFAULT_TEMPERATURE,
+            },
+        },
+        "output": {
+            "system_prompt": output_system_prompt,
+            "include_system_message": include_system_message
+            if include_system_message is not None
+            else True,
+            "num_samples": num_samples or ENGINE_DEFAULT_NUM_EXAMPLES,
+            "batch_size": batch_size or ENGINE_DEFAULT_BATCH_SIZE,
+            "save_as": output_save_as or "dataset.jsonl",
         },
     }
-
-    # Add topic generation config based on mode
-    if mode == "graph":
-        minimal_config["topic_graph"] = {
-            "topic_prompt": topic_prompt,
-            "provider": provider or DEFAULT_PROVIDER,
-            "model": model or DEFAULT_MODEL,
-            "temperature": temperature or TOPIC_GRAPH_DEFAULT_TEMPERATURE,
-            "degree": degree or TOPIC_GRAPH_DEFAULT_DEGREE,
-            "depth": depth or TOPIC_GRAPH_DEFAULT_DEPTH,
-            "save_as": save_graph or "topic_graph.json",
-        }
-    else:  # mode == "tree" (default)
-        minimal_config["topic_tree"] = {
-            "topic_prompt": topic_prompt,
-            "provider": provider or DEFAULT_PROVIDER,
-            "model": model or DEFAULT_MODEL,
-            "temperature": temperature or TOPIC_TREE_DEFAULT_TEMPERATURE,
-            "degree": degree or TOPIC_TREE_DEFAULT_DEGREE,
-            "depth": depth or TOPIC_TREE_DEFAULT_DEPTH,
-            "save_as": save_tree or "topic_tree.jsonl",
-        }
 
     try:
         return DeepFabricConfig.model_validate(minimal_config)
@@ -147,10 +151,9 @@ def load_config(  # noqa: PLR0913
 
 
 def apply_cli_overrides(
-    config: DeepFabricConfig,
-    dataset_system_prompt: str | None = None,
+    output_system_prompt: str | None = None,
     topic_prompt: str | None = None,
-    topic_system_prompt: str | None = None,
+    topics_system_prompt: str | None = None,
     generation_system_prompt: str | None = None,
     provider: str | None = None,
     model: str | None = None,
@@ -158,15 +161,14 @@ def apply_cli_overrides(
     degree: int | None = None,
     depth: int | None = None,
     base_url: str | None = None,
-) -> tuple[dict, dict, dict]:
+) -> tuple[dict, dict]:
     """
-    Apply CLI overrides to configuration and return override dictionaries.
+    Build override dictionaries from CLI parameters.
 
     Args:
-        config: DeepFabricConfig object to update
-        dataset_system_prompt: Override for dataset system prompt
+        output_system_prompt: Override for output system prompt
         topic_prompt: Override for topic prompt
-        topic_system_prompt: Override for topic system prompt
+        topics_system_prompt: Override for topics system prompt
         generation_system_prompt: Override for generation system prompt
         provider: Override for LLM provider
         model: Override for model name
@@ -176,53 +178,48 @@ def apply_cli_overrides(
         base_url: Override for base URL
 
     Returns:
-        Tuple of (tree_overrides, graph_overrides, engine_overrides) dictionaries
+        Tuple of (topics_overrides, generation_overrides) dictionaries
     """
-    # Apply dataset system prompt override if provided
-    if dataset_system_prompt:
-        config.dataset_system_prompt = dataset_system_prompt
-
-    # Prepare topic tree overrides
-    tree_overrides = {}
+    # Prepare topics overrides
+    topics_overrides = {}
     if topic_prompt:
-        tree_overrides["topic_prompt"] = topic_prompt
-    if topic_system_prompt:
-        tree_overrides["topic_system_prompt"] = topic_system_prompt
+        topics_overrides["topic_prompt"] = topic_prompt
+    if topics_system_prompt:
+        topics_overrides["topic_system_prompt"] = topics_system_prompt
     if provider:
-        tree_overrides["provider"] = provider
+        topics_overrides["provider"] = provider
     if model:
-        tree_overrides["model"] = model
+        topics_overrides["model"] = model
     if temperature:
-        tree_overrides["temperature"] = temperature
+        topics_overrides["temperature"] = temperature
     if degree:
-        tree_overrides["degree"] = degree
+        topics_overrides["degree"] = degree
     if depth:
-        tree_overrides["depth"] = depth
+        topics_overrides["depth"] = depth
     if base_url:
-        tree_overrides["base_url"] = base_url
+        topics_overrides["base_url"] = base_url
 
-    # Graph overrides are the same as tree overrides
-    graph_overrides = tree_overrides.copy()
-
-    # Prepare engine overrides
-    engine_overrides = {}
+    # Prepare generation overrides
+    generation_overrides = {}
     if generation_system_prompt:
-        engine_overrides["generation_system_prompt"] = generation_system_prompt
+        generation_overrides["generation_system_prompt"] = generation_system_prompt
+    if output_system_prompt:
+        generation_overrides["dataset_system_prompt"] = output_system_prompt
     if provider:
-        engine_overrides["provider"] = provider
+        generation_overrides["provider"] = provider
     if model:
-        engine_overrides["model"] = model
+        generation_overrides["model"] = model
     if temperature:
-        engine_overrides["temperature"] = temperature
+        generation_overrides["temperature"] = temperature
     if base_url:
-        engine_overrides["base_url"] = base_url
+        generation_overrides["base_url"] = base_url
 
-    return tree_overrides, graph_overrides, engine_overrides
+    return topics_overrides, generation_overrides
 
 
 def get_final_parameters(
     config: DeepFabricConfig,
-    num_steps: int | None = None,
+    num_samples: int | None = None,
     batch_size: int | None = None,
     depth: int | None = None,
     degree: int | None = None,
@@ -232,31 +229,21 @@ def get_final_parameters(
 
     Args:
         config: DeepFabricConfig object
-        num_steps: CLI override for num_steps
+        num_samples: CLI override for num_samples
         batch_size: CLI override for batch_size
         depth: CLI override for depth
         degree: CLI override for degree
 
     Returns:
-        Tuple of (num_steps, batch_size, depth, degree)
+        Tuple of (num_samples, batch_size, depth, degree)
     """
-    dataset_config = config.get_dataset_config()
-    dataset_params = dataset_config["creation"]
+    output_config = config.get_output_config()
 
-    final_num_steps = num_steps or dataset_params["num_steps"]
-    final_batch_size = batch_size or dataset_params["batch_size"]
+    final_num_samples = num_samples or output_config["num_samples"]
+    final_batch_size = batch_size or output_config["batch_size"]
 
-    # Get depth and degree from config if not provided
-    config_depth = None
-    config_degree = None
-    if config.topic_tree:
-        config_depth = config.topic_tree.depth
-        config_degree = config.topic_tree.degree
-    elif config.topic_graph:
-        config_depth = config.topic_graph.depth
-        config_degree = config.topic_graph.degree
+    # Get depth and degree from topics config
+    final_depth = depth or config.topics.depth
+    final_degree = degree or config.topics.degree
 
-    final_depth = depth or config_depth or TOPIC_TREE_DEFAULT_DEPTH
-    final_degree = degree or config_degree or TOPIC_TREE_DEFAULT_DEGREE
-
-    return final_num_steps, final_batch_size, final_depth, final_degree
+    return final_num_samples, final_batch_size, final_depth, final_degree
