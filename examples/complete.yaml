@@ -1,0 +1,154 @@
+#####################################################################
+# Complete Dataset Configuration Example
+#####################################################################
+# This example demonstrates all configuration options available in
+# DeepFabric, including shared LLM defaults, topic generation,
+# sample generation with tools, output formatting, and integrations.
+#####################################################################
+
+# SHARED LLM DEFAULTS (optional)
+# These settings are inherited by topics and generation unless overridden
+llm:
+  provider: "ollama"
+  model: "gemma3:4b"
+  temperature: 0.7
+
+#####################################################################
+# TOPICS: Generates the topic tree/graph that guides sample generation
+#####################################################################
+topics:
+  prompt: "Building production-ready REST APIs with Python"
+  mode: tree                    # tree | graph
+  depth: 3                      # Tree depth (1-5 recommended)
+  degree: 3                     # Subtopics per node (1-10)
+
+  # Optional: Custom system prompt for topic generation
+  system_prompt: |
+    You are a curriculum designer specializing in backend development.
+    Create a structured learning path covering essential API concepts,
+    from fundamentals to advanced patterns.
+
+  save_as: "api-topics.jsonl"
+
+  # Optional: Override shared LLM settings for topics
+  llm:
+    provider: "ollama"
+    model: "gemma3:4b"        # Use cheaper model for topic generation
+    temperature: 0.8            # Higher creativity for diverse topics
+
+#####################################################################
+# GENERATION: Creates training samples from topics
+#####################################################################
+generation:
+  # System prompt that instructs the LLM how to generate samples
+  system_prompt: |
+    You are an expert Python backend developer and technical educator.
+    Create practical, production-ready code examples with clear explanations.
+    Include error handling, type hints, and follow PEP 8 conventions.
+
+  # Additional instructions for sample generation
+  instructions: |
+    Focus on real-world scenarios developers encounter daily.
+    Include both happy path and edge case handling.
+    Provide context on when and why to use specific patterns.
+
+  # Conversation structure configuration
+  conversation:
+    type: chain_of_thought      # basic | chain_of_thought
+    reasoning_style: agent      # freetext | agent (for chain_of_thought)
+    agent_mode: single_turn     # single_turn | multi_turn
+
+    # Multi-turn settings (only used with agent_mode: multi_turn)
+    # min_turns: 2
+    # max_turns: 4
+    # min_tool_calls: 2
+
+  # Tool configuration (required for agent modes)
+  tools:
+    registry_path: "custom-tools.yaml"  # Path to tool definitions
+    # available: []             # Specific tools to use (empty = all)
+    # custom: []                # Inline tool definitions
+    max_per_query: 3            # Maximum tools per query
+    strict: true                # Discard samples exceeding max (vs truncate)
+
+  max_retries: 3                # Retries for failed generations
+  sample_retries: 2             # Retries for validation failures
+  max_tokens: 2000              # Max tokens per generation
+
+  # Optional: Rate limiting configuration
+  # rate_limit:
+  #   requests_per_minute: 60
+  #   tokens_per_minute: 100000
+
+  save_as: "api-samples.jsonl"
+
+  # Optional: Override shared LLM settings for generation
+  llm:
+    temperature: 0.3            # Lower for more consistent code
+
+#####################################################################
+# OUTPUT: Final dataset configuration
+#####################################################################
+output:
+  # System prompt that goes INTO the training data
+  # This is what the trained model will see as its system message
+  system_prompt: |
+    You are a helpful Python programming assistant specialized in REST API
+    development. You provide clear, production-ready code with explanations.
+    Always consider security, error handling, and best practices.
+
+  include_system_message: true  # Whether to include system message in output
+  num_samples: 4               # Total training samples to generate
+  batch_size: 3                 # Parallel generation batch size
+  save_as: "api-dataset.jsonl"
+
+  # Optional: Apply formatters to convert to specific training formats
+  formatters:
+    - name: trl
+      template: builtin://trl_sft_tools
+      output: api-dataset-trl.jsonl
+
+    - name: conversations
+      template: builtin://conversations
+      output: api-dataset-conv.jsonl
+
+#####################################################################
+# OPTIONAL INTEGRATIONS
+#####################################################################
+
+# Hugging Face Hub integration
+huggingface:
+  repository: "lukehinds/python-api-dataset"
+  tags:
+    - "python"
+    - "api"
+    - "rest"
+    - "backend"
+
+# Kaggle integration (alternative to HuggingFace)
+# kaggle:
+#   handle: "your-username/python-api-dataset"
+#   tags:
+#     - "python"
+#     - "programming"
+#   description: "Python REST API training dataset"
+
+#####################################################################
+# USAGE
+#####################################################################
+# Generate with this config:
+#   deepfabric generate examples/complete.yaml
+#
+# Override settings via CLI:
+#   deepfabric generate examples/complete.yaml \
+#     --provider gemini \
+#     --model gemini-2.0-flash \
+#     --num-samples 100 \
+#     --batch-size 5
+#
+# Generate topics only:
+#   deepfabric generate examples/complete.yaml --topic-only
+#
+# Load existing topics:
+#   deepfabric generate examples/complete.yaml --topics-load api-topics.jsonl
+#####################################################################

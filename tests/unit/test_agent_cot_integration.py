@@ -259,31 +259,41 @@ class TestAgentCoTIntegration:
 
     def test_config_integration_with_yaml_style(self):
         """Test that the config system properly handles modular agent configuration."""
-        # Simulate YAML config structure with new modular config
+        # Simulate YAML config structure with new format
         config_dict = {
-            "dataset_system_prompt": "Generate agent reasoning examples",
-            "topic_tree": {
-                "topic_prompt": "Real-world scenarios requiring tools",
-                "provider": "openai",
-                "model": "gpt-4",
+            "topics": {
+                "prompt": "Real-world scenarios requiring tools",
+                "mode": "tree",
                 "depth": 2,
                 "degree": 3,
                 "save_as": "topics.jsonl",
+                "llm": {
+                    "provider": "openai",
+                    "model": "gpt-4",
+                },
             },
-            "data_engine": {
-                "generation_system_prompt": "Create detailed agent reasoning with tools",
-                "provider": "openai",
-                "model": "gpt-4",
-                "conversation_type": "chain_of_thought",
-                "reasoning_style": "agent",
-                "agent_mode": "single_turn",
-                "available_tools": ["get_weather", "calculate"],
-                "num_samples": 10,
+            "generation": {
+                "system_prompt": "Create detailed agent reasoning with tools",
+                "conversation": {
+                    "type": "chain_of_thought",
+                    "reasoning_style": "agent",
+                    "agent_mode": "single_turn",
+                },
+                "tools": {
+                    "available": ["get_weather", "calculate"],
+                },
                 "save_as": "raw_data.jsonl",
+                "llm": {
+                    "provider": "openai",
+                    "model": "gpt-4",
+                },
             },
-            "dataset": {
+            "output": {
+                "system_prompt": "Generate agent reasoning examples",
+                "include_system_message": True,
+                "num_samples": 10,
+                "batch_size": 2,
                 "save_as": "final_dataset.jsonl",
-                "creation": {"num_steps": 10, "batch_size": 2, "sys_msg": True},
                 "formatters": [
                     {
                         "name": "tool_calling",
@@ -299,14 +309,14 @@ class TestAgentCoTIntegration:
         config = DeepFabricConfig(**config_dict)
 
         # Verify modular configuration is accepted
-        assert config.data_engine.conversation_type == "chain_of_thought"
-        assert config.data_engine.reasoning_style == "agent"
-        assert config.data_engine.agent_mode == "single_turn"
-        assert config.data_engine.available_tools == ["get_weather", "calculate"]
+        assert config.generation.conversation.type == "chain_of_thought"
+        assert config.generation.conversation.reasoning_style == "agent"
+        assert config.generation.conversation.agent_mode == "single_turn"
+        assert config.generation.tools.available == ["get_weather", "calculate"]
 
         # Verify formatter configuration
-        assert len(config.dataset.formatters) == 1
-        formatter_config = config.dataset.formatters[0]
+        assert len(config.output.formatters) == 1
+        formatter_config = config.output.formatters[0]
         assert formatter_config.template == "builtin://tool_calling"
         assert formatter_config.config["include_tools_in_system"] is True
 

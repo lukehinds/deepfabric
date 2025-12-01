@@ -12,75 +12,78 @@ from deepfabric.exceptions import ConfigurationError
 
 @pytest.fixture
 def sample_config_dict():
-    """Sample configuration dictionary for testing."""
+    """Sample configuration dictionary for testing (new format)."""
     return {
-        "dataset_system_prompt": "Test system prompt",
-        "topic_tree": {
-            "topic_prompt": "Test root prompt",
-            "topic_system_prompt": "Test system prompt",
-            "degree": 3,
+        "topics": {
+            "prompt": "Test root prompt",
+            "mode": "tree",
+            "system_prompt": "Test topic system prompt",
             "depth": 2,
-            "temperature": 0.7,
-            "provider": "test",
-            "model": "model",
+            "degree": 3,
             "save_as": "test_tree.jsonl",
-        },
-        "data_engine": {
-            "instructions": "Test instructions",
-            "generation_system_prompt": "Test system prompt",
-            "provider": "test",
-            "model": "model",
-            "temperature": 0.9,
-            "max_retries": 2,
-            "conversation_type": "basic",
-        },
-        "dataset": {
-            "creation": {
-                "num_steps": 5,
-                "batch_size": 1,
+            "llm": {
                 "provider": "test",
                 "model": "model",
-                "sys_msg": True,
+                "temperature": 0.7,
             },
+        },
+        "generation": {
+            "system_prompt": "Test generation system prompt",
+            "instructions": "Test instructions",
+            "conversation": {
+                "type": "basic",
+            },
+            "max_retries": 2,
+            "llm": {
+                "provider": "test",
+                "model": "model",
+                "temperature": 0.9,
+            },
+        },
+        "output": {
+            "system_prompt": "Test output system prompt",
+            "include_system_message": True,
+            "num_samples": 5,
+            "batch_size": 1,
             "save_as": "test_dataset.jsonl",
-            "formatters": [],
         },
     }
 
 
 @pytest.fixture
 def sample_config_dict_no_sys_msg():
-    """Sample configuration dictionary without sys_msg setting."""
+    """Sample configuration dictionary without include_system_message setting."""
     return {
-        "dataset_system_prompt": "Test system prompt",
-        "topic_tree": {
-            "topic_prompt": "Test root prompt",
-            "topic_system_prompt": "Test system prompt",
-            "degree": 3,
+        "topics": {
+            "prompt": "Test root prompt",
+            "mode": "tree",
+            "system_prompt": "Test topic system prompt",
             "depth": 2,
-            "temperature": 0.7,
-            "provider": "test",
-            "model": "model",
+            "degree": 3,
             "save_as": "test_tree.jsonl",
-        },
-        "data_engine": {
-            "instructions": "Test instructions",
-            "generation_system_prompt": "Test system prompt",
-            "provider": "test",
-            "model": "model",
-            "temperature": 0.9,
-            "max_retries": 2,
-            "conversation_type": "basic",
-        },
-        "dataset": {
-            "creation": {
-                "num_steps": 5,
-                "batch_size": 1,
+            "llm": {
                 "provider": "test",
                 "model": "model",
+                "temperature": 0.7,
             },
+        },
+        "generation": {
+            "system_prompt": "Test generation system prompt",
+            "instructions": "Test instructions",
+            "conversation": {
+                "type": "basic",
+            },
+            "max_retries": 2,
+            "llm": {
+                "provider": "test",
+                "model": "model",
+                "temperature": 0.9,
+            },
+        },
+        "output": {
+            "num_samples": 5,
+            "batch_size": 1,
             "save_as": "test_dataset.jsonl",
-            "formatters": [],
         },
     }
 
@@ -101,7 +104,7 @@ def sample_yaml_file(sample_config_dict):
 
 @pytest.fixture
 def sample_yaml_file_no_sys_msg(sample_config_dict_no_sys_msg):
-    """Create a temporary YAML file without sys_msg setting."""
+    """Create a temporary YAML file without include_system_message setting."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         yaml.dump(sample_config_dict_no_sys_msg, f)
         temp_path = f.name
@@ -117,31 +120,30 @@ def test_load_from_yaml(sample_yaml_file, sample_config_dict):
     """Test loading configuration from YAML file."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
 
-    assert config.dataset_system_prompt == sample_config_dict["dataset_system_prompt"]
-    assert config.topic_tree.model_dump(exclude_none=True) == sample_config_dict["topic_tree"]
+    # Verify topics config
+    assert config.topics.prompt == sample_config_dict["topics"]["prompt"]
+    assert config.topics.mode == sample_config_dict["topics"]["mode"]
+    assert config.topics.depth == sample_config_dict["topics"]["depth"]
+    assert config.topics.degree == sample_config_dict["topics"]["degree"]
 
-    # Add the new fields to the expected config for comparison
-    expected_data_engine = sample_config_dict["data_engine"].copy()
-    expected_data_engine["available_tools"] = []  # Default value
-    expected_data_engine["custom_tools"] = []  # Default value
-    expected_data_engine["max_tools_per_query"] = 3  # Default value
-    expected_data_engine["max_tools_strict"] = True  # Default value
-    expected_data_engine["max_tokens"] = 2000
-    expected_data_engine["sample_retries"] = 2  # Default value
+    # Verify generation config
+    assert config.generation.system_prompt == sample_config_dict["generation"]["system_prompt"]
+    assert config.generation.instructions == sample_config_dict["generation"]["instructions"]
 
-    actual_data_engine = config.data_engine.model_dump(exclude_none=True)
-    assert actual_data_engine == expected_data_engine
-    assert config.dataset.model_dump(exclude_none=True) == sample_config_dict["dataset"]
+    # Verify output config
+    assert config.output.system_prompt == sample_config_dict["output"]["system_prompt"]
+    assert config.output.include_system_message is True
+    assert config.output.num_samples == sample_config_dict["output"]["num_samples"]
 
 
-def test_get_topic_tree_args(sample_yaml_file):
-    """Test getting tree arguments from config."""
+def test_get_topics_params(sample_yaml_file):
+    """Test getting topics arguments from config."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
-    args = config.get_topic_tree_params()
+    args = config.get_topics_params()
 
     assert isinstance(args, dict)
     assert args["topic_prompt"] == "Test root prompt"
-    assert args["topic_system_prompt"] == "Test system prompt"
+    assert args["topic_system_prompt"] == "Test topic system prompt"
     assert args["degree"] == 3  # noqa: PLR2004
     assert args["depth"] == 2  # noqa: PLR2004
     assert args["temperature"] == 0.7  # noqa: PLR2004
@@ -149,71 +151,76 @@ def test_get_topic_tree_args(sample_yaml_file):
     assert args["model_name"] == "model"
 
 
-def test_get_engine_args(sample_yaml_file):
-    """Test getting engine arguments from config."""
+def test_get_generation_params(sample_yaml_file):
+    """Test getting generation arguments from config."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
-    args = config.get_engine_params()
+    args = config.get_generation_params()
 
     assert isinstance(args, dict)
     assert args["instructions"] == "Test instructions"
-    assert args["generation_system_prompt"] == "Test system prompt"
+    assert args["generation_system_prompt"] == "Test generation system prompt"
     assert args["model_name"] == "model"
     assert args["provider"] == "test"
     assert args["temperature"] == 0.9  # noqa: PLR2004
     assert args["max_retries"] == 2  # noqa: PLR2004
-    assert args["sys_msg"] is True  # Default from dataset config
+    assert args["sys_msg"] is True  # From output config
 
 
-def test_get_engine_args_no_sys_msg(sample_yaml_file_no_sys_msg):
-    """Test getting engine arguments without sys_msg setting."""
+def test_get_generation_params_no_sys_msg(sample_yaml_file_no_sys_msg):
+    """Test getting generation arguments without include_system_message setting."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file_no_sys_msg)
-    args = config.get_engine_params()
+    args = config.get_generation_params()
 
     assert isinstance(args, dict)
     assert args["sys_msg"] is True  # Default value when not specified
 
 
-def test_get_topic_tree_args_with_overrides(sample_yaml_file):
-    """Test getting tree arguments with overrides."""
+def test_get_topics_params_with_overrides(sample_yaml_file):
+    """Test getting topics arguments with overrides."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
-    args = config.get_topic_tree_params(
+    args = config.get_topics_params(
         provider="override",
-        model="model",
+        model="override_model",
         temperature=0.5,
     )
 
-    assert args["model_name"] == "model"
+    assert args["provider"] == "override"
+    assert args["model_name"] == "override_model"
     assert args["temperature"] == 0.5  # noqa: PLR2004
 
 
-def test_get_engine_args_with_overrides(sample_yaml_file):
-    """Test getting engine arguments with overrides."""
+def test_get_generation_params_with_overrides(sample_yaml_file):
+    """Test getting generation arguments with overrides."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
-    args = config.get_engine_params(
+    args = config.get_generation_params(
         provider="override",
-        model="model",
+        model="override_model",
         temperature=0.5,
     )
 
-    assert args["model_name"] == "model"
+    assert args["provider"] == "override"
+    assert args["model_name"] == "override_model"
     assert args["temperature"] == 0.5  # noqa: PLR2004
 
 
-def test_get_dataset_config(sample_yaml_file, sample_config_dict):
-    """Test getting dataset configuration."""
+def test_get_output_config(sample_yaml_file, sample_config_dict):
+    """Test getting output configuration."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file)
-    dataset_config = config.get_dataset_config()
+    output_config = config.get_output_config()
 
-    assert dataset_config == sample_config_dict["dataset"]
-    assert dataset_config["creation"]["sys_msg"] is True
+    assert output_config["system_prompt"] == sample_config_dict["output"]["system_prompt"]
+    assert output_config["include_system_message"] is True
+    assert output_config["num_samples"] == sample_config_dict["output"]["num_samples"]
+    assert output_config["batch_size"] == sample_config_dict["output"]["batch_size"]
 
 
-def test_get_dataset_config_no_sys_msg(sample_yaml_file_no_sys_msg):
-    """Test getting dataset configuration without sys_msg setting."""
+def test_get_output_config_no_sys_msg(sample_yaml_file_no_sys_msg):
+    """Test getting output configuration without include_system_message setting."""
     config = DeepFabricConfig.from_yaml(sample_yaml_file_no_sys_msg)
-    dataset_config = config.get_dataset_config()
+    output_config = config.get_output_config()
 
-    assert "sys_msg" not in dataset_config["creation"]
+    # Default value is True
+    assert output_config["include_system_message"] is True
 
 
 def test_missing_yaml_file():
@@ -231,6 +238,43 @@ def test_invalid_yaml_content():
     try:
         with pytest.raises(ConfigurationError):
             DeepFabricConfig.from_yaml(temp_path)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def test_old_format_rejected():
+    """Test that old configuration format is rejected with helpful message."""
+    old_format_config = {
+        "dataset_system_prompt": "Test",
+        "topic_tree": {
+            "topic_prompt": "Test",
+            "provider": "test",
+            "model": "model",
+        },
+        "data_engine": {
+            "generation_system_prompt": "Test",
+            "provider": "test",
+            "model": "model",
+            "conversation_type": "basic",
+        },
+        "dataset": {
+            "creation": {"num_steps": 1, "batch_size": 1},
+            "save_as": "test.jsonl",
+        },
+    }
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(old_format_config, f)
+        temp_path = f.name
+
+    try:
+        with pytest.raises(ConfigurationError) as exc_info:
+            DeepFabricConfig.from_yaml(temp_path)
+
+        # Check that the migration message is included
+        assert "Configuration format has changed" in str(exc_info.value)
+        assert "output.system_prompt" in str(exc_info.value)
     finally:
         if os.path.exists(temp_path):
             os.unlink(temp_path)

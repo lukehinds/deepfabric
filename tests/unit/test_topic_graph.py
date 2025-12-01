@@ -116,12 +116,12 @@ class TestGraphConfig:
         """Test default values."""
         config = GraphConfig(
             topic_prompt="Test",
-            model_name="ollama/qwen3:8b",
+            model_name="openai/gpt-4o",
             temperature=0.2,
             degree=3,
             depth=2,
         )
-        assert config.model_name == "ollama/qwen3:8b"  # From constants
+        assert config.model_name == "openai/gpt-4o"  # From constants
         assert config.temperature == 0.2  # From constants  # noqa: PLR2004
         assert config.degree == 3  # noqa: PLR2004
         assert config.depth == 2  # noqa: PLR2004
@@ -131,7 +131,7 @@ class TestGraphConfig:
         with pytest.raises(ValueError):
             GraphConfig(
                 topic_prompt="",  # Empty topic_prompt
-                model_name="ollama/qwen3:8b",
+                model_name="openai/gpt-4o",
                 temperature=0.2,
                 degree=3,
                 depth=2,
@@ -140,7 +140,7 @@ class TestGraphConfig:
         with pytest.raises(ValueError):
             GraphConfig(
                 topic_prompt="Test",
-                model_name="ollama/qwen3:8b",
+                model_name="openai/gpt-4o",
                 temperature=-0.1,
                 degree=3,
                 depth=2,
@@ -149,7 +149,7 @@ class TestGraphConfig:
         with pytest.raises(ValueError):
             GraphConfig(
                 topic_prompt="Test",
-                model_name="ollama/qwen3:8b",
+                model_name="openai/gpt-4o",
                 temperature=-0.1,
                 degree=0,
                 depth=2,

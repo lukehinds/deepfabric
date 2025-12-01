@@ -64,24 +64,23 @@ class GenerateOptions(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     config_file: str | None = None
-    dataset_system_prompt: str | None = None
+    # New naming convention
+    output_system_prompt: str | None = None
     topic_prompt: str | None = None
-    topic_system_prompt: str | None = None
+    topics_system_prompt: str | None = None
     generation_system_prompt: str | None = None
-    save_tree: str | None = None
-    load_tree: str | None = None
-    save_graph: str | None = None
-    load_graph: str | None = None
-    dataset_save_as: str | None = None
+    topics_save_as: str | None = None
+    topics_load: str | None = None
+    output_save_as: str | None = None
     provider: str | None = None
     model: str | None = None
     temperature: float | None = None
     degree: int | None = None
     depth: int | None = None
-    num_steps: int | None = None
+    num_samples: int | None = None
     batch_size: int | None = None
     base_url: str | None = None
-    sys_msg: bool | None = None
+    include_system_message: bool | None = None
     mode: Literal["tree", "graph"] = Field(default="tree")
     debug: bool = False
     topic_only: bool = False
@@ -92,18 +91,15 @@ class GenerateOptions(BaseModel):
     reasoning_style: Literal["freetext", "agent", "structured", "hybrid"] | None = None
     agent_mode: Literal["single_turn", "multi_turn"] | None = None
 
+    # Multi-turn configuration
+    min_turns: int | None = None
+    max_turns: int | None = None
+    min_tool_calls: int | None = None
+
     @model_validator(mode="after")
     def validate_mode_constraints(self) -> "GenerateOptions":
-        if self.mode == "graph" and self.save_tree:
-            raise ValueError(
-                "Cannot use --save-tree when mode is graph. Use --save-graph to persist graph data.",
-            )
-        if self.mode == "tree" and self.save_graph:
-            raise ValueError(
-                "Cannot use --save-graph when mode is tree. Use --save-tree to persist tree data.",
-            )
-        if self.topic_only and (self.load_tree or self.load_graph):
-            raise ValueError("--topic-only cannot be used with --load-tree or --load-graph")
+        if self.topic_only and self.topics_load:
+            raise ValueError("--topic-only cannot be used with --topics-load")
         return self
 
 
@@ -113,10 +109,9 @@ class GenerationPreparation(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     config: DeepFabricConfig
-    tree_overrides: OverrideMap = Field(default_factory=dict)
-    graph_overrides: OverrideMap = Field(default_factory=dict)
-    engine_overrides: OverrideMap = Field(default_factory=dict)
-    num_steps: int
+    topics_overrides: OverrideMap = Field(default_factory=dict)
+    generation_overrides: OverrideMap = Field(default_factory=dict)
+    num_samples: int
     batch_size: int
     depth: int
     degree: int
@@ -124,8 +119,8 @@ class GenerationPreparation(BaseModel):
 
     @model_validator(mode="after")
     def validate_positive_dimensions(self) -> "GenerationPreparation":
-        if self.num_steps <= 0:
-            raise ValueError("num_steps must be greater than zero")
+        if self.num_samples <= 0:
+            raise ValueError("num_samples must be greater than zero")
         if self.batch_size <= 0:
             raise ValueError("batch_size must be greater than zero")
         if self.depth <= 0:
@@ -137,21 +132,19 @@ class GenerationPreparation(BaseModel):
 
 def _validate_api_keys(
     config: DeepFabricConfig,
-    mode: str,
     provider_override: str | None = None,
 ) -> None:
     """Validate that required API keys are present for configured providers.
 
     Args:
         config: The loaded configuration
-        mode: Either "tree" or "graph"
         provider_override: Optional CLI provider override that takes precedence
 
     Raises:
         ConfigurationError: If any required API key is missing
     """
     # Get providers from config
-    providers = config.get_configured_providers(mode)
+    providers = config.get_configured_providers()
 
     # If there's a provider override from CLI, that takes precedence for all components
     if provider_override:
@@ -178,19 +171,19 @@ def _load_and_prepare_generation_context(options: GenerateOptions) -> Generation
     config = load_config(
         config_file=options.config_file,
         topic_prompt=options.topic_prompt,
-        dataset_system_prompt=options.dataset_system_prompt,
+        topics_system_prompt=options.topics_system_prompt,
         generation_system_prompt=options.generation_system_prompt,
+        output_system_prompt=options.output_system_prompt,
         provider=options.provider,
         model=options.model,
         temperature=options.temperature,
         degree=options.degree,
         depth=options.depth,
-        num_steps=options.num_steps,
+        num_samples=options.num_samples,
         batch_size=options.batch_size,
-        save_tree=options.save_tree,
-        save_graph=options.save_graph,
-        dataset_save_as=options.dataset_save_as,
-        sys_msg=options.sys_msg,
+        topics_save_as=options.topics_save_as,
+        output_save_as=options.output_save_as,
+        include_system_message=options.include_system_message,
         mode=options.mode,
         conversation_type=options.conversation_type,
         reasoning_style=options.reasoning_style,
@@ -198,13 +191,12 @@ def _load_and_prepare_generation_context(options: GenerateOptions) -> Generation
     )
 
     # Validate API keys early before any LLM operations
-    _validate_api_keys(config, options.mode, options.provider)
+    _validate_api_keys(config, options.provider)
 
-    tree_overrides_raw, graph_overrides_raw, engine_overrides_raw = apply_cli_overrides(
-        config=config,
-        dataset_system_prompt=options.dataset_system_prompt,
+    topics_overrides_raw, generation_overrides_raw = apply_cli_overrides(
+        output_system_prompt=options.output_system_prompt,
         topic_prompt=options.topic_prompt,
-        topic_system_prompt=options.topic_system_prompt,
+        topics_system_prompt=options.topics_system_prompt,
         generation_system_prompt=options.generation_system_prompt,
         provider=options.provider,
         model=options.model,
@@ -214,21 +206,21 @@ def _load_and_prepare_generation_context(options: GenerateOptions) -> Generation
         base_url=options.base_url,
     )
 
-    final_num_steps, final_batch_size, final_depth, final_degree = get_final_parameters(
+    final_num_samples, final_batch_size, final_depth, final_degree = get_final_parameters(
         config=config,
-        num_steps=options.num_steps,
+        num_samples=options.num_samples,
         batch_size=options.batch_size,
         depth=options.depth,
         degree=options.degree,
     )
 
-    loading_existing = bool(options.load_tree or options.load_graph)
+    loading_existing = bool(options.topics_load)
 
     validate_path_requirements(
         mode=options.mode,
         depth=final_depth,
         degree=final_degree,
-        num_steps=final_num_steps,
+        num_steps=final_num_samples,
         batch_size=final_batch_size,
         loading_existing=loading_existing,
     )
@@ -237,7 +229,7 @@ def _load_and_prepare_generation_context(options: GenerateOptions) -> Generation
         mode=options.mode,
         depth=final_depth,
         degree=final_degree,
-        num_steps=final_num_steps,
+        num_steps=final_num_samples,
         batch_size=final_batch_size,
         loading_existing=loading_existing,
     )
@@ -245,10 +237,9 @@ def _load_and_prepare_generation_context(options: GenerateOptions) -> Generation
     try:
         return GenerationPreparation(
             config=config,
-            tree_overrides=cast(OverrideMap, tree_overrides_raw),
-            graph_overrides=cast(OverrideMap, graph_overrides_raw),
-            engine_overrides=cast(OverrideMap, engine_overrides_raw),
-            num_steps=final_num_steps,
+            topics_overrides=cast(OverrideMap, topics_overrides_raw),
+            generation_overrides=cast(OverrideMap, generation_overrides_raw),
+            num_samples=final_num_samples,
             batch_size=final_batch_size,
             depth=final_depth,
             degree=final_degree,
@@ -267,22 +258,19 @@ def _initialize_topic_model(
 
     topic_model = load_or_build_topic_model(
         config=preparation.config,
-        load_tree=options.load_tree,
-        load_graph=options.load_graph,
-        tree_overrides=preparation.tree_overrides,
-        graph_overrides=preparation.graph_overrides,
+        topics_load=options.topics_load,
+        topics_overrides=preparation.topics_overrides,
         provider=options.provider,
         model=options.model,
         base_url=options.base_url,
         debug=options.debug,
     )
 
-    if not options.load_tree and not options.load_graph:
+    if not options.topics_load:
         save_topic_model(
             topic_model=topic_model,
             config=preparation.config,
-            save_tree=options.save_tree,
-            save_graph=options.save_graph,
+            topics_save_as=options.topics_save_as,
         )
 
     return topic_model
@@ -296,25 +284,25 @@ def _run_generation(
 ) -> None:
     """Create the dataset using the prepared configuration and topic model."""
 
-    engine_params = preparation.config.get_engine_params(**preparation.engine_overrides)
-    engine = DataSetGenerator(**engine_params)
+    generation_params = preparation.config.get_generation_params(**preparation.generation_overrides)
+    engine = DataSetGenerator(**generation_params)
 
     dataset = create_dataset(
         engine=engine,
         topic_model=topic_model,
         config=preparation.config,
-        num_steps=preparation.num_steps,
+        num_samples=preparation.num_samples,
         batch_size=preparation.batch_size,
-        sys_msg=options.sys_msg,
+        include_system_message=options.include_system_message,
         provider=options.provider,
         model=options.model,
-        engine_overrides=preparation.engine_overrides,
+        generation_overrides=preparation.generation_overrides,
         debug=options.debug,
     )
 
-    dataset_config = preparation.config.get_dataset_config()
-    dataset_save_path = options.dataset_save_as or dataset_config["save_as"]
-    save_dataset(dataset, dataset_save_path, preparation.config, engine=engine)
+    output_config = preparation.config.get_output_config()
+    output_save_path = options.output_save_as or output_config["save_as"]
+    save_dataset(dataset, output_save_path, preparation.config, engine=engine)
 
     trace(
         "dataset_generated",
@@ -325,36 +313,31 @@ def _run_generation(
 @cli.command()
 @click.argument("config_file", type=click.Path(exists=True), required=False)
 @click.option(
-    "--dataset-system-prompt", help="System prompt for final dataset (if sys_msg is true)"
+    "--output-system-prompt",
+    help="System prompt for final dataset output (if include_system_message is true)",
 )
-@click.option("--topic-prompt", help="Starting topic/seed for tree/graph generation")
-@click.option("--topic-system-prompt", help="System prompt for tree/graph topic generation")
+@click.option("--topic-prompt", help="Starting topic/seed for topic generation")
+@click.option("--topics-system-prompt", help="System prompt for topic generation")
 @click.option("--generation-system-prompt", help="System prompt for dataset content generation")
-@click.option("--save-tree", help="Save path for the tree")
+@click.option("--topics-save-as", help="Save path for the generated topics")
 @click.option(
-    "--load-tree",
+    "--topics-load",
     type=click.Path(exists=True),
-    help="Path to the JSONL file containing the tree.",
+    help="Path to existing topics file (JSONL for tree, JSON for graph)",
 )
-@click.option("--save-graph", help="Save path for the graph")
-@click.option(
-    "--load-graph",
-    type=click.Path(exists=True),
-    help="Path to the JSON file containing the graph.",
-)
-@click.option("--dataset-save-as", help="Save path for the dataset")
-@click.option("--provider", help="LLM provider (e.g., ollama)")
-@click.option("--model", help="Model name (e.g., mistral:latest)")
+@click.option("--output-save-as", help="Save path for the dataset")
+@click.option("--provider", help="LLM provider (e.g., ollama, openai)")
+@click.option("--model", help="Model name (e.g., qwen3:8b, gpt-4o)")
 @click.option("--temperature", type=float, help="Temperature setting")
 @click.option("--degree", type=int, help="Degree (branching factor)")
 @click.option("--depth", type=int, help="Depth setting")
-@click.option("--num-steps", type=int, help="Number of generation steps")
+@click.option("--num-samples", type=int, help="Number of samples to generate")
 @click.option("--batch-size", type=int, help="Batch size")
 @click.option("--base-url", help="Base URL for LLM provider API endpoint")
 @click.option(
-    "--sys-msg",
-    type=bool,
-    help="Include system message in dataset (default: true)",
+    "--include-system-message/--no-system-message",
+    default=None,
+    help="Include system message in dataset output (default: true)",
 )
 @click.option(
     "--mode",
@@ -381,45 +364,61 @@ def _run_generation(
 )
 @click.option(
     "--conversation-type",
-    type=click.Choice(["basic", "structured", "chain_of_thought"]),
-    help="Base conversation type: basic (simple chat), structured (with metadata), chain_of_thought (with reasoning)",
+    type=click.Choice(["basic", "chain_of_thought"]),
+    help="Base conversation type: basic (simple chat), chain_of_thought (with reasoning)",
 )
 @click.option(
     "--reasoning-style",
-    type=click.Choice(["freetext", "agent", "structured", "hybrid"]),
-    help="Reasoning style for chain_of_thought: freetext (natural language) or agent (structured for tool-calling). Note: 'structured' and 'hybrid' are deprecated.",
+    type=click.Choice(["freetext", "agent"]),
+    help="Reasoning style for chain_of_thought: freetext (natural language) or agent (structured for tool-calling)",
 )
 @click.option(
     "--agent-mode",
     type=click.Choice(["single_turn", "multi_turn"]),
     help="Agent mode: single_turn (one-shot tool use), multi_turn (extended conversations). Requires tools.",
 )
+@click.option(
+    "--min-turns",
+    type=int,
+    help="Minimum conversation turns for multi_turn agent mode",
+)
+@click.option(
+    "--max-turns",
+    type=int,
+    help="Maximum conversation turns for multi_turn agent mode",
+)
+@click.option(
+    "--min-tool-calls",
+    type=int,
+    help="Minimum tool calls before allowing conversation conclusion",
+)
 def generate(  # noqa: PLR0913
     config_file: str | None,
-    dataset_system_prompt: str | None = None,
+    output_system_prompt: str | None = None,
     topic_prompt: str | None = None,
-    topic_system_prompt: str | None = None,
+    topics_system_prompt: str | None = None,
     generation_system_prompt: str | None = None,
-    save_tree: str | None = None,
-    load_tree: str | None = None,
-    save_graph: str | None = None,
-    load_graph: str | None = None,
-    dataset_save_as: str | None = None,
+    topics_save_as: str | None = None,
+    topics_load: str | None = None,
+    output_save_as: str | None = None,
     provider: str | None = None,
     model: str | None = None,
     temperature: float | None = None,
     degree: int | None = None,
     depth: int | None = None,
-    num_steps: int | None = None,
+    num_samples: int | None = None,
     batch_size: int | None = None,
     base_url: str | None = None,
-    sys_msg: bool | None = None,
+    include_system_message: bool | None = None,
     mode: Literal["tree", "graph"] = "tree",
     debug: bool = False,
     topic_only: bool = False,
     conversation_type: Literal["basic", "chain_of_thought"] | None = None,
-    reasoning_style: Literal["freetext", "agent", "structured", "hybrid"] | None = None,
+    reasoning_style: Literal["freetext", "agent"] | None = None,
     agent_mode: Literal["single_turn", "multi_turn"] | None = None,
+    min_turns: int | None = None,
+    max_turns: int | None = None,
+    min_tool_calls: int | None = None,
     tui: Literal["rich", "simple"] = "rich",
 ) -> None:
     """Generate training data from a YAML configuration file or CLI parameters."""
@@ -432,30 +431,31 @@ def generate(  # noqa: PLR0913
     try:
         options = GenerateOptions(
             config_file=config_file,
-            dataset_system_prompt=dataset_system_prompt,
+            output_system_prompt=output_system_prompt,
             topic_prompt=topic_prompt,
-            topic_system_prompt=topic_system_prompt,
+            topics_system_prompt=topics_system_prompt,
             generation_system_prompt=generation_system_prompt,
-            save_tree=save_tree,
-            load_tree=load_tree,
-            save_graph=save_graph,
-            load_graph=load_graph,
-            dataset_save_as=dataset_save_as,
+            topics_save_as=topics_save_as,
+            topics_load=topics_load,
+            output_save_as=output_save_as,
             provider=provider,
             model=model,
             temperature=temperature,
             degree=degree,
             depth=depth,
-            num_steps=num_steps,
+            num_samples=num_samples,
             batch_size=batch_size,
             base_url=base_url,
-            sys_msg=sys_msg,
+            include_system_message=include_system_message,
             mode=mode,
             debug=debug,
             topic_only=topic_only,
             conversation_type=conversation_type,
             reasoning_style=reasoning_style,
             agent_mode=agent_mode,
+            min_turns=min_turns,
+            max_turns=max_turns,
+            min_tool_calls=min_tool_calls,
             tui=tui,
         )
     except PydanticValidationError as error:
@@ -693,31 +693,17 @@ def validate(config_file: str) -> None:  # noqa: PLR0912
         errors = []
         warnings = []
 
-        # Check for system prompt (with fallback check)
-        engine_params = config.get_engine_params()
-        if not config.dataset_system_prompt and not engine_params.get("generation_system_prompt"):
-            warnings.append("No dataset_system_prompt or generation_system_prompt defined")
+        # Check for system prompt
+        if not config.generation.system_prompt:
+            warnings.append("No generation.system_prompt defined")
 
-        # Check for either topic_tree or topic_graph
-        if not config.topic_tree and not config.topic_graph:
-            errors.append("Either topic_tree or topic_graph must be defined")
+        # Check topics configuration
+        if not config.topics.prompt:
+            errors.append("topics.prompt is required")
 
-        if config.topic_tree and config.topic_graph:
-            warnings.append("Both topic_tree and topic_graph defined - only one will be used")
-
-        # Check data_engine section
-        if not config.data_engine:
-            errors.append("data_engine section is required")
-        elif not config.data_engine.instructions:
-            warnings.append("No instructions defined in data_engine")
-
-        # Check dataset section
-        if not config.dataset:
-            errors.append("dataset section is required")
-        else:
-            dataset_config = config.get_dataset_config()
-            if not dataset_config.get("save_as"):
-                warnings.append("No save_as path defined for dataset")
+        # Check output configuration
+        if not config.output.save_as:
+            warnings.append("No output.save_as path defined for dataset")
 
         # Report results
         tui = get_tui()
@@ -736,18 +722,12 @@ def validate(config_file: str) -> None:  # noqa: PLR0912
 
         # Print configuration summary
         tui.console.print("\nConfiguration Summary:", style="cyan bold")
-        if config.topic_tree:
-            tui.info(
-                f"Topic Tree: depth={config.topic_tree.depth}, degree={config.topic_tree.degree}"
-            )
-        if config.topic_graph:
-            tui.info(
-                f"Topic Graph: depth={config.topic_graph.depth}, degree={config.topic_graph.degree}"
-            )
-
-        dataset_params = config.get_dataset_config()["creation"]
         tui.info(
-            f"Dataset: steps={dataset_params['num_steps']}, batch_size={dataset_params['batch_size']}"
+            f"Topics: mode={config.topics.mode}, depth={config.topics.depth}, degree={config.topics.degree}"
+        )
+
+        tui.info(
+            f"Output: num_samples={config.output.num_samples}, batch_size={config.output.batch_size}"
         )
 
         if config.huggingface:
@@ -793,7 +773,7 @@ def info() -> None:
         )
         tui.console.print(header)
 
-        tui.console.print("\n📋 Available Commands:", style="cyan bold")
+        tui.console.print("\nAvailable Commands:", style="cyan bold")
         commands = [
             ("generate", "Generate training data from configuration"),
             ("validate", "Validate a configuration file"),
@@ -805,7 +785,7 @@ def info() -> None:
         for cmd, desc in commands:
             tui.console.print(f"  [cyan]{cmd}[/cyan] - {desc}")
 
-        tui.console.print("\n🔑 Environment Variables:", style="cyan bold")
+        tui.console.print("\nEnvironment Variables:", style="cyan bold")
         env_vars = [
             ("OPENAI_API_KEY", "OpenAI API key"),
             ("ANTHROPIC_API_KEY", "Anthropic API key"),
@@ -815,7 +795,7 @@ def info() -> None:
             tui.console.print(f"  [yellow]{var}[/yellow] - {desc}")
 
         tui.console.print(
-            "\n🔗 For more information, visit: [link]https://github.com/RedDotRocket/deepfabric[/link]"
+            "\nFor more information, visit: [link]https://github.com/RedDotRocket/deepfabric[/link]"
         )
 
     except Exception as e:
@@ -946,8 +926,8 @@ def split(
             # Display results
             tui.success("Split complete!")
             tui.console.print("\n[bold green]Results:[/bold green]")
-            tui.console.print(f"  Train: {result.train_size} samples → {train_output}")
-            tui.console.print(f"  Eval:  {result.eval_size} samples → {eval_output}")
+            tui.console.print(f"  Train: {result.train_size} samples -> {train_output}")
+            tui.console.print(f"  Eval:  {result.eval_size} samples -> {eval_output}")
             tui.console.print(f"  Total: {result.total_size} samples")
 
         else:
