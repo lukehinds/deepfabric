@@ -8,7 +8,7 @@
 
   <!-- CTA Buttons -->
   <p>
-    <a href="https://github.com/lukehinds/deepfabric/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">
+    <a href="https://github.com/always-further/deepfabric/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22">
       <img src="https://img.shields.io/badge/Contribute-Good%20First%20Issues-green?style=for-the-badge&logo=github" alt="Good First Issues"/>
     </a>
     &nbsp;
@@ -22,8 +22,8 @@
     <a href="https://opensource.org/licenses/Apache-2.0">
       <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/>
     </a>
-    <a href="https://github.com/lukehinds/deepfabric/actions/workflows/test.yml">
-      <img src="https://github.com/lukehinds/deepfabric/actions/workflows/test.yml/badge.svg" alt="CI Status"/>
+    <a href="https://github.com/always-further/deepfabric/actions/workflows/test.yml">
+      <img src="https://github.com/always-further/deepfabric/actions/workflows/test.yml/badge.svg" alt="CI Status"/>
     </a>
     <a href="https://pypi.org/project/deepfabric/">
       <img src="https://img.shields.io/pypi/v/deepfabric.svg" alt="PyPI Version"/>
@@ -37,7 +37,17 @@
   </p>
 </div>
 
-**DeepFabric** generates synthetic datasets for training small language models as capable agents. It combines reasoning traces with tool-calling patterns and structured outputs to create high-quality training data at scale.
+**DeepFabric** generates synthetic training data for language models to perform as capable agents. By combining reasoning traces with tool-calling patterns, it creates high-quality, domain-specific datasets that teach models to think, plan, and act effectively, call tools correctly, and conform to strict schema structures.
+
+What sets DeepFabric apart from other dataset generation tools is its ability to ensure high diversity yet domain-anchored relevance through unique topic graph generation algorithms. This guides sample creation to cover all necessary subtopics while avoiding redundancy, which is where other tools often fall short, resulting in model overfit.
+
+<img src="/assets/df-demo.gif" width="100%" height="100%"/>
+
+Constrained decoding and response validation ensure that generated samples strictly adhere to desired formats, ensuring datasets have exact syntax and structure for use in model training pipelines.
+
+Once your dataset is generated, it can be automatically uploaded to Hugging Face for easy sharing and versioning, and directly imported into popular training frameworks like TRL, Unsloth, and Axolotl. Post-training, built-in evaluation engines help assess model performance, whereby models prove their capabilities on unseen tasks derived from training splits—covering evaluation-only questions, answers, and tool traces.
+
+
 
 ## Quickstart
 
@@ -51,11 +61,17 @@ export OPENAI_API_KEY="your-api-key"
 deepfabric generate \
   --topic-prompt "Python programming fundamentals" \
   --generation-system-prompt "You are a Python expert" \
-  --num-samples 27 \
+  --mode tree \
+  --depth 3 \
+  --degree 3 \
+  --num-samples 9 \
+  --batch-size 3 \
+  --provider openai \
+  --model gpt-4o \
   --output-save-as dataset.jsonl
 ```
 
-This generates a topic tree and creates 27 Q&A training samples.
+This generates a topic tree and creates 27 unique leaf topics, then generates 27 training samples saved to `dataset.jsonl`, giving you 100% topic coverage.
 
 ## Configuration
 
@@ -70,7 +86,7 @@ llm:
 
 # TOPICS: Generate the topic tree/graph
 topics:
-  prompt: "Python programming fundamentals"
+  prompt: "Building production-ready REST APIs with Python"
   mode: tree                    # tree | graph
   depth: 3
   degree: 3
@@ -81,27 +97,100 @@ topics:
 
 # GENERATION: Create training samples from topics
 generation:
-  system_prompt: "You are a Python programming instructor..."
-  instructions: "Create clear tutorials with code examples"
+  system_prompt: |
+    You are an expert Python backend developer and technical educator.
+    Create practical, production-ready code examples with clear explanations.
+    Include error handling, type hints, and follow PEP 8 conventions.
+
+  # Additional instructions for sample generation
+  instructions: |
+    Focus on real-world scenarios developers encounter daily.
+    Include both happy path and edge case handling.
+    Provide context on when and why to use specific patterns.
+
   conversation:
-    type: basic                 # basic | chain_of_thought
-  max_retries: 3
+    type: chain_of_thought      # basic | chain_of_thought
+    reasoning_style: agent      # freetext | agent (for chain_of_thought)
+    agent_mode: single_turn     # single_turn | multi_turn (for agent)
+   # Tool configuration (required for agent modes)
+  tools:
+    registry_path: "dev-tools.yaml"  # Path to tool definitions
+    # available: []             # Specific tools to use (empty = all)
+    # custom: []                # Inline tool definitions
+    max_per_query: 3            # Maximum tools per query
+    strict: true                # Discard samples exceeding max (vs truncate)
+
+    max_retries: 3                # Retries for failed generations
+    sample_retries: 2             # Retries for validation failures
+    max_tokens: 2000              # Max tokens per generation
+
   # Optional: Override shared LLM settings
   llm:
     temperature: 0.3            # Lower temp for consistent code
 
 # OUTPUT: Final dataset configuration
 output:
-  system_prompt: "You are a helpful Python assistant"
-  include_system_message: true
-  num_samples: 27
-  batch_size: 3
-  save_as: "dataset.jsonl"
+  # System prompt that goes INTO the training data
+  # This is what the trained model will see as its system message
+  system_prompt: |
+    You are a helpful Python programming assistant specialized in REST API
+    development. You provide clear, production-ready code with explanations.
+    Always consider security, error handling, and best practices.
+
+  include_system_message: true  # Whether to include system message in output
+  num_samples: 4                 # Total training samples to generate
+  batch_size: 3                 # Parallel generation batch size
+  save_as: "api-dataset.jsonl"
 
 # Optional: Upload to Hugging Face
 huggingface:
-  repository: "your-username/dataset-name"
+  repository: "your-username/api-dataset-training-name"
   tags: ["python", "programming"]
+```
+
+Within `dev-tools.yaml`, define tools the model can use during generation:
+
+```yaml
+- name: get_commit
+  description: "Get details for a commit from a GitHub repository"
+  parameters:
+    - name: owner
+      type: str
+      description: "Repository owner"
+      required: true
+    - name: repo
+      type: str
+      description: "Repository name"
+      required: true
+    - name: sha
+      type: str
+      description: "Commit SHA, branch name, or tag name"
+      required: true
+    - name: include_diff
+      type: bool
+      description: "Whether to include file diffs and stats"
+      required: false
+  returns: "Commit details including author, message, and changed files"
+
+- name: "execute_cmd"
+  description: "Execute a shell command and return the output"
+  parameters:
+    - name: command
+      type: str
+      description: "The shell command to execute"
+      required: true 
+  returns: "Execution output or error message"
+
+- name: "search_file"
+  description: "Search for a keyword in a text file"
+  parameters:
+    - name: file_path
+      type: str
+      description: "Path to the text file"
+      required: true
+    - name: keyword
+      type: str
+      description: "Keyword to search for"
 ```
 
 Run with:
@@ -140,48 +229,28 @@ deepfabric generate config.yaml \
 | `--include-system-message` | Include system message in output |
 | `--topic-only` | Generate topics only, skip samples |
 
-## Agent & Tool-Calling Datasets
+## Output Formats
 
-For training agents with tool-calling capabilities:
+Export to multiple formatters in a single run:
 
 ```yaml
-llm:
-  provider: "openai"
-  model: "gpt-4o"
-
-topics:
-  prompt: "Tasks requiring web search and calculations"
-  mode: tree
-  depth: 2
-  degree: 3
-
-generation:
-  system_prompt: "You are an AI assistant with tool access..."
-  conversation:
-    type: chain_of_thought
-    reasoning_style: agent      # freetext | agent
-    agent_mode: single_turn     # single_turn | multi_turn
-  tools:
-    registry_path: "tools.yaml"
-    max_per_query: 3
-
-output:
-  num_samples: 50
-  save_as: "agent-dataset.jsonl"
   formatters:
-    - name: trl
-      template: builtin://trl_sft_tools
-      output: agent-trl.jsonl
-```
+    - name: openai
+      template: builtin://openai
+      output: api-dataset-openai.jsonl
 
-## Output Formats
+    - name: conversations
+      template: builtin://conversations
+      output: api-dataset-conv.jsonl
+```
 
 | Format | Template | Use Case |
 |--------|----------|----------|
-| TRL SFT Tools | `builtin://trl_sft_tools` | HuggingFace TRL SFTTrainer |
+| OpenAI | `builtin://openai` | HuggingFace TRL, function calling |
 | XLAM v2 | `builtin://xlam_v2` | Salesforce xLAM models |
-| Tool Calling | `builtin://tool_calling` | Agent training |
-| GRPO | `builtin://grpo` | Reinforcement learning |
+| Tool Calling | `builtin://tool_calling` | Agent training with tools |
+| Single Tool Call | `builtin://single_tool_call` | Single function execution |
+| Harmony | `builtin://harmony` | Reasoning with tags |
 | Conversations | `builtin://conversations` | Unsloth, Axolotl |
 | ChatML | `builtin://chatml` | Multi-turn chat models |
 | Alpaca | `builtin://alpaca` | Instruction-following |
@@ -198,15 +267,15 @@ output:
 
 ## Resources
 
-- [Documentation](https://lukehinds.github.io/deepfabric/)
+- [Documentation](https://always-further.github.io/deepfabric/)
 - [Examples](./examples/README.md)
 - [Discord](https://discord.gg/pPcjYzGvbS)
-- [Issues](https://github.com/lukehinds/deepfabric/issues)
+- [Issues](https://github.com/always-further/deepfabric/issues)
 
 ## Development
 
 ```bash
-git clone https://github.com/lukehinds/deepfabric
+git clone https://github.com/always-further/deepfabric
 cd deepfabric
 uv sync --all-extras
 make test
