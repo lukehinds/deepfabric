@@ -154,6 +154,12 @@ You may use 1 to {max_tools_per_query} tools to complete the task.
 
 Focus on WHY each tool is selected and HOW parameters are constructed.
 
+ARGUMENT REQUIREMENTS:
+- All argument values must be concrete and realistic (e.g., owner="acme-corp", repo="web-app", issue_number=42)
+- Never use template placeholders like {{{{owner}}}} or {{{{repo}}}}
+- Never use null values - omit optional parameters entirely if not needed
+- String fields must contain actual content, not empty strings
+
 {{{{{{{{instructions}}}}}}}}
 {{{{{{{{subtopics}}}}}}}}
 
@@ -176,6 +182,12 @@ Available tools:
 {chr(10).join(tool_signatures)}
 
 You may use 1 to {max_tools_per_query} tools per query. Show tool dependencies and reasoning across conversation turns.
+
+ARGUMENT REQUIREMENTS:
+- All argument values must be concrete and realistic (e.g., owner="acme-corp", repo="web-app", issue_number=42)
+- Never use template placeholders like {{{{owner}}}} or {{{{repo}}}}
+- Never use null values - omit optional parameters entirely if not needed
+- String fields must contain actual content, not empty strings
 
 {{{{{{{{instructions}}}}}}}}
 {{{{{{{{subtopics}}}}}}}}

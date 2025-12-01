@@ -14,6 +14,7 @@ from .constants import (
     API_ERROR_INDICATORS,
     DEFAULT_MAX_RETRIES,
     DEFAULT_REQUEST_TIMEOUT,
+    DEFAULT_SAMPLE_RETRIES,
     ENGINE_DEFAULT_BATCH_SIZE,
     ENGINE_DEFAULT_NUM_EXAMPLES,
     ENGINE_DEFAULT_TEMPERATURE,
@@ -97,6 +98,12 @@ class DataSetGeneratorConfig(BaseModel):
     )
     request_timeout: int = Field(
         default=DEFAULT_REQUEST_TIMEOUT, ge=5, le=300, description="Request timeout in seconds"
+    )
+    sample_retries: int = Field(
+        default=DEFAULT_SAMPLE_RETRIES,
+        ge=0,
+        le=5,
+        description="Number of retries for individual sample validation failures",
     )
     sys_msg: bool = Field(default=True, description="Whether to include system message in dataset")
     base_url: str | None = Field(
@@ -346,6 +353,20 @@ class DataSetGenerator:
         """Get the conversation schema for the current config."""
         return get_conversation_schema(self.config.conversation_type)
 
+    def _is_validation_error(self, error: Exception) -> bool:
+        """Check if an error is a validation/schema error that can be retried."""
+        error_str = str(error).lower()
+        validation_indicators = [
+            "validation error",
+            "value error",
+            "is null",
+            "is empty string",
+            "must provide actual value",
+            "invalid schema",
+            "pydantic",
+        ]
+        return any(indicator in error_str for indicator in validation_indicators)
+
     async def _generate_structured_samples_async(
         self,
         prompts: list[str],
@@ -381,43 +402,110 @@ class DataSetGenerator:
             progress_reporter=self.progress_reporter,
         )
 
-        async def _generate(
+        async def _generate_with_retry(
             prompt: str, sample_idx: int, path_info: list[str] | None
         ) -> tuple[bool, Exception | Conversation]:
-            # Notify progress reporter about which sample we're working on
-            if self.progress_reporter:
-                self.progress_reporter.emit_step_start(
-                    f"Generating sample {sample_idx + 1}",
-                    sample_idx=sample_idx + 1,
-                    topic_path=path_info,
-                )
+            """Generate a single sample with per-sample retry for validation errors."""
+            last_error: Exception | None = None
+            error_feedback: str | None = None
+            max_attempts = self.config.sample_retries + 1
+            logger.debug(
+                "Sample %d: max_attempts=%d (sample_retries=%d)",
+                sample_idx + 1,
+                max_attempts,
+                self.config.sample_retries,
+            )
 
-            try:
-                # Builder handles all generation complexity
-                conversation = await builder.generate(prompt)
+            for attempt in range(max_attempts):
+                # Notify progress reporter about which sample we're working on
+                if self.progress_reporter:
+                    retry_suffix = f" (retry {attempt})" if attempt > 0 else ""
+                    self.progress_reporter.emit_step_start(
+                        f"Generating sample {sample_idx + 1}{retry_suffix}",
+                        sample_idx=sample_idx + 1,
+                        topic_path=path_info,
+                    )
 
-            except Exception as e:  # noqa: BLE001
-                return False, e
-            else:
-                # Validate tool execution count for agent modes
-                if self.config.agent_mode is not None:
-                    if not conversation.tool_context or not conversation.tool_context.executions:
-                        return False, ValueError("Agent mode requires at least one tool execution")
-
-                    num_executions = len(conversation.tool_context.executions)
-                    if num_executions > self.config.max_tools_per_query:
-                        if self.config.max_tools_strict:
-                            # Strict mode: discard entire sample
-                            return False, ValueError(
-                                f"Sample has {num_executions} tool executions, "
-                                f"exceeds limit of {self.config.max_tools_per_query}"
+                try:
+                    # Builder handles all generation complexity
+                    # Pass error feedback from previous attempt if this is a retry
+                    conversation = await builder.generate(prompt, error_feedback)
+                except Exception as e:  # noqa: BLE001
+                    last_error = e
+                    is_validation = self._is_validation_error(e)
+                    can_retry = attempt < self.config.sample_retries
+                    logger.debug(
+                        "Sample %d error: is_validation=%s, can_retry=%s, attempt=%d/%d, error=%s",
+                        sample_idx + 1,
+                        is_validation,
+                        can_retry,
+                        attempt + 1,
+                        self.config.sample_retries + 1,
+                        str(e)[:200],
+                    )
+                    # Only retry validation errors, not API/network errors
+                    if is_validation and can_retry:
+                        # Extract error message for feedback to the model
+                        error_feedback = str(e)
+                        logger.warning(
+                            "Sample %d validation failed (attempt %d/%d): %s. Retrying with feedback...",
+                            sample_idx + 1,
+                            attempt + 1,
+                            self.config.sample_retries + 1,
+                            str(e)[:100],
+                        )
+                        continue
+                    # Non-retryable error or exhausted retries
+                    return False, last_error
+                else:
+                    # Validate tool execution count for agent modes
+                    if self.config.agent_mode is not None:
+                        if (
+                            not conversation.tool_context
+                            or not conversation.tool_context.executions
+                        ):
+                            last_error = ValueError(
+                                "Agent mode requires at least one tool execution"
                             )
-                        # Non-strict mode: truncate to limit and keep sample
-                        conversation.tool_context.executions = conversation.tool_context.executions[
-                            : self.config.max_tools_per_query
-                        ]
+                            if attempt < self.config.sample_retries:
+                                logger.warning(
+                                    "Sample %d validation failed (attempt %d/%d): %s. Retrying...",
+                                    sample_idx + 1,
+                                    attempt + 1,
+                                    self.config.sample_retries + 1,
+                                    str(last_error)[:100],
+                                )
+                                continue
+                            return False, last_error
 
-                return True, conversation
+                        num_executions = len(conversation.tool_context.executions)
+                        if num_executions > self.config.max_tools_per_query:
+                            if self.config.max_tools_strict:
+                                # Strict mode: discard entire sample
+                                last_error = ValueError(
+                                    f"Sample has {num_executions} tool executions, "
+                                    f"exceeds limit of {self.config.max_tools_per_query}"
+                                )
+                                if attempt < self.config.sample_retries:
+                                    logger.warning(
+                                        "Sample %d validation failed (attempt %d/%d): %s. Retrying...",
+                                        sample_idx + 1,
+                                        attempt + 1,
+                                        self.config.sample_retries + 1,
+                                        str(last_error)[:100],
+                                    )
+                                    continue
+                                return False, last_error
+                            # Non-strict mode: truncate to limit and keep sample
+                            conversation.tool_context.executions = (
+                                conversation.tool_context.executions[
+                                    : self.config.max_tools_per_query
+                                ]
+                            )
+
+                    return True, conversation
+
+            return False, last_error
 
         # Generate all samples concurrently with sample indices
         tasks = []
@@ -425,7 +513,9 @@ class DataSetGenerator:
             path_info = None
             if paths_for_batch and idx < len(paths_for_batch):
                 path_info = paths_for_batch[idx]
-            tasks.append(asyncio.create_task(_generate(prompt, start_sample_idx + idx, path_info)))
+            tasks.append(
+                asyncio.create_task(_generate_with_retry(prompt, start_sample_idx + idx, path_info))
+            )
         results = await asyncio.gather(*tasks)
 
         for idx, (success, payload) in enumerate(results):

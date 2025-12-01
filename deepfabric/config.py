@@ -10,6 +10,7 @@ from .constants import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_MODEL,
     DEFAULT_PROVIDER,
+    DEFAULT_SAMPLE_RETRIES,
     ENGINE_DEFAULT_BATCH_SIZE,
     ENGINE_DEFAULT_NUM_EXAMPLES,
     ENGINE_DEFAULT_TEMPERATURE,
@@ -155,6 +156,12 @@ class DataEngineConfig(BaseModel):
         ge=0,
         le=10,
         description="Maximum number of retries for failed generations (deprecated, use rate_limit)",
+    )
+    sample_retries: int = Field(
+        default=DEFAULT_SAMPLE_RETRIES,
+        ge=0,
+        le=5,
+        description="Number of retries for individual sample validation failures (e.g., null values, empty strings)",
     )
     max_tokens: int = Field(
         default=2000, ge=1, description="Maximum tokens to generate in a single call to the llm"

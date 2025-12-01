@@ -49,11 +49,13 @@ class ConversationBuilder(ABC):
         self.progress_reporter = progress_reporter
 
     @abstractmethod
-    async def generate(self, topic_prompt: str) -> Conversation:
+    async def generate(self, topic_prompt: str, error_feedback: str | None = None) -> Conversation:
         """Generate a complete conversation.
 
         Args:
             topic_prompt: The topic/scenario prompt to generate conversation about
+            error_feedback: Optional error message from a previous failed attempt,
+                           used to help the model correct its output on retry
 
         Returns:
             Complete Conversation object (Pydantic model)
@@ -131,11 +133,12 @@ class SingleShotBuilder(ConversationBuilder):
     - Any conversation that can be generated in one pass
     """
 
-    async def generate(self, topic_prompt: str) -> Conversation:
+    async def generate(self, topic_prompt: str, error_feedback: str | None = None) -> Conversation:
         """Generate conversation using single LLM call with JSON schema.
 
         Args:
             topic_prompt: Topic or scenario to generate conversation about
+            error_feedback: Optional error message from a previous failed attempt
 
         Returns:
             Complete Conversation object
@@ -144,7 +147,7 @@ class SingleShotBuilder(ConversationBuilder):
             ValueError: If LLM fails to generate valid conversation
         """
         # Build the generation prompt
-        generation_prompt = self._build_prompt(topic_prompt)
+        generation_prompt = self._build_prompt(topic_prompt, error_feedback)
 
         # Use streaming if progress reporter is available
         conversation = None
@@ -216,11 +219,12 @@ class SingleShotBuilder(ConversationBuilder):
             temperature=self.config.temperature,
         )
 
-    def _build_prompt(self, topic_prompt: str) -> str:
+    def _build_prompt(self, topic_prompt: str, error_feedback: str | None = None) -> str:
         """Build the generation prompt for single-shot generation.
 
         Args:
             topic_prompt: The topic to generate about
+            error_feedback: Optional error message from a previous failed attempt
 
         Returns:
             Complete prompt string for the LLM
@@ -230,6 +234,12 @@ class SingleShotBuilder(ConversationBuilder):
 
         # Add topic/scenario
         prompt_parts.append(f"\nTopic/Scenario: {topic_prompt}")
+
+        # Add error feedback if this is a retry
+        if error_feedback:
+            prompt_parts.append(
+                f"\n\nRETRY: {error_feedback}. Use real values, not null/empty/placeholders."
+            )
 
         # Add any additional instructions
         if self.config.instructions:
