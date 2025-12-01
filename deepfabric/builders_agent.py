@@ -8,6 +8,7 @@ from .builders import ConversationBuilder
 from .constants import DEFAULT_SAMPLE_RETRIES
 from .exceptions import DataSetGeneratorError
 from .progress import ProgressReporter
+from .utils import is_validation_error
 from .schemas import (
     AgentContext,
     ChatMessage,
@@ -23,23 +24,6 @@ if TYPE_CHECKING:
     from .generator import DataSetGeneratorConfig
     from .llm import LLMClient
     from .schemas import ToolRegistry
-
-
-def _is_validation_error(error: Exception) -> bool:
-    """Check if an error is a validation/schema error that can be retried."""
-    error_str = str(error).lower()
-    validation_indicators = [
-        "validation error",
-        "value error",
-        "is null",
-        "is empty string",
-        "must provide actual value",
-        "invalid schema",
-        "pydantic",
-        "string should have at least",
-        "field required",
-    ]
-    return any(indicator in error_str for indicator in validation_indicators)
 
 
 class UserQuestion(BaseModel):
@@ -229,7 +213,7 @@ Generate only the user's question:"""
                 return await self._generate_agent_thinking_impl(user_message, current_feedback)
             except Exception as e:
                 last_error = e
-                if _is_validation_error(e) and attempt < max_retries:
+                if is_validation_error(e) and attempt < max_retries:
                     current_feedback = str(e)
                     if self.progress_reporter:
                         self.progress_reporter.emit_step_start(
@@ -348,7 +332,7 @@ Generate only the user's question:"""
                     break
                 except Exception as e:
                     last_error = e
-                    if _is_validation_error(e) and attempt < max_retries:
+                    if is_validation_error(e) and attempt < max_retries:
                         error_feedback = str(e)
                         if self.progress_reporter:
                             self.progress_reporter.emit_step_start(

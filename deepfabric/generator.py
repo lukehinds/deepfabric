@@ -39,7 +39,7 @@ from .prompts import (
 from .schemas import Conversation, ToolRegistry, get_conversation_schema
 from .tools.loader import get_available_tools, load_tools_from_dict, load_tools_from_file
 from .topic_model import TopicModel
-from .utils import ensure_not_running_loop
+from .utils import ensure_not_running_loop, is_validation_error
 
 # Handle circular import for type hints
 if TYPE_CHECKING:
@@ -353,20 +353,6 @@ class DataSetGenerator:
         """Get the conversation schema for the current config."""
         return get_conversation_schema(self.config.conversation_type)
 
-    def _is_validation_error(self, error: Exception) -> bool:
-        """Check if an error is a validation/schema error that can be retried."""
-        error_str = str(error).lower()
-        validation_indicators = [
-            "validation error",
-            "value error",
-            "is null",
-            "is empty string",
-            "must provide actual value",
-            "invalid schema",
-            "pydantic",
-        ]
-        return any(indicator in error_str for indicator in validation_indicators)
-
     async def _generate_structured_samples_async(
         self,
         prompts: list[str],
@@ -432,7 +418,7 @@ class DataSetGenerator:
                     conversation = await builder.generate(prompt, error_feedback)
                 except Exception as e:  # noqa: BLE001
                     last_error = e
-                    is_validation = self._is_validation_error(e)
+                    is_validation = is_validation_error(e)
                     can_retry = attempt < self.config.sample_retries
                     logger.debug(
                         "Sample %d error: is_validation=%s, can_retry=%s, attempt=%d/%d, error=%s",
