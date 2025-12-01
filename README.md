@@ -112,7 +112,8 @@ generation:
     type: chain_of_thought      # basic | chain_of_thought
     reasoning_style: agent      # freetext | agent (for chain_of_thought)
     agent_mode: single_turn     # single_turn | multi_turn (for agent)
-   # Tool configuration (required for agent modes)
+  
+  # Tool configuration (required for agent modes)
   tools:
     registry_path: "dev-tools.yaml"  # Path to tool definitions
     # available: []             # Specific tools to use (empty = all)
@@ -178,7 +179,7 @@ Within `dev-tools.yaml`, define tools the model can use during generation:
     - name: command
       type: str
       description: "The shell command to execute"
-      required: true 
+      required: true
   returns: "Execution output or error message"
 
 - name: "search_file"
