@@ -248,7 +248,9 @@ class ToolExecution(BaseModel):
     """Represents actual execution of a tool with reasoning context."""
 
     function_name: str = Field(min_length=1, description="Name of the function/tool being called")
-    arguments: str = Field(min_length=2, description="JSON string of arguments passed to the function")
+    arguments: str = Field(
+        min_length=2, description="JSON string of arguments passed to the function"
+    )
     reasoning: str = Field(min_length=1, description="Brief explanation of why executing now")
     result: str = Field(min_length=1, description="The result returned from the tool execution")
 
@@ -270,7 +272,9 @@ class ToolExecution(BaseModel):
                     if value is None:
                         raise ValueError(f"Argument '{key}' is null - must provide actual value")
                     if isinstance(value, str) and value == "":
-                        raise ValueError(f"Argument '{key}' is empty string - must provide actual value")
+                        raise ValueError(
+                            f"Argument '{key}' is empty string - must provide actual value"
+                        )
         except json.JSONDecodeError:
             pass
 

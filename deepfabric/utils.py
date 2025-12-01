@@ -3,6 +3,24 @@ import asyncio
 import json
 import re
 
+VALIDATION_ERROR_INDICATORS = [
+    "validation error",
+    "value error",
+    "is null",
+    "is empty string",
+    "must provide actual value",
+    "invalid schema",
+    "pydantic",
+    "string should have at least",
+    "field required",
+]
+
+
+def is_validation_error(error: Exception) -> bool:
+    """Check if an error is a validation/schema error that can be retried."""
+    error_str = str(error).lower()
+    return any(indicator in error_str for indicator in VALIDATION_ERROR_INDICATORS)
+
 
 def ensure_not_running_loop(method_name: str) -> None:
     """Raise when invoked inside an active asyncio event loop."""

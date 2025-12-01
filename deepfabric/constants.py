@@ -48,6 +48,7 @@ SUBTOPICS_VAR = "{{{{subtopics}}}}"
 MAX_RETRY_ATTEMPTS = 3
 RETRY_BASE_DELAY = 2  # seconds
 EXPONENTIAL_BACKOFF_MULTIPLIER = 2
+DEFAULT_SAMPLE_RETRIES = 2  # per-sample retries for validation errors
 
 # String length limits
 MAX_ERROR_PREVIEW_LENGTH = 200

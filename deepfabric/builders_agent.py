@@ -1,4 +1,3 @@
-import logging
 import random
 
 from typing import TYPE_CHECKING, cast
@@ -6,6 +5,7 @@ from typing import TYPE_CHECKING, cast
 from pydantic import BaseModel, Field
 
 from .builders import ConversationBuilder
+from .constants import DEFAULT_SAMPLE_RETRIES
 from .exceptions import DataSetGeneratorError
 from .progress import ProgressReporter
 from .schemas import (
@@ -15,15 +15,15 @@ from .schemas import (
     ReasoningStep,
     ReasoningTrace,
     ToolContext,
+    ToolDefinition,
     ToolExecution,
 )
+from .utils import is_validation_error
 
 if TYPE_CHECKING:
     from .generator import DataSetGeneratorConfig
     from .llm import LLMClient
     from .schemas import ToolRegistry
-
-logger = logging.getLogger(__name__)
 
 
 class UserQuestion(BaseModel):
@@ -112,11 +112,12 @@ class SingleTurnAgentBuilder(ConversationBuilder):
         # Store as non-optional for type checker
         self.tool_registry: ToolRegistry = tool_registry
 
-    async def generate(self, topic_prompt: str) -> Conversation:
+    async def generate(self, topic_prompt: str, error_feedback: str | None = None) -> Conversation:
         """Generate single-turn agent conversation with tools.
 
         Args:
             topic_prompt: Topic or scenario to generate conversation about
+            error_feedback: Optional error message from a previous failed attempt
 
         Returns:
             Complete Conversation with tool calling
@@ -127,8 +128,8 @@ class SingleTurnAgentBuilder(ConversationBuilder):
         # Step 1: Generate user question
         user_message = await self._generate_user_question(topic_prompt)
 
-        # Step 2: Generate agent reasoning + tool calls
-        reasoning, tool_calls = await self._generate_agent_thinking(user_message)
+        # Step 2: Generate agent reasoning + tool calls (pass error feedback for retries)
+        reasoning, tool_calls = await self._generate_agent_thinking(user_message, error_feedback)
 
         # Step 3: Simulate tool executions
         tool_results = await self._simulate_tool_results(tool_calls)
@@ -192,28 +193,73 @@ Generate only the user's question:"""
         return ChatMessage(role="user", content=response.content)
 
     async def _generate_agent_thinking(
-        self, user_message: ChatMessage
+        self, user_message: ChatMessage, error_feedback: str | None = None
     ) -> tuple[list[ReasoningStep], list[ToolExecution]]:
-        """Generate agent's reasoning and tool calls.
+        """Generate agent's reasoning and tool calls with retry logic.
 
         Args:
             user_message: The user's question
+            error_feedback: Optional error message from a previous failed attempt
 
         Returns:
             Tuple of (reasoning_steps, tool_calls)
         """
+        max_retries = getattr(self.config, "sample_retries", DEFAULT_SAMPLE_RETRIES)
+        last_error: Exception | None = None
+        current_feedback = error_feedback
+
+        for attempt in range(max_retries + 1):
+            try:
+                return await self._generate_agent_thinking_impl(user_message, current_feedback)
+            except Exception as e:
+                last_error = e
+                if is_validation_error(e) and attempt < max_retries:
+                    current_feedback = str(e)
+                    if self.progress_reporter:
+                        self.progress_reporter.emit_step_start(
+                            f"Retrying agent thinking (attempt {attempt + 2}/{max_retries + 1})"
+                        )
+                    continue
+                raise
+
+        raise last_error  # type: ignore[misc]
+
+    async def _generate_agent_thinking_impl(
+        self, user_message: ChatMessage, error_feedback: str | None = None
+    ) -> tuple[list[ReasoningStep], list[ToolExecution]]:
+        """Implementation of agent thinking generation."""
         # Build prompt with available tools
         tools_info = self._format_tools_for_prompt()
 
-        prompt = f"""{self.config.dataset_system_prompt}
+        prompt_parts = [
+            "## Current Request",
+            user_message.content,
+        ]
 
-User request: {user_message.content}
+        prompt_parts.extend(
+            [
+                "",
+                "## Available Tools",
+                tools_info,
+                "",
+                "## Rules",
+                "- Tool arguments: Use concrete values derived from the request",
+                "- No placeholders like 'example_id', '<user_input>', or null",
+            ]
+        )
 
-Available tools:
-{tools_info}
+        if error_feedback:
+            prompt_parts.extend(
+                [
+                    "",
+                    "## Previous Attempt Failed",
+                    f"Error: {error_feedback}",
+                    "",
+                    "Please fix this issue in your response.",
+                ]
+            )
 
-Generate your reasoning and tool calls to handle this request.
-Provide step-by-step reasoning (2-4 steps) and identify which tools to call with specific arguments."""
+        prompt = "\n".join(prompt_parts)
 
         class AgentThinking(BaseModel):
             reasoning_steps: list[ReasoningStep] = Field(min_length=1)
@@ -247,7 +293,7 @@ Provide step-by-step reasoning (2-4 steps) and identify which tools to call with
         return response.reasoning_steps, response.tool_calls
 
     async def _simulate_tool_results(self, tool_calls: list[ToolExecution]) -> list[ToolExecution]:
-        """Simulate tool execution results.
+        """Simulate tool execution results with retry logic.
 
         The LLM generates realistic output strings for each tool call.
 
@@ -258,6 +304,7 @@ Provide step-by-step reasoning (2-4 steps) and identify which tools to call with
             Same list but with 'result' field populated
         """
         completed_executions = []
+        max_retries = getattr(self.config, "sample_retries", DEFAULT_SAMPLE_RETRIES)
 
         for tool_call in tool_calls:
             # Get tool definition from registry
@@ -266,55 +313,104 @@ Provide step-by-step reasoning (2-4 steps) and identify which tools to call with
                 msg = f"Tool '{tool_call.function_name}' not found in registry"
                 raise ValueError(msg)
 
-            # Generate realistic output
-            prompt = f"""Generate realistic output for this tool execution:
+            # Try generating tool output with retries
+            last_error: Exception | None = None
+            error_feedback: str | None = None
 
-Tool: {tool_def.name}
-Description: {tool_def.description}
-Expected return: {tool_def.returns}
-Arguments called with: {tool_call.arguments}
-
-Generate the tool's output/result that matches the expected return format exactly.
-The output should be realistic and appropriate for the tool and arguments provided."""
-
-            result: ToolOutput
-            if self.progress_reporter:
-                temp_result = None
-                async for chunk, res in self.llm.generate_async_stream(
-                    prompt=prompt,
-                    schema=ToolOutput,
-                    max_tokens=self.config.max_tokens,
-                    temperature=0.7,
-                ):
-                    if chunk:
-                        self.progress_reporter.emit_chunk(
-                            f"tool_sim_{tool_call.function_name}", chunk
+            for attempt in range(max_retries + 1):
+                try:
+                    result = await self._generate_tool_output(tool_def, tool_call, error_feedback)
+                    # Create new execution with result
+                    completed_executions.append(
+                        ToolExecution(
+                            function_name=tool_call.function_name,
+                            arguments=tool_call.arguments,
+                            reasoning=tool_call.reasoning,
+                            result=result.result,
                         )
-                    if res:
-                        temp_result = res
-                if temp_result is None:
-                    msg = f"Failed to generate tool output for {tool_call.function_name}"
-                    raise DataSetGeneratorError(msg)
-                result = cast(ToolOutput, temp_result)
+                    )
+                    break
+                except Exception as e:
+                    last_error = e
+                    if is_validation_error(e) and attempt < max_retries:
+                        error_feedback = str(e)
+                        if self.progress_reporter:
+                            self.progress_reporter.emit_step_start(
+                                f"Retrying tool output (attempt {attempt + 2}/{max_retries + 1})"
+                            )
+                        continue
+                    raise
             else:
-                result = await self.llm.generate_async(
-                    prompt=prompt,
-                    schema=ToolOutput,
-                    max_tokens=self.config.max_tokens,
-                    temperature=0.7,  # Slightly creative for variety
-                )
-
-            # Create new execution with result
-            completed_executions.append(
-                ToolExecution(
-                    function_name=tool_call.function_name,
-                    arguments=tool_call.arguments,
-                    reasoning=tool_call.reasoning,
-                    result=result.result,
-                )
-            )
+                # All retries exhausted
+                raise last_error  # type: ignore[misc]
 
         return completed_executions
+
+    async def _generate_tool_output(
+        self, tool_def: ToolDefinition, tool_call: ToolExecution, error_feedback: str | None = None
+    ) -> ToolOutput:
+        """Generate realistic output for a single tool call."""
+
+        prompt_parts = [
+            "You are simulating the output of a tool execution.",
+            "",
+            "## Tool Specification",
+            f"Name: {tool_def.name}",
+            f"Description: {tool_def.description}",
+            f"Return type: {tool_def.returns}",
+            "",
+            "## Invocation",
+            f"Arguments: {tool_call.arguments}",
+        ]
+
+        if error_feedback:
+            prompt_parts.extend(
+                [
+                    "",
+                    "## Previous Attempt Failed",
+                    f"Error: {error_feedback}",
+                    "",
+                    "Please fix this issue in your response.",
+                ]
+            )
+
+        prompt_parts.extend(
+            [
+                "",
+                "## Instructions",
+                "Generate ONLY the tool's return value - no explanation, no markdown, no wrapper.",
+                f"The output must match this return type: {tool_def.returns}",
+            ]
+        )
+
+        prompt = "\n".join(prompt_parts)
+
+        result: ToolOutput
+        if self.progress_reporter:
+            temp_result = None
+            async for chunk, res in self.llm.generate_async_stream(
+                prompt=prompt,
+                schema=ToolOutput,
+                max_tokens=self.config.max_tokens,
+                temperature=0.7,
+            ):
+                if chunk:
+                    self.progress_reporter.emit_chunk(f"tool_sim_{tool_call.function_name}", chunk)
+                if res:
+                    temp_result = res
+            if temp_result is None:
+                msg = f"Failed to generate tool output for {tool_call.function_name}"
+                raise DataSetGeneratorError(msg)
+            result = cast(ToolOutput, temp_result)
+        else:
+            result = await self.llm.generate_async(
+                prompt=prompt,
+                schema=ToolOutput,
+                max_tokens=self.config.max_tokens,
+                temperature=0.7,
+            )
+
+        return result
 
     async def _generate_agent_conclusion(
         self,
@@ -394,7 +490,7 @@ Remember: You have access to the tools listed above and have used them in this c
         _tool_calls: list[ToolExecution],
         tool_results: list[ToolExecution],
         agent_response: ChatMessage,
-        topic_prompt: str = "",
+        _topic_prompt: str = "",
     ) -> Conversation:
         """Assemble all components into a Conversation.
 
@@ -459,7 +555,8 @@ Remember: You have access to the tools listed above and have used them in this c
 
         # Build reasoning trace
         reasoning_trace = ReasoningTrace(
-            style=self.config.reasoning_style or "agent", content=reasoning # type: ignore
+            style=self.config.reasoning_style or "agent",  # type: ignore
+            content=reasoning,  # type: ignore
         )
 
         # Build agent context
@@ -468,7 +565,6 @@ Remember: You have access to the tools listed above and have used them in this c
         # Build metadata
         metadata = {
             "conversation_type": "chain_of_thought" if reasoning_trace else "basic",
-            "topic": topic_prompt if topic_prompt else "general",
         }
 
         # Insert system message if configured
@@ -522,11 +618,16 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
     and builds on previous context.
     """
 
-    async def generate(self, topic_prompt: str) -> Conversation:
+    async def generate(
+        self,
+        topic_prompt: str,
+        error_feedback: str | None = None,  # noqa: ARG002
+    ) -> Conversation:
         """Generate multi-turn agent conversation.
 
         Args:
             topic_prompt: Topic or scenario to generate conversation about
+            error_feedback: Unused, kept for interface consistency with ConversationBuilder
 
         Returns:
             Complete multi-turn Conversation
@@ -930,7 +1031,7 @@ Is the user's original task/goal from the scenario fully completed?
 
         # Build reasoning trace
         reasoning_trace = ReasoningTrace(
-            style=self.config.reasoning_style or "agent", # type: ignore
+            style=self.config.reasoning_style or "agent",  # type: ignore
             content=all_reasoning,
         )
 
