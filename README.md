@@ -204,7 +204,6 @@ deepfabric generate config.yaml --output-save-as dataset.jsonl
 Or upload to HuggingFace Hub:
 
 ```bash
-deepfabric generate config.yaml --output-save-as dataset.jsonl
 deepfabric upload dataset.jsonl --repo your-username/my-dataset
 ```
 
