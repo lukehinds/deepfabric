@@ -28,7 +28,6 @@ console = Console()
 class EvaluatorConfig(BaseModel):
     """Configuration for evaluation run."""
 
-    model_path: str = Field(description="Path to model to evaluate")
     dataset_path: str | None = Field(
         default=None,
         description="Path to evaluation dataset (JSONL). Optional if passing dataset to evaluate().",
@@ -38,7 +37,7 @@ class EvaluatorConfig(BaseModel):
         description="Path to save evaluation results",
     )
     inference_config: InferenceConfig = Field(
-        description="Inference backend configuration",
+        description="Inference backend configuration (includes model_path)",
     )
     batch_size: int = Field(
         default=1,
@@ -107,7 +106,7 @@ class Evaluator:
             "evaluator_created",
             {
                 "backend": self.config.inference_config.backend,
-                "model_path": self.config.model_path,
+                "model_path": self.config.inference_config.model_path,
                 "has_adapter": self.config.inference_config.adapter_path is not None,
                 "evaluators": (
                     list(self.config.evaluators)
@@ -478,7 +477,7 @@ class Evaluator:
             "evaluation_completed",
             {
                 "backend": self.config.inference_config.backend,
-                "model_path": self.config.model_path,
+                "model_path": self.config.inference_config.model_path,
                 "has_adapter": self.config.inference_config.adapter_path is not None,
                 "samples_evaluated": metrics.samples_evaluated,
                 "samples_processed": metrics.samples_processed,

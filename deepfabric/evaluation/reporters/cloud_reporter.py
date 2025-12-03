@@ -134,7 +134,7 @@ class CloudReporter(BaseReporter):
         return {
             "run_id": self.run_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "model": result.config.model_path,
+            "model": result.config.inference_config.model_path,
             "metrics": result.metrics.model_dump(),
             "samples": [s.model_dump() for s in result.predictions],
             "config": {

@@ -253,8 +253,10 @@ trainer.train()
 from deepfabric.evaluation import Evaluator, EvaluatorConfig, InferenceConfig
 
 config = EvaluatorConfig(
-    model_path="./output/checkpoint-final",
-    inference_config=InferenceConfig(backend="vllm"),
+    inference_config=InferenceConfig(
+        model_path="./output/checkpoint-final",  # Local path or HF Hub ID
+        backend="transformers",
+    ),
 )
 
 evaluator = Evaluator(config)

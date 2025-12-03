@@ -345,8 +345,10 @@ eval_ds = splits["test"]
 
 # Configure evaluator
 config = EvaluatorConfig(
-    model_path="./output/checkpoint-final",  # Your fine-tuned model
-    inference_config=InferenceConfig(backend="vllm"),
+    inference_config=InferenceConfig(
+        model_path="./output/checkpoint-final",  # Local path or HF Hub ID
+        backend="transformers",
+    ),
 )
 
 # Run evaluation with HF Dataset directly
@@ -373,10 +375,12 @@ eval_ds.to_json("eval_split.jsonl", orient="records", lines=True)
 
 # Configure with file path
 config = EvaluatorConfig(
-    model_path="./output/checkpoint-final",
     dataset_path="eval_split.jsonl",
-    inference_config=InferenceConfig(backend="vllm"),
     output_path="eval_results.json",
+    inference_config=InferenceConfig(
+        model_path="./output/checkpoint-final",
+        backend="transformers",
+    ),
 )
 
 # Run evaluation
@@ -390,10 +394,10 @@ results = evaluator.evaluate()
 from deepfabric.evaluation import Evaluator, EvaluatorConfig, InferenceConfig
 
 config = EvaluatorConfig(
-    model_path="meta-llama/Llama-3.1-8B-Instruct",  # Base model
     inference_config=InferenceConfig(
-        backend="vllm",
+        model_path="meta-llama/Llama-3.1-8B-Instruct",  # Base model from HF Hub
         adapter_path="./output/checkpoint-final",  # LoRA adapter
+        backend="transformers",
     ),
 )
 
@@ -405,8 +409,10 @@ results = evaluator.evaluate(dataset=eval_ds)
 
 ```python
 config = EvaluatorConfig(
-    model_path="./output/checkpoint-final",
-    inference_config=InferenceConfig(backend="vllm"),
+    inference_config=InferenceConfig(
+        model_path="./output/checkpoint-final",
+        backend="transformers",
+    ),
     max_samples=100,  # Only evaluate first 100 samples
 )
 ```
@@ -465,8 +471,10 @@ formatted_train = train_ds.map(format_example)
 
 # 6. Evaluate fine-tuned model
 config = EvaluatorConfig(
-    model_path="./output/checkpoint-final",
-    inference_config=InferenceConfig(backend="vllm"),
+    inference_config=InferenceConfig(
+        model_path="./output/checkpoint-final",
+        backend="transformers",
+    ),
 )
 
 evaluator = Evaluator(config)
