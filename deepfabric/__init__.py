@@ -1,6 +1,5 @@
 from .cli import cli
 from .config import DeepFabricConfig
-from .dataset import Dataset
 from .exceptions import (
     APIError,
     ConfigurationError,
@@ -28,7 +27,6 @@ __all__ = [
     "GraphConfig",
     "DataSetGenerator",
     "DataSetGeneratorConfig",
-    "Dataset",
     "DeepFabricConfig",
     "HFUploader",
     "cli",

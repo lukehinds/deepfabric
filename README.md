@@ -37,7 +37,7 @@
   </p>
 </div>
 
-**DeepFabric** generates synthetic training data for language models to perform as capable agents. By combining reasoning traces with tool-calling patterns, it creates high-quality, domain-specific datasets that teach models to think, plan, and act effectively, call tools correctly, and conform to strict schema structures.
+**DeepFabric** generates synthetic training data for language models. By combining reasoning traces with tool-calling patterns, it creates high-quality, domain-specific datasets that teach models to think, plan, and act effectively, call tools correctly, and conform to strict schema structures.
 
 What sets DeepFabric apart from other dataset generation tools is its ability to ensure high diversity yet domain-anchored relevance through unique topic graph generation algorithms. This guides sample creation to cover all necessary subtopics while avoiding redundancy, which is where other tools often fall short, resulting in model overfit.
 
@@ -45,11 +45,11 @@ What sets DeepFabric apart from other dataset generation tools is its ability to
 
 Constrained decoding and response validation ensure that generated samples strictly adhere to desired formats, ensuring datasets have exact syntax and structure for use in model training pipelines.
 
-Once your dataset is generated, it can be automatically uploaded to Hugging Face for easy sharing and versioning, and directly imported into popular training frameworks like TRL, Unsloth, and Axolotl. Post-training, built-in evaluation engines help assess model performance, whereby models prove their capabilities on unseen tasks derived from training splits—covering evaluation-only questions, answers, and tool traces.
-
-
+Once your dataset is generated, it can be automatically uploaded to Hugging Face for easy sharing and versioning, and directly imported into popular training frameworks like TRL, Unsloth, and Axolotl. Post-training, DeepFabric's built-in evaluation engine assesses model performance, whereby models prove their capabilities on unseen tasks derived from training splits—covering evaluation-only questions, answers, and tool traces.
 
 ## Quickstart
+
+DeepFabric can be used in several ways, as a library, CLI tool, or via YAML configuration. Here's a quick example using the CLI:
 
 ```bash
 pip install deepfabric
@@ -75,7 +75,7 @@ This generates a topic tree and creates 27 unique leaf topics, then generates 27
 
 ## Configuration
 
-DeepFabric uses YAML configuration with three main sections and optional shared LLM defaults:
+DeepFabric also uses YAML configuration with three main sections and optional shared LLM defaults:
 
 ```yaml
 # Optional: Shared LLM defaults (inherited by topics and generation)
@@ -149,7 +149,7 @@ huggingface:
   tags: ["python", "programming"]
 ```
 
-Within `dev-tools.yaml`, define tools the model can use during generation:
+Within `dev-tools.yaml`, define tools the model can use during generation, for example:
 
 ```yaml
 - name: get_commit
@@ -173,15 +173,6 @@ Within `dev-tools.yaml`, define tools the model can use during generation:
       required: false
   returns: "Commit details including author, message, and changed files"
 
-- name: "execute_cmd"
-  description: "Execute a shell command and return the output"
-  parameters:
-    - name: command
-      type: str
-      description: "The shell command to execute"
-      required: true
-  returns: "Execution output or error message"
-
 - name: "search_file"
   description: "Search for a keyword in a text file"
   parameters:
@@ -200,61 +191,80 @@ Run with:
 deepfabric generate config.yaml
 ```
 
-### CLI Overrides
+## Generate, Train, Evaluate
 
-Override any configuration value from the command line:
+DeepFabric returns standard HuggingFace datasets, making it easy to integrate with any training framework.
+
+### 1. Generate Dataset
 
 ```bash
-deepfabric generate config.yaml \
-  --provider gemini \
-  --model gemini-2.0-flash \
-  --num-samples 100 \
-  --batch-size 5 \
-  --depth 4 \
-  --degree 5
+deepfabric generate config.yaml --output-save-as dataset.jsonl
 ```
 
-| Flag | Description |
-|------|-------------|
-| `--provider` | LLM provider (openai, anthropic, gemini, ollama) |
-| `--model` | Model name |
-| `--temperature` | Generation temperature |
-| `--depth` | Topic tree depth |
-| `--degree` | Subtopics per node |
-| `--num-samples` | Number of samples to generate |
-| `--batch-size` | Parallel generation batch size |
-| `--topic-prompt` | Starting topic for generation |
-| `--topics-save-as` | Save path for topics |
-| `--topics-load` | Load existing topics file |
-| `--output-save-as` | Save path for dataset |
-| `--include-system-message` | Include system message in output |
-| `--topic-only` | Generate topics only, skip samples |
+Or upload to HuggingFace Hub:
 
-## Output Formats
-
-Export to multiple formatters in a single run:
-
-```yaml
-  formatters:
-    - name: openai
-      template: builtin://openai
-      output: api-dataset-openai.jsonl
-
-    - name: conversations
-      template: builtin://conversations
-      output: api-dataset-conv.jsonl
+```bash
+deepfabric upload dataset.jsonl --repo your-username/my-dataset
 ```
 
-| Format | Template | Use Case |
-|--------|----------|----------|
-| OpenAI | `builtin://openai` | HuggingFace TRL, function calling |
-| XLAM v2 | `builtin://xlam_v2` | Salesforce xLAM models |
-| Tool Calling | `builtin://tool_calling` | Agent training with tools |
-| Single Tool Call | `builtin://single_tool_call` | Single function execution |
-| Harmony | `builtin://harmony` | Reasoning with tags |
-| Conversations | `builtin://conversations` | Unsloth, Axolotl |
-| ChatML | `builtin://chatml` | Multi-turn chat models |
-| Alpaca | `builtin://alpaca` | Instruction-following |
+### 2. Load and Split for Training
+
+```python
+from datasets import load_dataset
+from transformers import AutoTokenizer
+
+# Load from Hub
+dataset = load_dataset("alwaysfurther/deepfabric-generic-tools", split="train")
+
+# Split into train/eval
+splits = dataset.train_test_split(test_size=0.1, seed=42)
+train_ds = splits["train"]
+eval_ds = splits["test"]
+
+# Format using your tokenizer
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B-Instruct")
+
+def format_example(example):
+    messages = [{k: v for k, v in msg.items() if v is not None}
+                for msg in example["messages"]]
+    return {"text": tokenizer.apply_chat_template(messages, tokenize=False)}
+
+formatted_train = train_ds.map(format_example)
+```
+
+### 3. Train with TRL or Unsloth
+
+```python
+from trl import SFTTrainer, SFTConfig
+
+trainer = SFTTrainer(
+    model=model,
+    tokenizer=tokenizer,
+    train_dataset=formatted_train,
+    args=SFTConfig(output_dir="./output", num_train_epochs=3),
+)
+trainer.train()
+```
+
+### 4. Evaluate Your Model
+
+```python
+from deepfabric.evaluation import Evaluator, EvaluatorConfig, InferenceConfig
+
+config = EvaluatorConfig(
+    inference_config=InferenceConfig(
+        model_path="./output/checkpoint-final",  # Local path or HF Hub ID
+        backend="transformers",
+    ),
+)
+
+evaluator = Evaluator(config)
+results = evaluator.evaluate(dataset=eval_ds)  # Pass HF Dataset directly
+
+print(f"Tool Selection Accuracy: {results.metrics.tool_selection_accuracy:.2%}")
+print(f"Parameter Accuracy: {results.metrics.parameter_accuracy:.2%}")
+print(f"Overall Score: {results.metrics.overall_score:.2%}")
+```
 
 ## Providers
 

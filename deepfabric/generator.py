@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import math
 import random
@@ -6,6 +7,7 @@ import random
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any, Literal
 
+from datasets import Dataset as HFDataset
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .builders import ConversationBuilderFactory
@@ -22,7 +24,6 @@ from .constants import (
     ERROR_DATASET_FILENAME,
     INTERRUPTED_DATASET_FILENAME,
 )
-from .dataset import Dataset
 from .error_codes import classify_error
 from .exceptions import DataSetGeneratorError
 from .llm import LLMClient
@@ -66,7 +67,7 @@ class DataSetGeneratorConfig(BaseModel):
     )
     model_name: str = Field(..., min_length=1, description="Name of the model to use")
     prompt_template: str | None = Field(default=None, description="Custom prompt template")
-    example_data: Dataset | None = Field(
+    example_data: HFDataset | None = Field(
         default=None, description="Example dataset for few-shot learning"
     )
     temperature: float = Field(
@@ -190,7 +191,7 @@ class DataSetGenerator:
         # Initialize from config
         self.provider = self.config.provider
         self.model_name = self.config.model_name
-        self.dataset = Dataset()
+        self._samples: list[dict] = []
         self.failed_samples = []
         self.failure_analysis = {category: [] for category in ERROR_CATEGORIES}
 
@@ -442,7 +443,8 @@ class DataSetGenerator:
                         )
                         continue
                     # Non-retryable error or exhausted retries
-                    return False, last_error
+                    return False, last_error or Exception("Sample generation failed")
+
                 else:
                     # Validate tool execution count for agent modes
                     if self.config.agent_mode is not None:
@@ -462,7 +464,7 @@ class DataSetGenerator:
                                     str(last_error)[:100],
                                 )
                                 continue
-                            return False, last_error
+                            return False, last_error or Exception("Sample generation failed")
 
                         num_executions = len(conversation.tool_context.executions)
                         if num_executions > self.config.max_tools_per_query:
@@ -481,7 +483,7 @@ class DataSetGenerator:
                                         str(last_error)[:100],
                                     )
                                     continue
-                                return False, last_error
+                                return False, last_error or Exception("Sample generation failed")
                             # Non-strict mode: truncate to limit and keep sample
                             conversation.tool_context.executions = (
                                 conversation.tool_context.executions[
@@ -491,7 +493,7 @@ class DataSetGenerator:
 
                     return True, conversation
 
-            return False, last_error
+            return False, last_error or Exception("Sample generation failed")
 
         # Generate all samples concurrently with sample indices
         tasks = []
@@ -609,7 +611,7 @@ class DataSetGenerator:
     ):
         ensure_not_running_loop("DataSetGenerator.create_data_with_events")
 
-        async def _async_generator() -> AsyncGenerator[dict | Dataset, None]:
+        async def _async_generator() -> AsyncGenerator[dict | HFDataset, None]:
             async for event in self.create_data_with_events_async(
                 num_steps=num_steps,
                 num_example_demonstrations=num_example_demonstrations,
@@ -646,7 +648,7 @@ class DataSetGenerator:
         topic_model: TopicModel | None = None,
         model_name: str | None = None,
         sys_msg: bool | None = None,
-    ) -> Dataset:
+    ) -> HFDataset:
         if num_steps is None:
             num_steps = 1
 
@@ -665,7 +667,7 @@ class DataSetGenerator:
         total_samples = num_steps * batch_size
         data_creation_prompt = self._get_cot_prompt_template()
 
-        final_result: Dataset | dict | None = None
+        final_result: HFDataset | dict | None = None
         async for event in self._run_generation_loop_async(
             num_steps=num_steps,
             batch_size=batch_size,
@@ -677,16 +679,16 @@ class DataSetGenerator:
         ):
             final_result = event
 
-        if isinstance(final_result, Dataset):
+        if isinstance(final_result, HFDataset):
             trace(
                 "dataset_created",
                 {
                     "provider": self.provider,
                     "model_name": self.model_name,
                     "conversation_type": self.config.conversation_type,
-                    "samples_count": len(final_result.samples),
+                    "samples_count": len(final_result),
                     "failed_samples": len(self.failed_samples),
-                    "success": len(final_result.samples) > 0,
+                    "success": len(final_result) > 0,
                 },
             )
             return final_result
@@ -702,7 +704,7 @@ class DataSetGenerator:
         topic_model: TopicModel | None = None,
         model_name: str | None = None,
         sys_msg: bool | None = None,
-    ) -> AsyncGenerator[dict | Dataset, None]:
+    ) -> AsyncGenerator[dict | HFDataset, None]:
         if num_steps is None:
             num_steps = 1
 
@@ -751,7 +753,7 @@ class DataSetGenerator:
         include_sys_msg: bool,
         root_topic_prompt: str | None = None,
         topic_model_type: str | None = None,
-    ) -> AsyncGenerator[dict | Dataset, None]:
+    ) -> AsyncGenerator[dict | HFDataset, None]:
         """Run the main generation loop yielding progress events."""
         try:
             yield {
@@ -806,22 +808,22 @@ class DataSetGenerator:
 
             yield {
                 "event": "generation_complete",
-                "total_samples": len(self.dataset),
+                "total_samples": len(self._samples),
                 "failed_samples": len(self.failed_samples),
             }
 
         except KeyboardInterrupt:
             yield {"event": "generation_interrupted", "message": "Generation interrupted by user."}
             self.print_failure_summary()
-            self.save_dataset(INTERRUPTED_DATASET_FILENAME)
+            self._save_samples_to_file(INTERRUPTED_DATASET_FILENAME)
 
         except Exception as e:  # noqa: BLE001
             yield {"event": "generation_error", "error": str(e)}
             self.print_failure_summary()
-            self.save_dataset(ERROR_DATASET_FILENAME)
+            self._save_samples_to_file(ERROR_DATASET_FILENAME)
             raise DataSetGeneratorError("failed") from e
 
-        yield self.dataset
+        yield HFDataset.from_list(self._samples) if self._samples else HFDataset.from_list([])
 
     async def _process_batch_with_retries_async(
         self,
@@ -841,17 +843,10 @@ class DataSetGenerator:
                 self.failed_samples.extend(failed_responses)
 
                 if samples:
-                    failed_samples, failure_descriptions = self.dataset.add_samples(
-                        samples, tool_registry=self.tool_registry
-                    )
-
-                    if failed_samples:
-                        for sample, desc in zip(failed_samples, failure_descriptions, strict=True):
-                            self.failed_samples.append(sample)
-                            self.failure_analysis["invalid_schema"].append(desc)
-
-                    successful_samples = len(samples) - len(failed_samples)
-                    return True, successful_samples  # Success - exit retry loop
+                    # Convert Pydantic models to dicts and add to samples list
+                    sample_dicts = [s.model_dump(exclude_none=True) for s in samples]
+                    self._samples.extend(sample_dicts)
+                    return True, len(samples)  # Success - exit retry loop
 
             except DataSetGeneratorError as e:
                 # Authentication and API errors are now wrapped in DataSetGeneratorError
@@ -925,7 +920,9 @@ class DataSetGenerator:
         if self.config.example_data is None or num_example_demonstrations == 0:
             return ""
         # Bandit: not a security function
-        examples = random.sample(self.config.example_data.samples, num_example_demonstrations)  # nosec
+        # HF Dataset supports len() and indexing, convert to list for sampling
+        example_list = list(self.config.example_data)
+        examples = random.sample(example_list, min(num_example_demonstrations, len(example_list)))  # nosec
         examples_text = "Here are output examples:\n\n"
         examples_text += "\n".join(f"Example {i + 1}: \n\n{ex}\n" for i, ex in enumerate(examples))
         return f"\nHere are output examples:\n<examples>\n{examples_text}\n</examples>\n"
@@ -990,6 +987,13 @@ class DataSetGenerator:
         # Fallback to basic conversation prompt
         return CONVERSATION_GENERATION_PROMPT
 
+    def _save_samples_to_file(self, save_path: str):
+        """Save the current samples to a JSONL file."""
+
+        with open(save_path, "w") as f:
+            for sample in self._samples:
+                f.write(json.dumps(sample, separators=(",", ":")) + "\n")
+
     def save_dataset(self, save_path: str):
-        """Save the dataset to a file."""
-        self.dataset.save(save_path)
+        """Save the dataset to a JSONL file."""
+        self._save_samples_to_file(save_path)

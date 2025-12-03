@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from datasets import Dataset as HFDataset
 from pydantic import BaseModel, Field
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -27,14 +28,16 @@ console = Console()
 class EvaluatorConfig(BaseModel):
     """Configuration for evaluation run."""
 
-    model_path: str = Field(description="Path to model to evaluate")
-    dataset_path: str = Field(description="Path to evaluation dataset (JSONL)")
+    dataset_path: str | None = Field(
+        default=None,
+        description="Path to evaluation dataset (JSONL). Optional if passing dataset to evaluate().",
+    )
     output_path: str | None = Field(
         default=None,
         description="Path to save evaluation results",
     )
     inference_config: InferenceConfig = Field(
-        description="Inference backend configuration",
+        description="Inference backend configuration (includes model_path)",
     )
     batch_size: int = Field(
         default=1,
@@ -103,7 +106,7 @@ class Evaluator:
             "evaluator_created",
             {
                 "backend": self.config.inference_config.backend,
-                "model_path": self.config.model_path,
+                "model_path": self.config.inference_config.model_path,
                 "has_adapter": self.config.inference_config.adapter_path is not None,
                 "evaluators": (
                     list(self.config.evaluators)
@@ -174,30 +177,42 @@ class Evaluator:
             return reporters[0]
         return MultiReporter(reporters)
 
-    def load_dataset(self) -> list[dict[str, Any]]:
-        """Load evaluation dataset from JSONL file.
+    def load_dataset(self, dataset: HFDataset | None = None) -> list[dict[str, Any]]:
+        """Load evaluation dataset from HFDataset or JSONL file.
+
+        Args:
+            dataset: Optional HuggingFace Dataset. If provided, uses this instead
+                of loading from config.dataset_path.
 
         Returns:
             List of dataset samples
 
         Raises:
-            FileNotFoundError: If dataset file doesn't exist
-            ValueError: If dataset format is invalid
+            FileNotFoundError: If dataset file doesn't exist (when using file path)
+            ValueError: If dataset format is invalid or no dataset source provided
         """
-        dataset_path = Path(self.config.dataset_path)
-        if not dataset_path.exists():
-            msg = f"Dataset file not found: {dataset_path}"
-            raise FileNotFoundError(msg)
+        if dataset is not None:
+            # Use provided HuggingFace Dataset
+            samples = [dict(sample) for sample in dataset]
+        elif self.config.dataset_path is not None:
+            # Load from file path
+            dataset_path = Path(self.config.dataset_path)
+            if not dataset_path.exists():
+                msg = f"Dataset file not found: {dataset_path}"
+                raise FileNotFoundError(msg)
 
-        samples = []
-        with dataset_path.open() as f:
-            for line_num, line in enumerate(f, 1):
-                try:
-                    sample = json.loads(line.strip())
-                    samples.append(sample)
-                except json.JSONDecodeError as e:
-                    msg = f"Invalid JSON on line {line_num}: {e}"
-                    raise ValueError(msg) from e
+            samples = []
+            with dataset_path.open() as f:
+                for line_num, line in enumerate(f, 1):
+                    try:
+                        sample = json.loads(line.strip())
+                        samples.append(sample)
+                    except json.JSONDecodeError as e:
+                        msg = f"Invalid JSON on line {line_num}: {e}"
+                        raise ValueError(msg) from e
+        else:
+            msg = "No dataset provided. Either pass a HuggingFace Dataset to evaluate() or set dataset_path in config."
+            raise ValueError(msg)
 
         if self.config.max_samples is not None:
             samples = samples[: self.config.max_samples]
@@ -408,14 +423,18 @@ class Evaluator:
             error=None,
         )
 
-    def evaluate(self) -> EvaluationResult:
+    def evaluate(self, dataset: HFDataset | None = None) -> EvaluationResult:
         """Run full evaluation.
+
+        Args:
+            dataset: Optional HuggingFace Dataset to evaluate. If not provided,
+                loads from config.dataset_path.
 
         Returns:
             Complete evaluation result with metrics and predictions
         """
         console.print("[bold blue]Loading dataset...[/bold blue]")
-        samples = self.load_dataset()
+        samples = self.load_dataset(dataset)
         console.print(f"Loaded {len(samples)} samples")
 
         console.print("[bold blue]Running evaluation...[/bold blue]")
@@ -458,7 +477,7 @@ class Evaluator:
             "evaluation_completed",
             {
                 "backend": self.config.inference_config.backend,
-                "model_path": self.config.model_path,
+                "model_path": self.config.inference_config.model_path,
                 "has_adapter": self.config.inference_config.adapter_path is not None,
                 "samples_evaluated": metrics.samples_evaluated,
                 "samples_processed": metrics.samples_processed,
