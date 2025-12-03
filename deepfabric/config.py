@@ -1,6 +1,6 @@
 import warnings
 
-from typing import Any, Literal
+from typing import Literal
 
 import yaml
 
@@ -249,17 +249,6 @@ class GenerationConfig(BaseModel):
         return self
 
 
-class FormatterConfig(BaseModel):
-    """Configuration for a single formatter."""
-
-    name: str = Field(..., min_length=1, description="Name identifier for this formatter")
-    template: str = Field(..., min_length=1, description="Template path (builtin:// or file://)")
-    config: dict[str, Any] = Field(
-        default_factory=dict, description="Formatter-specific configuration"
-    )
-    output: str | None = Field(None, description="Output file path for this formatter")
-
-
 class OutputConfig(BaseModel):
     """Configuration for final dataset output."""
 
@@ -282,9 +271,6 @@ class OutputConfig(BaseModel):
         description="Number of samples to process at a time",
     )
     save_as: str = Field(..., min_length=1, description="Where to save the final dataset")
-    formatters: list[FormatterConfig] = Field(
-        default_factory=list, description="List of formatters to apply to the dataset"
-    )
 
 
 class HuggingFaceConfig(BaseModel):
@@ -416,103 +402,6 @@ class DeepFabricConfig(BaseModel):
     evaluation: EvaluationConfig | None = Field(None, description="Evaluation configuration")
     huggingface: HuggingFaceConfig | None = Field(None, description="Hugging Face configuration")
     kaggle: KaggleConfig | None = Field(None, description="Kaggle configuration")
-
-    @model_validator(mode="after")
-    def validate_formatter_compatibility(self) -> "DeepFabricConfig":
-        """Warn about potentially incompatible conversation types and formatters."""
-        if not self.output or not self.output.formatters:
-            return self
-
-        conversation_type = self.generation.conversation.type
-        agent_mode = self.generation.conversation.agent_mode
-        reasoning_style = self.generation.conversation.reasoning_style
-
-        formatter_warnings = {
-            "alpaca": {
-                "incompatible_with": {
-                    "conversation_type": ["chain_of_thought"],
-                    "agent_mode": ["multi_turn"],
-                },
-                "warning": "Alpaca format works best with simple Q&A. Chain-of-thought reasoning and multi-turn conversations may have high rejection rates.",
-            },
-            "chatml": {
-                "incompatible_with": {
-                    "reasoning_style": ["agent"],
-                },
-                "warning": "ChatML format may reject samples with complex reasoning structures. Consider using 'conversations' format for chain-of-thought data.",
-            },
-            "xlam_v2": {
-                "requires": {
-                    "agent_mode": ["single_turn", "multi_turn"],
-                },
-                "warning": "XLAM v2 format requires agent_mode to be set (single_turn or multi_turn) for tool-calling data.",
-            },
-            "tool_calling": {
-                "requires": {
-                    "agent_mode": ["single_turn", "multi_turn"],
-                },
-                "warning": "Tool calling format requires agent_mode to be set for tool-calling data.",
-            },
-            "single_tool_call": {
-                "requires": {
-                    "agent_mode": ["single_turn"],
-                },
-                "warning": "Single tool call format requires agent_mode='single_turn' and will reject multi-turn conversations.",
-            },
-        }
-
-        for formatter_config in self.output.formatters:
-            template = formatter_config.template
-            formatter_name = None
-
-            if isinstance(template, str) and "builtin://" in template:
-                formatter_name = template.replace("builtin://", "").replace(".py", "")
-
-            if not formatter_name or formatter_name not in formatter_warnings:
-                continue
-
-            rules = formatter_warnings[formatter_name]
-
-            if "incompatible_with" in rules:
-                incompatible = rules["incompatible_with"]
-
-                if (
-                    "conversation_type" in incompatible
-                    and conversation_type in incompatible["conversation_type"]
-                ):
-                    print(
-                        f"\nWarning: Formatter '{formatter_config.name}' may have high rejection rates with conversation type='{conversation_type}'"
-                    )
-                    print(f"   {rules['warning']}\n")
-
-                if "agent_mode" in incompatible and agent_mode in incompatible["agent_mode"]:
-                    print(
-                        f"\nWarning: Formatter '{formatter_config.name}' may have high rejection rates with agent_mode='{agent_mode}'"
-                    )
-                    print(f"   {rules['warning']}\n")
-
-                if (
-                    "reasoning_style" in incompatible
-                    and reasoning_style in incompatible["reasoning_style"]
-                ):
-                    print(
-                        f"\nWarning: Formatter '{formatter_config.name}' may have high rejection rates with reasoning_style='{reasoning_style}'"
-                    )
-                    print(f"   {rules['warning']}\n")
-
-            if "requires" in rules:
-                requirements = rules["requires"]
-
-                if "agent_mode" in requirements and (
-                    not agent_mode or agent_mode not in requirements["agent_mode"]
-                ):
-                    print(
-                        f"\nWarning: Formatter '{formatter_config.name}' requires agent_mode to be one of {requirements['agent_mode']}"
-                    )
-                    print(f"   Current: agent_mode={agent_mode}")
-                    print(f"   {rules['warning']}\n")
-
-        return self
 
     @classmethod
     def _detect_old_format(cls, config_dict: dict) -> bool:
@@ -704,7 +593,6 @@ See documentation for full examples.
             "num_samples": self.output.num_samples,
             "batch_size": self.output.batch_size,
             "save_as": self.output.save_as,
-            "formatters": [f.model_dump() for f in self.output.formatters],
         }
 
     def get_huggingface_config(self) -> dict:
@@ -714,10 +602,6 @@ See documentation for full examples.
     def get_kaggle_config(self) -> dict:
         """Get Kaggle configuration."""
         return self.kaggle.model_dump() if self.kaggle else {}
-
-    def get_formatter_configs(self) -> list[dict]:
-        """Get list of formatter configurations."""
-        return [formatter.model_dump() for formatter in self.output.formatters]
 
     def get_configured_providers(self) -> set[str]:
         """Get the set of LLM providers configured in this config."""
@@ -956,6 +840,3 @@ class DatasetConfig(BaseModel):
         description="Dataset creation parameters",
     )
     save_as: str = Field(..., min_length=1, description="Where to save the final dataset")
-    formatters: list[FormatterConfig] = Field(
-        default_factory=list, description="List of formatters"
-    )

@@ -143,7 +143,8 @@ def test_generate_command_basic(
 ):
     """Test basic start command execution."""
     # Setup mocks
-    from deepfabric.dataset import Dataset  # noqa: PLC0415  # noqa: PLC0415
+    from datasets import Dataset as HFDataset  # noqa: PLC0415
+
     from deepfabric.tree import Tree  # noqa: PLC0415
 
     mock_tree_instance = Mock(spec=Tree)
@@ -155,8 +156,8 @@ def test_generate_command_basic(
         ["root", "child2"],
     ]  # Add tree_paths attribute
     mock_engine_instance = Mock()
-    mock_dataset = Mock(spec=Dataset)  # Make dataset a proper Dataset mock
-    mock_engine_instance.dataset = mock_dataset  # Add dataset property to engine
+    mock_dataset = Mock(spec=HFDataset)  # Make dataset a proper HFDataset mock
+    mock_dataset.__len__ = Mock(return_value=5)
 
     mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
@@ -179,7 +180,7 @@ def test_generate_command_basic(
     mock_tree_instance.save.assert_called_once()
     mock_data_engine.assert_called_once()
     mock_engine_instance.create_data_with_events_async.assert_called_once()
-    mock_dataset.save.assert_called_once()
+    mock_dataset.to_json.assert_called_once()
 
 
 @patch("deepfabric.topic_manager.create_topic_generator")
@@ -189,7 +190,8 @@ def test_generate_command_with_sys_msg_override(
 ):
     """Test start command with include_system_message override."""
     # Setup mocks
-    from deepfabric.dataset import Dataset  # noqa: PLC0415
+    from datasets import Dataset as HFDataset  # noqa: PLC0415
+
     from deepfabric.tree import Tree  # noqa: PLC0415
 
     mock_tree_instance = Mock(spec=Tree)
@@ -198,8 +200,8 @@ def test_generate_command_with_sys_msg_override(
     )
     mock_tree_instance.tree_paths = [["root", "child1"], ["root", "child2"]]
     mock_engine_instance = Mock()
-    mock_dataset = Mock(spec=Dataset)
-    mock_engine_instance.dataset = mock_dataset
+    mock_dataset = Mock(spec=HFDataset)
+    mock_dataset.__len__ = Mock(return_value=5)
 
     mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
@@ -232,7 +234,8 @@ def test_generate_command_default_sys_msg(
 ):
     """Test start command with default include_system_message behavior."""
     # Setup mocks
-    from deepfabric.dataset import Dataset  # noqa: PLC0415
+    from datasets import Dataset as HFDataset  # noqa: PLC0415
+
     from deepfabric.tree import Tree  # noqa: PLC0415
 
     mock_tree_instance = Mock(spec=Tree)
@@ -241,8 +244,8 @@ def test_generate_command_default_sys_msg(
     )
     mock_tree_instance.tree_paths = [["root", "child1"], ["root", "child2"]]
     mock_engine_instance = Mock()
-    mock_dataset = Mock(spec=Dataset)
-    mock_engine_instance.dataset = mock_dataset
+    mock_dataset = Mock(spec=HFDataset)
+    mock_dataset.__len__ = Mock(return_value=5)
 
     mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
@@ -268,7 +271,8 @@ def test_generate_command_with_overrides(
 ):
     """Test start command with parameter overrides."""
     # Setup mocks
-    from deepfabric.dataset import Dataset  # noqa: PLC0415
+    from datasets import Dataset as HFDataset  # noqa: PLC0415
+
     from deepfabric.tree import Tree  # noqa: PLC0415
 
     mock_tree_instance = Mock(spec=Tree)
@@ -277,8 +281,8 @@ def test_generate_command_with_overrides(
     )
     mock_tree_instance.tree_paths = [["root", "child1"], ["root", "child2"]]
     mock_engine_instance = Mock()
-    mock_dataset = Mock(spec=Dataset)
-    mock_engine_instance.dataset = mock_dataset
+    mock_dataset = Mock(spec=HFDataset)
+    mock_dataset.__len__ = Mock(return_value=5)
 
     mock_create_topic_generator.return_value = mock_tree_instance
     mock_data_engine.return_value = mock_engine_instance
@@ -321,7 +325,7 @@ def test_generate_command_with_overrides(
     mock_create_topic_generator.assert_called_once()
 
     mock_tree_instance.save.assert_called_once_with("override_tree.jsonl")
-    mock_dataset.save.assert_called_once_with("override_dataset.jsonl")
+    mock_dataset.to_json.assert_called_once()
 
     args, kwargs = mock_engine_instance.create_data_with_events_async.call_args
     assert kwargs["num_steps"] == 10  # noqa: PLR2004
@@ -341,7 +345,7 @@ def test_generate_command_with_jsonl(
     sample_config_file,
 ):
     """Test start command with JSONL file."""
-    from deepfabric.dataset import Dataset  # noqa: PLC0415
+    from datasets import Dataset as HFDataset  # noqa: PLC0415
 
     mock_tree_instance = Mock()
     mock_tree_instance.build = Mock()  # Add build method
@@ -350,8 +354,8 @@ def test_generate_command_with_jsonl(
 
     mock_engine_instance = Mock()
     mock_data_engine.return_value = mock_engine_instance
-    mock_dataset = Mock(spec=Dataset)
-    mock_engine_instance.dataset = mock_dataset
+    mock_dataset = Mock(spec=HFDataset)
+    mock_dataset.__len__ = Mock(return_value=5)
     mock_engine_instance.create_data_with_events_async.return_value = _async_iter(
         [{"event": "generation_complete", "total_samples": 5, "failed_samples": 0}, mock_dataset]
     )

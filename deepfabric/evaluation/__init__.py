@@ -15,14 +15,8 @@ from .inference import InferenceConfig, ModelResponse, create_inference_backend
 from .metrics import EvaluationMetrics, SampleEvaluation, compute_metrics
 from .parser import GroundTruth, GroundTruthParser, parse_batch
 from .reporters import BaseReporter, CloudReporter, FileReporter, MultiReporter
-from .split import SplitConfig, SplitResult, split_dataset, split_to_hf_dataset
 
 __all__ = [
-    # Splitting
-    "split_dataset",
-    "split_to_hf_dataset",
-    "SplitConfig",
-    "SplitResult",
     # Parsing
     "GroundTruth",
     "GroundTruthParser",

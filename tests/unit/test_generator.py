@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest  # type: ignore
 
 from deepfabric.exceptions import DataSetGeneratorError
-from deepfabric.generator import Dataset, DataSetGenerator
+from deepfabric.generator import DataSetGenerator
 
 
 @pytest.fixture
@@ -37,7 +37,7 @@ def test_engine_initialization(engine_args):
     assert engine.config.instructions == engine_args["instructions"]
     assert engine.config.generation_system_prompt == engine_args["generation_system_prompt"]
     assert engine.config.model_name == engine_args["model_name"]
-    assert isinstance(engine.dataset, Dataset)
+    assert isinstance(engine._samples, list)
     assert engine.failed_samples == []
 
 
@@ -85,7 +85,7 @@ def test_create_data_success(data_engine):
     dataset = data_engine.create_data(num_steps=1, batch_size=10, topic_model=topic_tree)
 
     # Assert that the dataset contains exactly the expected number of samples
-    assert len(dataset.samples) == expected_num_samples
+    assert len(dataset) == expected_num_samples
 
 
 def test_create_data_with_sys_msg_default(data_engine):
@@ -109,10 +109,11 @@ def test_create_data_with_sys_msg_default(data_engine):
     dataset = data_engine.create_data(num_steps=1, batch_size=1, topic_model=topic_tree)
 
     # Verify system message is included
-    assert len(dataset.samples) == 1
-    assert len(dataset.samples[0].messages) == 3  # noqa: PLR2004
-    assert dataset.samples[0].messages[0].role == "system"
-    assert dataset.samples[0].messages[0].content == data_engine.config.dataset_system_prompt
+    assert len(dataset) == 1
+    messages = dataset[0]["messages"]
+    assert len(messages) == 3  # noqa: PLR2004
+    assert messages[0]["role"] == "system"
+    assert messages[0]["content"] == data_engine.config.dataset_system_prompt
 
 
 def test_create_data_without_sys_msg(data_engine):
@@ -138,9 +139,10 @@ def test_create_data_without_sys_msg(data_engine):
     )
 
     # Verify system message is not included
-    assert len(dataset.samples) == 1
-    assert len(dataset.samples[0].messages) == 2  # noqa: PLR2004
-    assert dataset.samples[0].messages[0].role == "user"
+    assert len(dataset) == 1
+    messages = dataset[0]["messages"]
+    assert len(messages) == 2  # noqa: PLR2004
+    assert messages[0]["role"] == "user"
 
 
 def test_create_data_sys_msg_override():
@@ -182,9 +184,10 @@ def test_create_data_sys_msg_override():
     dataset = engine.create_data(num_steps=1, batch_size=1, topic_model=topic_tree, sys_msg=True)
 
     # Verify system message is included despite engine default
-    assert len(dataset.samples) == 1  # type: ignore
-    assert len(dataset.samples[0].messages) == 3  # type: ignore # noqa: PLR2004
-    assert dataset.samples[0].messages[0].role == "system"  # type: ignore
+    assert len(dataset) == 1
+    messages = dataset[0]["messages"]
+    assert len(messages) == 3  # noqa: PLR2004
+    assert messages[0]["role"] == "system"
 
 
 def test_build_prompt(data_engine):
@@ -216,7 +219,17 @@ def test_build_subtopics_text(data_engine):
     assert "subtopic1 -> subtopic2" in subtopics_text
 
 
-@patch.object(Dataset, "save")
-def test_save_dataset(mock_save, data_engine):
-    data_engine.save_dataset("test_path.jsonl")
-    mock_save.assert_called_once_with("test_path.jsonl")
+def test_save_dataset(data_engine):
+    # Add some samples to save
+    data_engine._samples = [{"messages": [{"role": "user", "content": "test"}]}]
+
+    mock_open = MagicMock()
+    mock_file = MagicMock()
+    mock_open.return_value.__enter__ = MagicMock(return_value=mock_file)
+    mock_open.return_value.__exit__ = MagicMock(return_value=False)
+
+    with patch("builtins.open", mock_open):
+        data_engine.save_dataset("test_path.jsonl")
+
+    mock_open.assert_called_once_with("test_path.jsonl", "w")
+    mock_file.write.assert_called()

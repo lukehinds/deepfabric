@@ -42,7 +42,8 @@
   <br/>
 </div>
 
-
+!!! warning Documentation Status
+    This documentation has fallen behind the latest release, but will be updated soon. For any support, its best to join our [Discord community](https://discord.gg/pPcjYzGvbS) where we can provide real-time assistance.
 
 DeepFabric enables training language models to be capable agents through structured synthetic datasets. By combining reasoning traces with tool calling patterns, DeepFabric creates training data that teaches models both intelligent decision-making and precise execution—at any model parameter scale.
 

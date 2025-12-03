@@ -8,12 +8,12 @@ from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from datasets import Dataset as HFDataset
 from rich.layout import Layout
 from rich.live import Live
 
 from .config import DeepFabricConfig
 from .config_manager import DEFAULT_MODEL
-from .dataset import Dataset
 from .exceptions import ConfigurationError
 from .generator import DataSetGenerator
 from .progress import ProgressReporter
@@ -52,8 +52,8 @@ DEBUG_MAX_FAILURES_TO_SHOW = 10
 
 
 async def handle_dataset_events_async(
-    generator: AsyncIterator[dict | Dataset], engine=None, debug: bool = False
-) -> Dataset | None:
+    generator: AsyncIterator[dict | HFDataset], engine=None, debug: bool = False
+) -> HFDataset | None:
     """Handle dataset generation with TUI progress and streaming feedback."""
     tui = get_dataset_tui()
     footer_prog = None
@@ -61,7 +61,7 @@ async def handle_dataset_events_async(
     live = None
     simple_task = None
 
-    final_result: Dataset | None = None
+    final_result: HFDataset | None = None
     try:
         async for event in generator:
             if isinstance(event, dict) and "event" in event:
@@ -169,7 +169,7 @@ async def handle_dataset_events_async(
                                 remaining = len(engine.failed_samples) - DEBUG_MAX_FAILURES_TO_SHOW
                                 get_tui().error(f"  ... and {remaining} more failures")
 
-            elif isinstance(event, Dataset):
+            elif isinstance(event, HFDataset):
                 final_result = event
             else:
                 # Handle unexpected non-dict, non-Dataset events
@@ -185,7 +185,7 @@ async def handle_dataset_events_async(
     return final_result
 
 
-def handle_dataset_events(generator, engine=None, debug: bool = False) -> Dataset | None:
+def handle_dataset_events(generator, engine=None, debug: bool = False) -> HFDataset | None:
     """Synchronous wrapper for async dataset event handling."""
     ensure_not_running_loop("handle_dataset_events")
     return asyncio.run(handle_dataset_events_async(generator, engine=engine, debug=debug))
@@ -202,7 +202,7 @@ def create_dataset(
     model: str | None = None,
     generation_overrides: dict | None = None,
     debug: bool = False,
-) -> Dataset:
+) -> HFDataset:
     """
     Create dataset using the data engine and topic model.
 
@@ -218,7 +218,7 @@ def create_dataset(
         generation_overrides: Additional generation parameter overrides
 
     Returns:
-        Generated Dataset object
+        Generated HuggingFace Dataset object
 
     Raises:
         ConfigurationError: If dataset generation fails
@@ -251,7 +251,7 @@ async def create_dataset_async(
     model: str | None = None,
     generation_overrides: dict | None = None,
     debug: bool = False,
-) -> Dataset:
+) -> HFDataset:
     output_config = config.get_output_config()
 
     final_num_samples = num_samples or output_config["num_samples"]
@@ -446,18 +446,18 @@ def _save_failed_samples(save_path: str, failed_samples: list, tui) -> None:
 
 
 def save_dataset(
-    dataset: Dataset,
+    dataset: HFDataset,
     save_path: str,
     config: DeepFabricConfig | None = None,
     engine: DataSetGenerator | None = None,
 ) -> None:
     """
-    Save dataset to file and apply formatters if configured.
+    Save dataset to file.
 
     Args:
-        dataset: Dataset object to save
+        dataset: HuggingFace Dataset object to save
         save_path: Path where to save the dataset
-        config: Optional configuration containing formatter settings
+        config: Optional configuration for upload settings
         engine: Optional DataSetGenerator to save failed samples from
 
     Raises:
@@ -465,34 +465,13 @@ def save_dataset(
     """
     tui = get_tui()
     try:
-        # Save the raw dataset
-        dataset.save(save_path)
+        # Save the dataset as JSONL using HuggingFace's native method
+        dataset.to_json(save_path, orient="records", lines=True)
         tui.success(f"Dataset saved to: {save_path}")
 
         # Save failed samples if engine has any
         if engine and engine.failed_samples:
             _save_failed_samples(save_path, engine.failed_samples, tui)
-
-        # Apply formatters if configured
-        if config:
-            formatter_configs = config.get_formatter_configs()
-            if formatter_configs:
-                tui.info("Applying formatters...")
-                try:
-                    formatted_datasets = dataset.apply_formatters(formatter_configs)
-
-                    for formatter_name, formatted_dataset in formatted_datasets.items():
-                        if hasattr(formatted_dataset, "samples"):
-                            sample_count = len(formatted_dataset.samples)
-                            tui.success(
-                                f"Applied '{formatter_name}' formatter: {sample_count} samples"
-                            )
-                        else:
-                            tui.success(f"Applied '{formatter_name}' formatter")
-
-                except Exception as e:
-                    tui.error(f"Error applying formatters: {str(e)}")
-                    # Don't raise here - we want to continue even if formatters fail
 
         # Handle automatic uploads if configured
         if config:

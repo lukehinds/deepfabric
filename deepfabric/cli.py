@@ -14,7 +14,6 @@ from .config import DeepFabricConfig
 from .config_manager import apply_cli_overrides, get_final_parameters, load_config
 from .dataset_manager import create_dataset, save_dataset
 from .exceptions import ConfigurationError
-from .format_command import format_cli
 from .generator import DataSetGenerator
 from .graph import Graph
 from .llm import validate_provider_api_key
@@ -306,7 +305,7 @@ def _run_generation(
 
     trace(
         "dataset_generated",
-        {"samples": len(dataset.samples) if hasattr(dataset, "samples") else 0},
+        {"samples": len(dataset)},
     )
 
 
@@ -805,169 +804,6 @@ def info() -> None:
 
 
 @cli.command()
-@click.argument("dataset_path", type=click.Path(exists=True))
-@click.option(
-    "--train-output",
-    type=click.Path(),
-    help="Output path for training set (required for jsonl format)",
-)
-@click.option(
-    "--eval-output",
-    type=click.Path(),
-    help="Output path for evaluation set (required for jsonl format)",
-)
-@click.option(
-    "--output-format",
-    type=click.Choice(["jsonl", "hf_dataset"]),
-    default="jsonl",
-    help="Output format: jsonl (separate files) or hf_dataset (DatasetDict)",
-)
-@click.option(
-    "--hf-repo",
-    type=str,
-    help="HuggingFace Hub repository to push to (format: username/dataset-name)",
-)
-@click.option(
-    "--test-size",
-    default=0.2,
-    type=float,
-    help="Fraction for eval set (default: 0.2)",
-)
-@click.option(
-    "--stratify-by",
-    type=click.Choice(["topic", "tool", "conversation_type"]),
-    help="Field to stratify by for balanced splitting",
-)
-@click.option(
-    "--seed",
-    default=42,
-    type=int,
-    help="Random seed for reproducibility (default: 42)",
-)
-@click.option(
-    "--shuffle/--no-shuffle",
-    default=True,
-    help="Shuffle before splitting (default: shuffle)",
-)
-def split(
-    dataset_path: str,
-    train_output: str | None,
-    eval_output: str | None,
-    output_format: str,
-    hf_repo: str | None,
-    test_size: float,
-    stratify_by: str | None,
-    seed: int,
-    shuffle: bool,
-) -> None:
-    """Split dataset into train/eval sets with optional stratification.
-
-    This command splits a DeepFabric dataset into training and evaluation sets,
-    preserving all conversation structure and metadata. Stratification ensures
-    balanced representation across the specified field.
-
-    Examples:
-
-        \b
-        # Split to JSONL files with 20% for evaluation, stratified by topic
-        deepfabric split dataset.jsonl \\
-            --train-output train.jsonl \\
-            --eval-output eval.jsonl \\
-            --test-size 0.2 \\
-            --stratify-by topic
-
-        \b
-        # Split and push to HuggingFace Hub
-        deepfabric split dataset.jsonl \\
-            --output-format hf_dataset \\
-            --hf-repo username/my-dataset \\
-            --test-size 0.2 \\
-            --stratify-by topic
-    """
-    tui = get_tui()
-
-    try:
-        from .evaluation import SplitConfig, split_dataset, split_to_hf_dataset  # noqa: PLC0415
-
-        # Validate arguments based on output format
-        if output_format == "jsonl" and (not train_output or not eval_output):
-            tui.error("--train-output and --eval-output are required for jsonl format")
-            sys.exit(1)
-        if output_format == "hf_dataset" and not hf_repo:
-            tui.error("--hf-repo is required for hf_dataset format")
-            sys.exit(1)
-
-        # Create configuration
-        config = SplitConfig(
-            test_size=test_size,
-            stratify_by=stratify_by,  # type: ignore[arg-type]
-            seed=seed,
-            shuffle=shuffle,
-        )
-
-        # Display configuration
-        tui.console.print(f"\n[bold]Splitting dataset:[/bold] {dataset_path}")
-        tui.console.print(f"  Output format: {output_format}")
-        tui.console.print(f"  Test size: {test_size * 100:.1f}%")
-        if stratify_by:
-            tui.console.print(f"  Stratify by: {stratify_by}")
-        tui.console.print(f"  Random seed: {seed}")
-        tui.console.print(f"  Shuffle: {'yes' if shuffle else 'no'}\n")
-
-        if output_format == "jsonl":
-            # JSONL output format
-            result = split_dataset(
-                dataset_path=dataset_path,
-                train_output=train_output,  # type: ignore[arg-type]
-                eval_output=eval_output,  # type: ignore[arg-type]
-                config=config,
-            )
-
-            # Display results
-            tui.success("Split complete!")
-            tui.console.print("\n[bold green]Results:[/bold green]")
-            tui.console.print(f"  Train: {result.train_size} samples -> {train_output}")
-            tui.console.print(f"  Eval:  {result.eval_size} samples -> {eval_output}")
-            tui.console.print(f"  Total: {result.total_size} samples")
-
-        else:
-            # HuggingFace Dataset format
-            dataset_dict, result = split_to_hf_dataset(
-                dataset_path=dataset_path,
-                config=config,
-            )
-
-            # Display results
-            tui.success("Split complete!")
-            tui.console.print("\n[bold green]Results:[/bold green]")
-            tui.console.print(f"  Train: {result.train_size} samples")
-            tui.console.print(f"  Test:  {result.eval_size} samples")
-            tui.console.print(f"  Total: {result.total_size} samples")
-
-            # Push to HuggingFace Hub
-            tui.console.print(f"\n[bold]Pushing to HuggingFace Hub:[/bold] {hf_repo}")
-            dataset_dict.push_to_hub(hf_repo)
-            tui.success(f"Successfully pushed dataset to {hf_repo}")
-            tui.console.print(f"  View at: https://huggingface.co/datasets/{hf_repo}")
-
-        # Display stratification distribution if used
-        if result.strata_distribution:
-            tui.console.print(f"\n[bold]Stratification by {stratify_by}:[/bold]")
-            for stratum, counts in result.strata_distribution.items():
-                tui.console.print(
-                    f"  {stratum}: {counts['train']} train, {counts['eval']} eval "
-                    f"(total: {counts['total']})"
-                )
-
-    except ValueError as e:
-        handle_error(click.get_current_context(), e)
-    except FileNotFoundError as e:
-        handle_error(click.get_current_context(), e)
-    except Exception as e:
-        handle_error(click.get_current_context(), e)
-
-
-@cli.command()
 @click.argument("model_path", type=click.Path())
 @click.argument("dataset_path", type=click.Path(exists=True))
 @click.option(
@@ -1181,9 +1017,6 @@ def evaluate(
         )
         handle_error(click.get_current_context(), e)
 
-
-# Add the format command to the CLI group
-cli.add_command(format_cli)
 
 if __name__ == "__main__":
     cli()
