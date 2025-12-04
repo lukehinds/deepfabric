@@ -1014,9 +1014,6 @@ class DatasetGenerationTUI(StreamObserver):
             metadata: Additional context
         """
         _ = metadata  # Unused for now
-        _ = sample_idx  # Used only in simple mode
-        _ = attempt
-        _ = max_attempts
 
         if get_tui_settings().mode != "rich":
             # Simple mode: track for summary at step completion

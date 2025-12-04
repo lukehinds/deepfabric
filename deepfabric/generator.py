@@ -365,6 +365,29 @@ class DataSetGenerator:
         """Get the conversation schema for the current config."""
         return get_conversation_schema(self.config.conversation_type)
 
+    def _emit_retry(
+        self,
+        sample_idx: int,
+        attempt: int,
+        max_attempts: int,
+        error: Exception | str,
+    ) -> None:
+        """Emit a retry event if a progress reporter is attached.
+
+        Args:
+            sample_idx: 0-based sample index (will be converted to 1-based)
+            attempt: 0-based attempt number (will be converted to 1-based)
+            max_attempts: Total number of attempts allowed
+            error: The error that triggered the retry
+        """
+        if self.progress_reporter:
+            self.progress_reporter.emit_retry(
+                sample_idx=sample_idx + 1,
+                attempt=attempt + 1,
+                max_attempts=max_attempts,
+                error_summary=str(error)[:100],
+            )
+
     async def _generate_structured_samples_async(
         self,
         prompts: list[str],
@@ -445,14 +468,7 @@ class DataSetGenerator:
                     if is_validation and can_retry:
                         # Extract error message for feedback to the model
                         error_feedback = str(e)
-                        # Emit retry event instead of logging warning
-                        if self.progress_reporter:
-                            self.progress_reporter.emit_retry(
-                                sample_idx=sample_idx + 1,
-                                attempt=attempt + 1,
-                                max_attempts=max_attempts,
-                                error_summary=str(e)[:100],
-                            )
+                        self._emit_retry(sample_idx, attempt, max_attempts, e)
                         continue
                     # Non-retryable error or exhausted retries
                     return False, last_error or Exception("Sample generation failed")
@@ -468,14 +484,7 @@ class DataSetGenerator:
                                 "Agent mode requires at least one tool execution"
                             )
                             if attempt < self.config.sample_retries:
-                                # Emit retry event instead of logging warning
-                                if self.progress_reporter:
-                                    self.progress_reporter.emit_retry(
-                                        sample_idx=sample_idx + 1,
-                                        attempt=attempt + 1,
-                                        max_attempts=max_attempts,
-                                        error_summary=str(last_error)[:100],
-                                    )
+                                self._emit_retry(sample_idx, attempt, max_attempts, last_error)
                                 continue
                             return False, last_error or Exception("Sample generation failed")
 
@@ -488,14 +497,7 @@ class DataSetGenerator:
                                     f"exceeds limit of {self.config.max_tools_per_query}"
                                 )
                                 if attempt < self.config.sample_retries:
-                                    # Emit retry event instead of logging warning
-                                    if self.progress_reporter:
-                                        self.progress_reporter.emit_retry(
-                                            sample_idx=sample_idx + 1,
-                                            attempt=attempt + 1,
-                                            max_attempts=max_attempts,
-                                            error_summary=str(last_error)[:100],
-                                        )
+                                    self._emit_retry(sample_idx, attempt, max_attempts, last_error)
                                     continue
                                 return False, last_error or Exception("Sample generation failed")
                             # Non-strict mode: truncate to limit and keep sample
