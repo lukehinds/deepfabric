@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from deepfabric.training import _auto_inject, api_key_prompt
+from deepfabric.training import api_key_prompt
 from deepfabric.training.api_key_prompt import (
     _is_interactive_terminal,
     _is_notebook,
@@ -17,7 +17,6 @@ from deepfabric.training.api_key_prompt import (
     get_api_key,
 )
 from deepfabric.training.callback import DeepFabricCallback
-from deepfabric.training.injection import inject_callback, is_injection_enabled, reset_injection
 from deepfabric.training.metrics_sender import MetricsSender
 
 
@@ -153,6 +152,7 @@ class TestDeepFabricCallback:
         """Callback should be disabled when no API key provided."""
         # Clear environment
         env_key = os.environ.pop("DEEPFABRIC_API_KEY", None)
+        clear_api_key_cache()
 
         try:
             callback = DeepFabricCallback(api_key=None)
@@ -162,6 +162,7 @@ class TestDeepFabricCallback:
         finally:
             if env_key:
                 os.environ["DEEPFABRIC_API_KEY"] = env_key
+            clear_api_key_cache()
 
     def test_callback_enabled_with_api_key(self):
         """Callback should be enabled when API key provided."""
@@ -176,6 +177,7 @@ class TestDeepFabricCallback:
     def test_callback_uses_env_api_key(self):
         """Callback should use DEEPFABRIC_API_KEY env var."""
         os.environ["DEEPFABRIC_API_KEY"] = "env-test-key"
+        clear_api_key_cache()
 
         try:
             callback = DeepFabricCallback()
@@ -186,6 +188,7 @@ class TestDeepFabricCallback:
             callback.sender.shutdown()
         finally:
             del os.environ["DEEPFABRIC_API_KEY"]
+            clear_api_key_cache()
 
     def test_callback_uses_custom_endpoint(self):
         """Callback should use custom endpoint if provided."""
@@ -195,6 +198,18 @@ class TestDeepFabricCallback:
         )
 
         assert callback.endpoint == "https://custom.api.com"
+
+        callback.sender.shutdown()
+
+    def test_callback_accepts_trainer(self):
+        """Callback should accept trainer instance."""
+        mock_trainer = MagicMock()
+        mock_trainer.model = MagicMock()
+        mock_trainer.model.config.name_or_path = "test-model"
+
+        callback = DeepFabricCallback(trainer=mock_trainer, api_key="test-key")
+
+        assert callback._trainer is mock_trainer
 
         callback.sender.shutdown()
 
@@ -294,6 +309,7 @@ class TestDeepFabricCallback:
             "on_step_end",
             "on_epoch_begin",
             "on_epoch_end",
+            "on_pre_optimizer_step",
         ]
 
         for method in required_methods:
@@ -355,73 +371,18 @@ class TestAPIKeyPrompt:
         assert api_key_prompt._api_key_checked is False
 
 
-class TestInjection:
-    """Tests for callback injection."""
-
-    def test_inject_callback_runs_without_error(self):
-        """inject_callback should run without error when transformers is available."""
-        reset_injection()
-
-        # Just verify it runs without error - it will patch real Trainer if available
-        inject_callback()
-
-        # Should mark injection as done
-        assert is_injection_enabled() is True
-
-        reset_injection()
-
-    def test_injection_is_idempotent(self):
-        """inject_callback should be safe to call multiple times."""
-        reset_injection()
-
-        assert is_injection_enabled() is False
-
-        inject_callback()
-        assert is_injection_enabled() is True
-
-        inject_callback()  # Second call should be no-op
-        assert is_injection_enabled() is True
-
-        reset_injection()
-
-    def test_reset_injection(self):
-        """reset_injection should clear state."""
-        inject_callback()
-        assert is_injection_enabled() is True
-
-        reset_injection()
-        assert is_injection_enabled() is False
-
-
-class TestAutoInject:
-    """Tests for auto-injection module."""
-
-    def test_auto_inject_module_loads(self):
-        """_auto_inject module should load without error."""
-        # This module is loaded via .pth file on Python startup
-        # Should have setup function
-        assert hasattr(_auto_inject, "_setup_auto_inject")
-        assert hasattr(_auto_inject, "_do_inject")
-
-    def test_auto_inject_respects_disable_env(self):
-        """Auto-inject should respect DEEPFABRIC_DISABLE_AUTO_LOGGING."""
-        # Set disable flag
-        os.environ["DEEPFABRIC_DISABLE_AUTO_LOGGING"] = "1"
-
-        try:
-            # The module should exist and have the expected structure
-            assert hasattr(_auto_inject, "_setup_auto_inject")
-        finally:
-            del os.environ["DEEPFABRIC_DISABLE_AUTO_LOGGING"]
-
-
 class TestIntegrationWithMockTrainer:
     """Integration tests with mock Trainer."""
 
     def test_callback_integration_with_mock_trainer(self):
         """Test callback works with a mock Trainer-like object."""
-        # Create callback
-        callback = DeepFabricCallback(api_key="test-key")
+        # Create mock trainer
+        mock_trainer = MagicMock()
+        mock_trainer.model = MagicMock()
+        mock_trainer.model.config.name_or_path = "test-model"
+
+        # Create callback with trainer
+        callback = DeepFabricCallback(trainer=mock_trainer, api_key="test-key")
 
         # Mock trainer components
         mock_args = MagicMock()
