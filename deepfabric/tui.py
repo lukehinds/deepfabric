@@ -690,6 +690,8 @@ class DatasetGenerationTUI(StreamObserver):
         self.status_samples_done = 0
         self.status_failed_total = 0
         self.status_step_started_at = 0.0
+        # Retry tracking for simple mode
+        self.step_retries: list[dict] = []  # Retries in current step
 
     def create_rich_progress(self) -> Progress:
         """Create a rich progress bar for dataset generation (without TimeRemainingColumn)."""
@@ -987,6 +989,63 @@ class DatasetGenerationTUI(StreamObserver):
 
         # Log to events panel with error indicator
         self.log_event(f"X {error_event}")
+
+    def on_retry(
+        self,
+        sample_idx: int,
+        attempt: int,
+        max_attempts: int,
+        error_summary: str,
+        metadata: dict[str, Any],
+    ) -> None:
+        """Handle retry events from the progress reporter.
+
+        In rich mode, we don't log individual retries to avoid cluttering the
+        events panel - the streaming preview shows activity and final errors
+        are logged via on_error.
+
+        In simple mode, tracks retries for display at step completion.
+
+        Args:
+            sample_idx: 1-based sample index
+            attempt: Current attempt number (1-based)
+            max_attempts: Total number of attempts allowed
+            error_summary: Brief description of the validation error
+            metadata: Additional context
+        """
+        _ = metadata  # Unused for now
+
+        if get_tui_settings().mode != "rich":
+            # Simple mode: track for summary at step completion
+            self.step_retries.append(
+                {
+                    "sample_idx": sample_idx,
+                    "attempt": attempt,
+                    "max_attempts": max_attempts,
+                    "error_summary": error_summary,
+                }
+            )
+
+    def clear_step_retries(self) -> None:
+        """Clear retry tracking for the current step."""
+        self.step_retries.clear()
+
+    def get_step_retry_summary(self) -> str | None:
+        """Get a summary of retries in the current step.
+
+        Returns:
+            Summary string or None if no retries occurred
+        """
+        if not self.step_retries:
+            return None
+
+        # Count unique samples that had retries
+        samples_with_retries = {r["sample_idx"] for r in self.step_retries}
+        total_retries = len(self.step_retries)
+
+        if len(samples_with_retries) == 1:
+            return f"{total_retries} retry for sample {list(samples_with_retries)[0]}"
+        return f"{total_retries} retries across {len(samples_with_retries)} samples"
 
 
 # Global TUI instances

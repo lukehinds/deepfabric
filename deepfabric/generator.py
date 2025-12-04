@@ -38,7 +38,11 @@ from .prompts import (
     AgentPromptBuilder,
 )
 from .schemas import Conversation, ToolRegistry, get_conversation_schema
-from .tools.loader import get_available_tools, load_tools_from_dict, load_tools_from_file
+from .tools.loader import (
+    get_available_tools,
+    load_tools_from_dict,
+    load_tools_from_file,
+)
 from .topic_model import TopicModel
 from .utils import ensure_not_running_loop, is_validation_error
 
@@ -63,7 +67,9 @@ class DataSetGeneratorConfig(BaseModel):
         description="System prompt that goes into the final dataset (falls back to generation_system_prompt if not provided)",
     )
     provider: str = Field(
-        ..., min_length=1, description="LLM provider (openai, anthropic, gemini, ollama)"
+        ...,
+        min_length=1,
+        description="LLM provider (openai, anthropic, gemini, ollama)",
     )
     model_name: str = Field(..., min_length=1, description="Name of the model to use")
     prompt_template: str | None = Field(default=None, description="Custom prompt template")
@@ -83,7 +89,9 @@ class DataSetGeneratorConfig(BaseModel):
         description="Maximum number of retries for failed requests (deprecated, use rate_limit config)",
     )
     max_tokens: int = Field(
-        default=2000, ge=1, description="Maximum tokens to generate in a single call to the llm"
+        default=2000,
+        ge=1,
+        description="Maximum tokens to generate in a single call to the llm",
     )
     default_batch_size: int = Field(
         default=ENGINE_DEFAULT_BATCH_SIZE,
@@ -98,7 +106,10 @@ class DataSetGeneratorConfig(BaseModel):
         description="Default number of examples to include",
     )
     request_timeout: int = Field(
-        default=DEFAULT_REQUEST_TIMEOUT, ge=5, le=300, description="Request timeout in seconds"
+        default=DEFAULT_REQUEST_TIMEOUT,
+        ge=5,
+        le=300,
+        description="Request timeout in seconds",
     )
     sample_retries: int = Field(
         default=DEFAULT_SAMPLE_RETRIES,
@@ -354,6 +365,29 @@ class DataSetGenerator:
         """Get the conversation schema for the current config."""
         return get_conversation_schema(self.config.conversation_type)
 
+    def _emit_retry(
+        self,
+        sample_idx: int,
+        attempt: int,
+        max_attempts: int,
+        error: Exception | str,
+    ) -> None:
+        """Emit a retry event if a progress reporter is attached.
+
+        Args:
+            sample_idx: 0-based sample index (will be converted to 1-based)
+            attempt: 0-based attempt number (will be converted to 1-based)
+            max_attempts: Total number of attempts allowed
+            error: The error that triggered the retry
+        """
+        if self.progress_reporter:
+            self.progress_reporter.emit_retry(
+                sample_idx=sample_idx + 1,
+                attempt=attempt + 1,
+                max_attempts=max_attempts,
+                error_summary=str(error)[:100],
+            )
+
     async def _generate_structured_samples_async(
         self,
         prompts: list[str],
@@ -434,13 +468,7 @@ class DataSetGenerator:
                     if is_validation and can_retry:
                         # Extract error message for feedback to the model
                         error_feedback = str(e)
-                        logger.warning(
-                            "Sample %d validation failed (attempt %d/%d): %s. Retrying with feedback...",
-                            sample_idx + 1,
-                            attempt + 1,
-                            self.config.sample_retries + 1,
-                            str(e)[:100],
-                        )
+                        self._emit_retry(sample_idx, attempt, max_attempts, e)
                         continue
                     # Non-retryable error or exhausted retries
                     return False, last_error or Exception("Sample generation failed")
@@ -456,13 +484,7 @@ class DataSetGenerator:
                                 "Agent mode requires at least one tool execution"
                             )
                             if attempt < self.config.sample_retries:
-                                logger.warning(
-                                    "Sample %d validation failed (attempt %d/%d): %s. Retrying...",
-                                    sample_idx + 1,
-                                    attempt + 1,
-                                    self.config.sample_retries + 1,
-                                    str(last_error)[:100],
-                                )
+                                self._emit_retry(sample_idx, attempt, max_attempts, last_error)
                                 continue
                             return False, last_error or Exception("Sample generation failed")
 
@@ -475,13 +497,7 @@ class DataSetGenerator:
                                     f"exceeds limit of {self.config.max_tools_per_query}"
                                 )
                                 if attempt < self.config.sample_retries:
-                                    logger.warning(
-                                        "Sample %d validation failed (attempt %d/%d): %s. Retrying...",
-                                        sample_idx + 1,
-                                        attempt + 1,
-                                        self.config.sample_retries + 1,
-                                        str(last_error)[:100],
-                                    )
+                                    self._emit_retry(sample_idx, attempt, max_attempts, last_error)
                                     continue
                                 return False, last_error or Exception("Sample generation failed")
                             # Non-strict mode: truncate to limit and keep sample
@@ -767,7 +783,11 @@ class DataSetGenerator:
             }
 
             for step in range(num_steps):
-                yield {"event": "step_start", "step": step + 1, "total_steps": num_steps}
+                yield {
+                    "event": "step_start",
+                    "step": step + 1,
+                    "total_steps": num_steps,
+                }
 
                 start_idx = step * batch_size
                 prompts, used_paths = self._generate_batch_prompts(
@@ -813,7 +833,10 @@ class DataSetGenerator:
             }
 
         except KeyboardInterrupt:
-            yield {"event": "generation_interrupted", "message": "Generation interrupted by user."}
+            yield {
+                "event": "generation_interrupted",
+                "message": "Generation interrupted by user.",
+            }
             self.print_failure_summary()
             self._save_samples_to_file(INTERRUPTED_DATASET_FILENAME)
 
@@ -823,7 +846,7 @@ class DataSetGenerator:
             self._save_samples_to_file(ERROR_DATASET_FILENAME)
             raise DataSetGeneratorError("failed") from e
 
-        yield HFDataset.from_list(self._samples) if self._samples else HFDataset.from_list([])
+        yield (HFDataset.from_list(self._samples) if self._samples else HFDataset.from_list([]))
 
     async def _process_batch_with_retries_async(
         self,
@@ -853,7 +876,12 @@ class DataSetGenerator:
                 error_str = str(e).lower()
                 if any(
                     keyword in error_str
-                    for keyword in ["api_key", "api key", "authentication", "unauthorized"]
+                    for keyword in [
+                        "api_key",
+                        "api key",
+                        "authentication",
+                        "unauthorized",
+                    ]
                 ):
                     error_msg = f"Authentication failed for provider '{self.provider}'. Please set the required API key environment variable."
                     self.failure_analysis["authentication_error"].append(error_msg)
@@ -964,7 +992,8 @@ class DataSetGenerator:
                 # Use agent prompt for single-turn tool calling
                 return (
                     AgentPromptBuilder.build_tool_context_prompt(
-                        self.tool_registry, max_tools_per_query=self.config.max_tools_per_query
+                        self.tool_registry,
+                        max_tools_per_query=self.config.max_tools_per_query,
                     )
                     or AGENT_COT_TOOLS_PROMPT
                 )
@@ -973,7 +1002,8 @@ class DataSetGenerator:
                 # Standard multi-turn agent
                 return (
                     AgentPromptBuilder.build_multi_turn_context_prompt(
-                        self.tool_registry, max_tools_per_query=self.config.max_tools_per_query
+                        self.tool_registry,
+                        max_tools_per_query=self.config.max_tools_per_query,
                     )
                     or AGENT_COT_MULTI_TURN_PROMPT
                 )
