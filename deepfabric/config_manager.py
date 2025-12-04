@@ -2,7 +2,7 @@ import yaml
 
 from pydantic import ValidationError
 
-from .config import DeepFabricConfig
+from .config import DeepFabricConfig, ToolsConfig
 from .constants import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_MODEL,
@@ -19,6 +19,23 @@ from .constants import (
 )
 from .exceptions import ConfigurationError
 from .tui import get_tui
+
+
+def _apply_tools_registry_override(config: DeepFabricConfig, tools_registry_file: str) -> None:
+    """Apply CLI tools_registry_file override to an existing config.
+
+    This mutates the config in place to set or override the tools.registry_path.
+
+    Args:
+        config: The DeepFabricConfig to modify
+        tools_registry_file: Path to the tools registry file (JSON or YAML)
+    """
+    if config.generation.tools is None:
+        # Create a new ToolsConfig with the registry path
+        config.generation.tools = ToolsConfig(registry_path=tools_registry_file)
+    else:
+        # Override the registry_path in existing tools config
+        config.generation.tools.registry_path = tools_registry_file
 
 
 def load_config(  # noqa: PLR0913
@@ -42,6 +59,8 @@ def load_config(  # noqa: PLR0913
     conversation_type: str | None = None,
     reasoning_style: str | None = None,
     agent_mode: str | None = None,
+    # Tool configuration
+    tools_registry_file: str | None = None,
 ) -> DeepFabricConfig:
     """
     Load configuration from YAML file or create minimal config from CLI arguments.
@@ -66,6 +85,7 @@ def load_config(  # noqa: PLR0913
         conversation_type: Base conversation type (basic, chain_of_thought)
         reasoning_style: Reasoning style for chain_of_thought (freetext, agent)
         agent_mode: Agent mode (single_turn, multi_turn)
+        tools_registry_file: Path to custom tool definitions file (JSON or YAML)
 
     Returns:
         DeepFabricConfig object
@@ -75,13 +95,18 @@ def load_config(  # noqa: PLR0913
     """
     if config_file:
         try:
-            return DeepFabricConfig.from_yaml(config_file)
+            config = DeepFabricConfig.from_yaml(config_file)
+            # Apply CLI override for tools_registry_file
+            if tools_registry_file:
+                _apply_tools_registry_override(config, tools_registry_file)
         except FileNotFoundError as e:
             raise ConfigurationError(f"Config file not found: {config_file}") from e
         except yaml.YAMLError as e:
             raise ConfigurationError(f"Invalid YAML in config file: {str(e)}") from e
         except Exception as e:
             raise ConfigurationError(f"Error loading config file: {str(e)}") from e
+        else:
+            return config
 
     # No config file provided - create minimal configuration from CLI args
     if not topic_prompt:
@@ -132,7 +157,8 @@ def load_config(  # noqa: PLR0913
                 "model": model or DEFAULT_MODEL,
                 "temperature": temperature or ENGINE_DEFAULT_TEMPERATURE,
             },
-        },
+        }
+        | ({"tools": {"registry_path": tools_registry_file}} if tools_registry_file else {}),
         "output": {
             "system_prompt": output_system_prompt,
             "include_system_message": include_system_message
