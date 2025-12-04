@@ -16,6 +16,7 @@ from .exceptions import (
 from .generator import DataSetGenerator, DataSetGeneratorConfig
 from .graph import Graph, GraphConfig
 from .hf_hub import HFUploader
+from .training import DeepFabricCallback, MetricsSender
 from .tree import Tree, TreeConfig
 
 __version__ = "0.1.0"
@@ -30,6 +31,9 @@ __all__ = [
     "DeepFabricConfig",
     "HFUploader",
     "cli",
+    # Training metrics logging
+    "DeepFabricCallback",
+    "MetricsSender",
     # Exceptions
     "DeepFabricError",
     "ConfigurationError",
