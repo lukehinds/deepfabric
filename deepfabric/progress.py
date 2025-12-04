@@ -62,6 +62,25 @@ class StreamObserver(Protocol):
         """
         ...
 
+    def on_retry(
+        self,
+        sample_idx: int,
+        attempt: int,
+        max_attempts: int,
+        error_summary: str,
+        metadata: dict[str, Any],
+    ) -> None:
+        """Called when a sample generation will be retried due to validation failure.
+
+        Args:
+            sample_idx: 1-based sample index
+            attempt: Current attempt number (1-based)
+            max_attempts: Total number of attempts allowed
+            error_summary: Brief description of the validation error
+            metadata: Additional context
+        """
+        ...
+
 
 class ProgressReporter:
     """Central progress reporter that notifies observers of generation events.
@@ -140,6 +159,30 @@ class ProgressReporter:
         for observer in self._observers:
             if hasattr(observer, "on_error"):
                 observer.on_error(error, metadata)
+
+    def emit_retry(
+        self,
+        sample_idx: int,
+        attempt: int,
+        max_attempts: int,
+        error_summary: str,
+        **metadata,
+    ) -> None:
+        """Emit a retry event to all observers.
+
+        This is used to track validation failures that will be retried,
+        allowing the TUI to display them gracefully without cluttering output.
+
+        Args:
+            sample_idx: 1-based sample index
+            attempt: Current attempt number (1-based)
+            max_attempts: Total number of attempts allowed
+            error_summary: Brief description of the error
+            **metadata: Additional context as keyword arguments
+        """
+        for observer in self._observers:
+            if hasattr(observer, "on_retry"):
+                observer.on_retry(sample_idx, attempt, max_attempts, error_summary, metadata)
 
 
 # Convenience context manager for tracking steps

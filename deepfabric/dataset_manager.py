@@ -78,7 +78,8 @@ async def handle_dataset_events_async(
                     if settings.mode == "rich":
                         # Initialize status tracking
                         tui.init_status(
-                            total_steps=event["num_steps"], total_samples=event["total_samples"]
+                            total_steps=event["num_steps"],
+                            total_samples=event["total_samples"],
                         )
 
                         # Build layout with footer card
@@ -115,7 +116,12 @@ async def handle_dataset_events_async(
                         )
 
                         # Use alternate screen to avoid scroll trails; leave a clean terminal
-                        live = Live(layout, console=tui.console, refresh_per_second=15, screen=True)
+                        live = Live(
+                            layout,
+                            console=tui.console,
+                            refresh_per_second=15,
+                            screen=True,
+                        )
                         tui.live_display = live  # Give TUI reference to update it
                         tui.live_layout = layout  # Allow TUI to update panes
                         live.start()
@@ -136,11 +142,29 @@ async def handle_dataset_events_async(
                             tui.status_step_complete(
                                 samples_generated, int(event.get("failed_in_step", 0))
                             )
-                    elif isinstance(simple_task, dict) and samples_generated > 0:
+                    elif isinstance(simple_task, dict):
                         simple_task["count"] += samples_generated
-                        tui.info(
-                            f"Step {event.get('step')}: +{samples_generated} (total {simple_task['count']}/{simple_task['total']})"
-                        )
+                        failed_in_step = int(event.get("failed_in_step", 0))
+                        retry_summary = tui.get_step_retry_summary()
+
+                        # Build step summary message
+                        step_msg = f"Step {event.get('step')}: +{samples_generated}"
+                        if failed_in_step > 0:
+                            step_msg += f" (-{failed_in_step} failed)"
+                        step_msg += f" (total {simple_task['count']}/{simple_task['total']})"
+
+                        # Display with appropriate style based on failures
+                        if failed_in_step > 0:
+                            tui.warning(step_msg)
+                        else:
+                            tui.info(step_msg)
+
+                        # Show retry summary if there were retries
+                        if retry_summary:
+                            tui.console.print(f"   [dim]{retry_summary}[/dim]")
+
+                        # Clear retries for next step
+                        tui.clear_step_retries()
                 elif event["event"] == "step_start":
                     # Keep status panel in sync
                     step = int(event.get("step", 0))
