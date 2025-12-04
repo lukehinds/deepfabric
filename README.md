@@ -270,6 +270,297 @@ print(f"Parameter Accuracy: {results.metrics.parameter_accuracy:.2%}")
 print(f"Overall Score: {results.metrics.overall_score:.2%}")
 ```
 
+## Evaluation
+
+DeepFabric provides a comprehensive evaluation system to measure how well your fine-tuned models perform on tool-calling tasks.
+
+### Basic Evaluation
+
+```python
+from datasets import load_dataset
+from deepfabric.evaluation import Evaluator, EvaluatorConfig, InferenceConfig
+
+# Load your evaluation dataset
+dataset = load_dataset("your-username/your-dataset", split="test")
+
+# Configure the evaluator
+config = EvaluatorConfig(
+    inference_config=InferenceConfig(
+        model_path="./output/checkpoint-final",  # Local path or HF Hub ID
+        backend="transformers",                   # "transformers" or "ollama"
+        temperature=0.1,                          # Low temp for deterministic outputs
+        max_tokens=2048,
+    ),
+    max_samples=100,           # Limit samples for quick testing (None for all)
+    save_predictions=True,     # Save individual predictions
+    output_path="eval_results.json",
+)
+
+# Run evaluation
+evaluator = Evaluator(config)
+results = evaluator.evaluate(dataset=dataset)
+
+# Print summary
+evaluator.print_summary(results.metrics)
+
+# Cleanup GPU memory
+evaluator.cleanup()
+```
+
+### Evaluation with LoRA Adapters
+
+```python
+from deepfabric.evaluation import Evaluator, EvaluatorConfig, InferenceConfig
+
+config = EvaluatorConfig(
+    inference_config=InferenceConfig(
+        model_path="Qwen/Qwen2.5-7B-Instruct",    # Base model
+        adapter_path="./output/lora-adapter",     # LoRA adapter path
+        backend="transformers",
+        use_unsloth=True,      # Use Unsloth for adapters trained with Unsloth
+        load_in_4bit=True,     # 4-bit quantization
+        max_seq_length=2048,
+    ),
+)
+
+evaluator = Evaluator(config)
+results = evaluator.evaluate(dataset=eval_dataset)
+```
+
+### Understanding Evaluation Metrics
+
+The evaluator computes several metrics for tool-calling tasks:
+
+```python
+results = evaluator.evaluate(dataset=eval_dataset)
+metrics = results.metrics
+
+# Core metrics
+print(f"Samples Evaluated: {metrics.samples_evaluated}")
+print(f"Samples Processed: {metrics.samples_processed}")
+print(f"Processing Errors: {metrics.processing_errors}")
+
+# Tool-calling metrics
+print(f"Tool Selection Accuracy: {metrics.tool_selection_accuracy:.2%}")
+print(f"Parameter Accuracy: {metrics.parameter_accuracy:.2%}")
+print(f"Execution Success Rate: {metrics.execution_success_rate:.2%}")
+print(f"Response Quality: {metrics.response_quality:.2%}")
+print(f"Overall Score: {metrics.overall_score:.2%}")
+```
+
+| Metric | Description |
+|--------|-------------|
+| `tool_selection_accuracy` | How often the model selects the correct tool |
+| `parameter_accuracy` | How often tool parameters match expected values |
+| `execution_success_rate` | Rate of valid, executable tool calls |
+| `response_quality` | Quality score for non-tool responses |
+| `overall_score` | Weighted combination of all metrics |
+
+### Accessing Individual Predictions
+
+```python
+results = evaluator.evaluate(dataset=eval_dataset)
+
+# Iterate through individual sample evaluations
+for pred in results.predictions:
+    print(f"Sample {pred.sample_id}:")
+    print(f"  Query: {pred.query}")
+    print(f"  Expected Tool: {pred.expected_tool}")
+    print(f"  Predicted Tool: {pred.predicted_tool}")
+    print(f"  Tool Correct: {pred.tool_selection_correct}")
+    print(f"  Params Correct: {pred.parameters_correct}")
+    if pred.error:
+        print(f"  Error: {pred.error}")
+```
+
+### Evaluation from JSONL File
+
+```python
+from deepfabric.evaluation import Evaluator, EvaluatorConfig, InferenceConfig
+
+config = EvaluatorConfig(
+    dataset_path="eval_dataset.jsonl",  # Load from file instead
+    inference_config=InferenceConfig(
+        model_path="./my-model",
+        backend="transformers",
+    ),
+    output_path="results.json",
+)
+
+evaluator = Evaluator(config)
+results = evaluator.evaluate()  # No dataset argument needed
+```
+
+### Using Ollama Backend
+
+```python
+from deepfabric.evaluation import Evaluator, EvaluatorConfig, InferenceConfig
+
+config = EvaluatorConfig(
+    inference_config=InferenceConfig(
+        model_path="llama3.2:latest",  # Ollama model name
+        backend="ollama",
+        temperature=0.1,
+    ),
+)
+
+evaluator = Evaluator(config)
+results = evaluator.evaluate(dataset=eval_dataset)
+```
+
+## Training Metrics
+
+DeepFabric provides a training callback that automatically logs metrics to the DeepFabric cloud during model training. This enables real-time monitoring and tracking of training runs.
+
+### Basic Usage with HuggingFace Trainer
+
+```python
+from transformers import Trainer, TrainingArguments
+from deepfabric import DeepFabricCallback
+
+# Set up training arguments
+training_args = TrainingArguments(
+    output_dir="./output",
+    num_train_epochs=3,
+    per_device_train_batch_size=4,
+    logging_steps=10,
+)
+
+# Create trainer
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
+)
+
+# Add DeepFabric callback for metrics logging
+trainer.add_callback(DeepFabricCallback(trainer))
+
+# Train - metrics are automatically logged
+trainer.train()
+```
+
+### Usage with TRL SFTTrainer
+
+```python
+from trl import SFTTrainer, SFTConfig
+from deepfabric import DeepFabricCallback
+
+trainer = SFTTrainer(
+    model=model,
+    tokenizer=tokenizer,
+    train_dataset=train_dataset,
+    args=SFTConfig(
+        output_dir="./output",
+        num_train_epochs=3,
+        logging_steps=10,
+    ),
+)
+
+# Add callback - works with any Trainer-compatible class
+trainer.add_callback(DeepFabricCallback(trainer))
+trainer.train()
+```
+
+### Configuration Options
+
+```python
+from deepfabric import DeepFabricCallback
+
+callback = DeepFabricCallback(
+    trainer=trainer,                              # Optional: Trainer instance
+    api_key="your-api-key",                       # Or set DEEPFABRIC_API_KEY env var
+    endpoint="https://api.deepfabric.ai",         # Custom endpoint (optional)
+    enabled=True,                                 # Disable to skip logging
+)
+```
+
+### Environment Variables
+
+```bash
+# API key for authentication
+export DEEPFABRIC_API_KEY="your-api-key"
+
+# Custom API endpoint (optional)
+export DEEPFABRIC_API_URL="https://api.deepfabric.ai"
+```
+
+### Logged Metrics
+
+The callback automatically captures and logs:
+
+| Metric Type | Examples |
+|-------------|----------|
+| Training | `loss`, `learning_rate`, `epoch`, `global_step` |
+| Throughput | `train_runtime`, `train_samples_per_second` |
+| Evaluation | `eval_loss`, `eval_accuracy` (when evaluation is run) |
+| TRL-specific | `rewards/chosen`, `rewards/rejected`, `kl_divergence` |
+| Checkpoints | Checkpoint save events with step numbers |
+
+### Callback Events
+
+```python
+# The callback hooks into these Trainer events:
+# - on_train_begin: Logs run start with training configuration
+# - on_log: Logs training metrics (loss, lr, etc.)
+# - on_evaluate: Logs evaluation metrics
+# - on_save: Logs checkpoint events
+# - on_train_end: Logs run completion and flushes pending metrics
+```
+
+### Non-Blocking Design
+
+The callback uses a background thread to send metrics asynchronously, ensuring training is never blocked by network operations:
+
+```python
+from deepfabric.training import MetricsSender
+
+# Direct access to sender for advanced use cases
+sender = MetricsSender(
+    endpoint="https://api.deepfabric.ai",
+    api_key="your-key",
+    batch_size=10,        # Batch metrics before sending
+    flush_interval=5.0,   # Auto-flush every 5 seconds
+    max_queue_size=1000,  # Queue capacity
+)
+
+# Manually send metrics
+sender.send_metrics({"custom_metric": 0.95, "step": 100})
+
+# Flush pending metrics (blocking)
+sender.flush(timeout=30.0)
+
+# Check sender statistics
+print(sender.stats)
+# {'metrics_sent': 150, 'metrics_dropped': 0, 'send_errors': 0, 'queue_size': 0}
+```
+
+### Interactive API Key Prompt
+
+When running in an interactive environment (Jupyter notebook, terminal) without an API key configured, the callback will prompt for authentication:
+
+```python
+from deepfabric import DeepFabricCallback
+
+# If DEEPFABRIC_API_KEY is not set, prompts for login
+callback = DeepFabricCallback(trainer)
+# > DeepFabric API key not found. Log in to enable cloud metrics.
+# > Visit: https://app.deepfabric.ai/signup
+```
+
+### Disabling Metrics Logging
+
+```python
+# Disable via constructor
+callback = DeepFabricCallback(trainer, enabled=False)
+
+# Or set API key to None
+callback = DeepFabricCallback(trainer, api_key=None)
+
+# Or don't set DEEPFABRIC_API_KEY environment variable
+```
+
 ## Providers
 
 | Provider | Local/Cloud | Best For |

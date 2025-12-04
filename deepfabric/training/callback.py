@@ -153,15 +153,16 @@ class DeepFabricCallback:
         if not filtered_logs:
             return
 
-        metrics = {
+        payload = {
             "run_id": self.run_id,
             "global_step": state.global_step,
             "epoch": state.epoch,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "type": "log",
             "metrics": filtered_logs,
         }
 
-        self.sender.send_metrics(metrics)
+        self.sender.send_metrics(payload)
 
     def on_evaluate(
         self,
@@ -178,15 +179,16 @@ class DeepFabricCallback:
         if not self.enabled or metrics is None:
             return
 
-        eval_metrics = {
+        payload = {
             "run_id": self.run_id,
             "global_step": state.global_step,
             "epoch": state.epoch,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "eval_metrics": metrics,
+            "type": "eval",
+            "metrics": metrics,
         }
 
-        self.sender.send_metrics(eval_metrics)
+        self.sender.send_metrics(payload)
 
     def on_train_end(
         self,
@@ -238,7 +240,8 @@ class DeepFabricCallback:
                 "run_id": self.run_id,
                 "global_step": state.global_step,
                 "epoch": state.epoch,
-                "event": "checkpoint_saved",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "type": "checkpoint",
                 "metrics": {"checkpoint_step": state.global_step},
             }
         )

@@ -7,11 +7,6 @@ import os
 import sys
 import time
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
-
 logger = logging.getLogger(__name__)
 
 # Cache for API key to avoid repeated prompts
@@ -22,7 +17,7 @@ _api_key_checked: bool = False
 def _is_notebook() -> bool:
     """Check if running in Jupyter/Colab notebook."""
     try:
-        from IPython import get_ipython  # noqa: PLC0415
+        from IPython import get_ipython  # type: ignore # noqa: PLC0415
 
         shell = get_ipython()
         if shell is None:
@@ -38,7 +33,7 @@ def _is_notebook() -> bool:
 def _is_colab() -> bool:
     """Check if running in Google Colab specifically."""
     try:
-        import google.colab  # noqa: F401, PLC0415
+        import google.colab  # type: ignore # noqa: F401, PLC0415
 
         return True
     except ImportError:
@@ -60,9 +55,9 @@ def _show_notebook_prompt() -> str | None:
         API key string or None if skipped
     """
     try:
-        import ipywidgets as widgets  # noqa: PLC0415
+        import ipywidgets as widgets  # type: ignore # noqa: PLC0415
 
-        from IPython.display import HTML, display  # noqa: PLC0415
+        from IPython.display import HTML, display  # type: ignore # noqa: PLC0415
     except ImportError:
         logger.debug("ipywidgets not available, falling back to terminal prompt")
         return None
@@ -173,7 +168,7 @@ def _show_colab_prompt() -> str | None:
     try:
         from getpass import getpass  # noqa: PLC0415
 
-        from IPython.display import HTML, display  # noqa: PLC0415
+        from IPython.display import HTML, display  # type: ignore # noqa: PLC0415
 
         display(
             HTML(

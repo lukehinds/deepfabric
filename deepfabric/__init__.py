@@ -1,3 +1,14 @@
+from .auth import (
+    clear_tokens,
+    device_flow_login,
+    get_auth_token,
+    get_config,
+    get_stored_token,
+    is_authenticated,
+    prompt_cloud_signup,
+    save_config,
+    store_tokens,
+)
 from .cli import cli
 from .config import DeepFabricConfig
 from .exceptions import (
@@ -34,6 +45,16 @@ __all__ = [
     # Training metrics logging
     "DeepFabricCallback",
     "MetricsSender",
+    # Authentication
+    "get_config",
+    "save_config",
+    "get_stored_token",
+    "store_tokens",
+    "clear_tokens",
+    "is_authenticated",
+    "get_auth_token",
+    "prompt_cloud_signup",
+    "device_flow_login",
     # Exceptions
     "DeepFabricError",
     "ConfigurationError",

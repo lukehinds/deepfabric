@@ -10,6 +10,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic import ValidationError as PydanticValidationError
 
+from .auth import auth as auth_group
 from .config import DeepFabricConfig
 from .config_manager import apply_cli_overrides, get_final_parameters, load_config
 from .dataset_manager import create_dataset, save_dataset
@@ -45,8 +46,19 @@ def handle_error(ctx: click.Context, error: Exception) -> NoReturn:
 
 @click.group()
 @click.version_option()
-def cli():
+@click.option(
+    "--debug",
+    is_flag=True,
+    envvar="DEEPFABRIC_DEBUG",
+    help="Enable debug mode for detailed output",
+)
+@click.pass_context
+def cli(ctx: click.Context, debug: bool):
     """DeepFabric CLI - Generate synthetic training data for language models."""
+    # Store debug flag in context for subcommands to access
+    ctx.ensure_object(dict)
+    ctx.obj["debug"] = debug
+
     # Check for updates on CLI startup (silently fail if any issues occur)
     with contextlib.suppress(Exception):
         check_for_updates()
@@ -979,13 +991,20 @@ def evaluate(
 
         # Create evaluator configuration
         evaluator_config = EvaluatorConfig(
-            model_path=model_path,
             dataset_path=dataset_path,
             output_path=output,
             inference_config=inference_config,
             batch_size=batch_size,
             max_samples=max_samples,
             save_predictions=not no_save_predictions,
+            metric_weights={
+                "accuracy": 1.0,
+                "exact_match": 1.0,
+                "f1_score": 0.5,
+            },
+            evaluators=["tool_calling"],
+            reporters=["console", "json"] if output else ["console"],
+            cloud_api_key=os.getenv("OPENAI_API_KEY"),
         )
 
         # Display configuration
@@ -1073,6 +1092,10 @@ def evaluate(
             },
         )
         handle_error(click.get_current_context(), e)
+
+
+# Register the auth command group
+cli.add_command(auth_group)
 
 
 if __name__ == "__main__":

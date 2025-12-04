@@ -36,6 +36,10 @@ class EvaluatorConfig(BaseModel):
         default=None,
         description="Path to save evaluation results",
     )
+    model_path: str | None = Field(
+        default=None,
+        description="Path to model to evaluate (overrides inference_config.model_path)",
+    )
     inference_config: InferenceConfig = Field(
         description="Inference backend configuration (includes model_path)",
     )

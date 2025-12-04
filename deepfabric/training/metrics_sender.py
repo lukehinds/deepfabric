@@ -189,7 +189,12 @@ class MetricsSender:
                     batch = []
                     last_flush = time.monotonic()
 
-        # Flush remaining items on shutdown
+        # On shutdown, drain the queue and flush everything
+        while not self._queue.empty():
+            try:
+                batch.append(self._queue.get_nowait())
+            except queue.Empty:
+                break
         if batch:
             self._flush_batch(batch)
 
@@ -260,7 +265,7 @@ class MetricsSender:
             logger.debug("API connection error")
             return False
 
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             self._send_errors += 1
             logger.debug(f"API request error: {e}")
             return False
