@@ -54,6 +54,11 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["deepfabric"]
 
+# Include .pth file for automatic callback injection on Python startup
+# This file is installed to site-packages and runs on every Python start
+[tool.hatch.build.targets.wheel.shared-data]
+"deepfabric/_auto_inject.pth" = "deepfabric_auto_inject.pth"
+
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = "-ra -q --strict-markers"
