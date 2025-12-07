@@ -136,10 +136,11 @@ def test_generate_help(cli_runner):
     assert "--include-system-message" in result.output
 
 
+@patch("deepfabric.cli.save_dataset")
 @patch("deepfabric.topic_manager.create_topic_generator")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_basic(
-    mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
+    mock_data_engine, mock_create_topic_generator, mock_save_dataset, cli_runner, sample_config_file
 ):
     """Test basic start command execution."""
     # Setup mocks
@@ -180,13 +181,14 @@ def test_generate_command_basic(
     mock_tree_instance.save.assert_called_once()
     mock_data_engine.assert_called_once()
     mock_engine_instance.create_data_with_events_async.assert_called_once()
-    mock_dataset.to_json.assert_called_once()
+    mock_save_dataset.assert_called_once()
 
 
+@patch("deepfabric.cli.save_dataset")
 @patch("deepfabric.topic_manager.create_topic_generator")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_with_sys_msg_override(
-    mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
+    mock_data_engine, mock_create_topic_generator, mock_save_dataset, cli_runner, sample_config_file
 ):
     """Test start command with include_system_message override."""
     # Setup mocks
@@ -227,10 +229,11 @@ def test_generate_command_with_sys_msg_override(
     assert kwargs["sys_msg"] is False
 
 
+@patch("deepfabric.cli.save_dataset")
 @patch("deepfabric.topic_manager.create_topic_generator")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_default_sys_msg(
-    mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file_no_sys_msg
+    mock_data_engine, mock_create_topic_generator, mock_save_dataset, cli_runner, sample_config_file_no_sys_msg
 ):
     """Test start command with default include_system_message behavior."""
     # Setup mocks
@@ -264,10 +267,11 @@ def test_generate_command_default_sys_msg(
     assert "sys_msg" not in kwargs or kwargs["sys_msg"] is None
 
 
+@patch("deepfabric.cli.save_dataset")
 @patch("deepfabric.topic_manager.create_topic_generator")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_with_overrides(
-    mock_data_engine, mock_create_topic_generator, cli_runner, sample_config_file
+    mock_data_engine, mock_create_topic_generator, mock_save_dataset, cli_runner, sample_config_file
 ):
     """Test start command with parameter overrides."""
     # Setup mocks
@@ -325,7 +329,7 @@ def test_generate_command_with_overrides(
     mock_create_topic_generator.assert_called_once()
 
     mock_tree_instance.save.assert_called_once_with("override_tree.jsonl")
-    mock_dataset.to_json.assert_called_once()
+    mock_save_dataset.assert_called_once()
 
     args, kwargs = mock_engine_instance.create_data_with_events_async.call_args
     assert kwargs["num_steps"] == 10  # noqa: PLR2004
@@ -334,6 +338,7 @@ def test_generate_command_with_overrides(
     assert kwargs["sys_msg"] is False
 
 
+@patch("deepfabric.cli.save_dataset")
 @patch("deepfabric.topic_manager.read_topic_tree_from_jsonl")
 @patch("deepfabric.topic_manager.Tree")
 @patch("deepfabric.cli.DataSetGenerator")
@@ -341,6 +346,7 @@ def test_generate_command_with_jsonl(
     mock_data_engine,
     mock_topic_tree,
     mock_read_topic_tree_from_jsonl,
+    mock_save_dataset,
     cli_runner,
     sample_config_file,
 ):
