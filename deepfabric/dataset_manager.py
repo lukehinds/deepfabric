@@ -433,6 +433,27 @@ def _upload_to_kaggle(dataset_path: str, kaggle_config: dict, tui) -> None:
     )
 
 
+def _strip_nulls(obj):
+    """Recursively strip null values from nested dicts and lists.
+
+    HuggingFace Dataset's Arrow schema injects null for missing fields across rows.
+    This function removes those nulls for clean JSON output.
+    """
+    if isinstance(obj, dict):
+        return {k: _strip_nulls(v) for k, v in obj.items() if v is not None}
+    if isinstance(obj, list):
+        return [_strip_nulls(item) for item in obj]
+    return obj
+
+
+def _save_jsonl_without_nulls(dataset: HFDataset, save_path: str) -> None:
+    """Save HF Dataset to JSONL, stripping null values injected by Arrow schema."""
+    with open(save_path, "w") as f:
+        for row in dataset:
+            cleaned = _strip_nulls(dict(row))
+            f.write(json.dumps(cleaned, separators=(",", ":")) + "\n")
+
+
 def _save_failed_samples(save_path: str, failed_samples: list, tui) -> None:
     """Save failed samples to a timestamped file alongside the main dataset.
 
@@ -489,8 +510,10 @@ def save_dataset(
     """
     tui = get_tui()
     try:
-        # Save the dataset as JSONL using HuggingFace's native method
-        dataset.to_json(save_path, orient="records", lines=True)
+        # Save the dataset as JSONL, stripping null values injected by HF Dataset
+        # HuggingFace Dataset's Arrow schema adds null for missing fields across rows,
+        # but we want clean output without null values for optional fields
+        _save_jsonl_without_nulls(dataset, save_path)
         tui.success(f"Dataset saved to: {save_path}")
 
         # Save failed samples if engine has any
