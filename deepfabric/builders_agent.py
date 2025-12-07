@@ -14,9 +14,11 @@ from .schemas import (
     Conversation,
     ReasoningStep,
     ReasoningTrace,
+    ToolCall,
     ToolContext,
     ToolDefinition,
     ToolExecution,
+    generate_tool_call_id,
 )
 from .utils import is_validation_error
 
@@ -515,17 +517,11 @@ Remember: You have access to the tools listed above and have used them in this c
         messages.append(user_message)
 
         # Build tool_calls and tool_responses in a single pass
-        tool_calls_openai = []
-        tool_responses = []
-        for idx, result in enumerate(tool_results):
-            tool_call_id = f"call_{idx}"
-            tool_calls_openai.append(
-                {
-                    "id": tool_call_id,
-                    "type": "function",
-                    "function": {"name": result.function_name, "arguments": result.arguments},
-                }
-            )
+        tool_calls_list: list[ToolCall] = []
+        tool_responses: list[ChatMessage] = []
+        for result in tool_results:
+            tool_call_id = generate_tool_call_id()
+            tool_calls_list.append(result.to_tool_call(tool_call_id))
             tool_responses.append(
                 ChatMessage(role="tool", content=result.result, tool_call_id=tool_call_id)
             )
@@ -537,7 +533,7 @@ Remember: You have access to the tools listed above and have used them in this c
             ChatMessage(
                 role="assistant",
                 content="",
-                tool_calls=tool_calls_openai if tool_calls_openai else None,
+                tool_calls=tool_calls_list if tool_calls_list else None,
             )
         )
 
@@ -971,32 +967,19 @@ Is the user's original task/goal from the scenario fully completed?
         all_reasoning: list[ReasoningStep] = []
         all_executions: list[ToolExecution] = []
 
-        # Track tool_call_id counter across all turns
-        tool_call_counter = 0
-
         # Add messages from each turn in correct order:
         # user -> assistant (thinking/tool_calls) -> tool (responses) -> assistant (final answer)
         for turn in turns:
             # User message
             messages.append(turn.user_message)
 
-            # Build tool_calls for this turn in OpenAI format
-            tool_calls_openai = []
-            turn_tool_call_ids = []
+            # Build tool_calls for this turn
+            turn_tool_calls: list[ToolCall] = []
+            turn_tool_call_ids: list[str] = []
             for tool_exec in turn.tool_calls:
-                tool_call_id = f"call_{tool_call_counter}"
-                tool_call_counter += 1
+                tool_call_id = generate_tool_call_id()
                 turn_tool_call_ids.append(tool_call_id)
-                tool_calls_openai.append(
-                    {
-                        "id": tool_call_id,
-                        "type": "function",
-                        "function": {
-                            "name": tool_exec.function_name,
-                            "arguments": tool_exec.arguments,
-                        },
-                    }
-                )
+                turn_tool_calls.append(tool_exec.to_tool_call(tool_call_id))
 
             # First assistant message with tool_calls
             # This represents the assistant's "thinking" phase where it plans tool usage
@@ -1004,7 +987,7 @@ Is the user's original task/goal from the scenario fully completed?
                 ChatMessage(
                     role="assistant",
                     content="",
-                    tool_calls=tool_calls_openai if tool_calls_openai else None,
+                    tool_calls=turn_tool_calls if turn_tool_calls else None,
                 )
             )
 
