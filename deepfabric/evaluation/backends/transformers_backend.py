@@ -155,13 +155,13 @@ class TransformersBackend(InferenceBackend):
             # Check if model is Mistral architecture to apply regex fix
             tokenizer_kwargs: dict[str, Any] = {}
             try:
-                model_config = AutoConfig.from_pretrained(config.model_path)
+                model_config = AutoConfig.from_pretrained(config.model_path)  #  nosec
                 architectures = getattr(model_config, "architectures", []) or []
                 if any(arch in MISTRAL_ARCHITECTURES for arch in architectures):
                     tokenizer_kwargs["fix_mistral_regex"] = True
                     logger.debug("Detected Mistral architecture, enabling fix_mistral_regex")
             except Exception as e:
-                logger.debug("Could not detect model architecture: %s", e)
+                logger.warning("Could not detect model architecture: %s", e)
 
             self.tokenizer = AutoTokenizer.from_pretrained(  # nosec
                 config.model_path, **tokenizer_kwargs
