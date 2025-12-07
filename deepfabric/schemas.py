@@ -34,8 +34,17 @@ def generate_tool_call_id() -> str:
 MetadataDict = dict[str, Any] | None
 
 
+class ExcludeNoneBaseModel(BaseModel):
+    """Base model that excludes None values during serialization."""
+
+    def model_dump(self, **kwargs):
+        """Override to always exclude None values for clean serialization."""
+        kwargs.setdefault("exclude_none", True)
+        return super().model_dump(**kwargs)
+
+
 # Basic message schema
-class ChatMessage(BaseModel):
+class ChatMessage(ExcludeNoneBaseModel):
     """A single message in a conversation."""
 
     model_config = {"extra": "forbid"}
@@ -61,11 +70,6 @@ class ChatMessage(BaseModel):
         if v is not None and not TOOL_CALL_ID_PATTERN.match(v):
             raise ValueError(f"tool_call_id must be exactly 9 alphanumeric characters, got: '{v}'")
         return v
-
-    def model_dump(self, **kwargs):
-        """Override to always exclude None values for clean serialization."""
-        kwargs.setdefault("exclude_none", True)
-        return super().model_dump(**kwargs)
 
 
 class ChatTranscript(BaseModel):
@@ -350,7 +354,7 @@ class FunctionCall(BaseModel):
     arguments: dict[str, Any] = Field(description="Arguments to pass to the function")
 
 
-class ToolCallFunction(BaseModel):
+class ToolCallFunction(ExcludeNoneBaseModel):
     """Function details within a tool call (DeepFabric Format)."""
 
     name: str = Field(min_length=1, description="The name of the function to call")
@@ -365,13 +369,8 @@ class ToolCallFunction(BaseModel):
     class Config:
         extra = "forbid"
 
-    def model_dump(self, **kwargs):
-        """Override to always exclude None values for clean serialization."""
-        kwargs.setdefault("exclude_none", True)
-        return super().model_dump(**kwargs)
 
-
-class ToolCall(BaseModel):
+class ToolCall(ExcludeNoneBaseModel):
     """A tool call in DeepFabric Format.
 
     Implements the DeepFabric Format specification:
@@ -400,11 +399,6 @@ class ToolCall(BaseModel):
 
     class Config:
         extra = "forbid"
-
-    def model_dump(self, **kwargs):
-        """Override to always exclude None values for clean serialization."""
-        kwargs.setdefault("exclude_none", True)
-        return super().model_dump(**kwargs)
 
 
 # Resolve forward reference for ChatMessage.tool_calls
@@ -555,7 +549,7 @@ class AgentContext(BaseModel):
         extra = "forbid"
 
 
-class Conversation(BaseModel):
+class Conversation(ExcludeNoneBaseModel):
     """
     Unified conversation schema with optional capability fields.
 
@@ -630,11 +624,6 @@ class Conversation(BaseModel):
     class Config:
         extra = "forbid"
         json_schema_extra = {"additionalProperties": False}
-
-    def model_dump(self, **kwargs):
-        """Override to always exclude None values for clean serialization."""
-        kwargs.setdefault("exclude_none", True)
-        return super().model_dump(**kwargs)
 
 
 class FormattedSample(BaseModel):
