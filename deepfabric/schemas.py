@@ -2,6 +2,8 @@ import ast
 import json
 import logging
 import re
+import secrets
+import string
 
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Literal
@@ -9,6 +11,20 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
+
+# Tool Call ID constants for DeepFabric Format
+TOOL_CALL_ID_CHARS = string.ascii_letters + string.digits
+TOOL_CALL_ID_LENGTH = 9
+TOOL_CALL_ID_PATTERN = re.compile(r"^[a-zA-Z0-9]{9}$")
+
+
+def generate_tool_call_id() -> str:
+    """Generate a 9-character alphanumeric tool call ID.
+
+    Returns:
+        A string of exactly 9 alphanumeric characters (A-Z, a-z, 0-9).
+    """
+    return "".join(secrets.choice(TOOL_CALL_ID_CHARS) for _ in range(TOOL_CALL_ID_LENGTH))
 
 
 # Type alias for metadata/structured_data fields
@@ -18,9 +34,20 @@ logger = logging.getLogger(__name__)
 MetadataDict = dict[str, Any] | None
 
 
+class ExcludeNoneBaseModel(BaseModel):
+    """Base model that excludes None values during serialization."""
+
+    def model_dump(self, **kwargs):
+        """Override to always exclude None values for clean serialization."""
+        kwargs.setdefault("exclude_none", True)
+        return super().model_dump(**kwargs)
+
+
 # Basic message schema
-class ChatMessage(BaseModel):
+class ChatMessage(ExcludeNoneBaseModel):
     """A single message in a conversation."""
+
+    model_config = {"extra": "forbid"}
 
     role: Literal["system", "user", "assistant", "tool"] = Field(
         description="The role of the message sender"
@@ -28,12 +55,21 @@ class ChatMessage(BaseModel):
     content: str | None = Field(
         default=None, description="The content of the message (optional when tool_calls is present)"
     )
-    tool_calls: list[dict[str, Any]] | None = Field(
-        default=None, description="Tool calls made by the assistant (OpenAI format)"
+    tool_calls: list["ToolCall"] | None = Field(
+        default=None, description="Tool calls made by the assistant (DeepFabric format)"
     )
     tool_call_id: str | None = Field(
-        default=None, description="ID linking tool result to the original tool call"
+        default=None,
+        description="ID linking tool result to the original tool call (9-char alphanumeric)",
     )
+
+    @field_validator("tool_call_id")
+    @classmethod
+    def validate_tool_call_id_format(cls, v: str | None) -> str | None:
+        """Validate tool_call_id matches the 9-char alphanumeric format when present."""
+        if v is not None and not TOOL_CALL_ID_PATTERN.match(v):
+            raise ValueError(f"tool_call_id must be exactly 9 alphanumeric characters, got: '{v}'")
+        return v
 
 
 class ChatTranscript(BaseModel):
@@ -288,6 +324,24 @@ class ToolExecution(BaseModel):
         """
         return json.loads(self.arguments)
 
+    def to_tool_call(self, tool_call_id: str | None = None) -> "ToolCall":
+        """Convert ToolExecution to a ToolCall for the final dataset.
+
+        Args:
+            tool_call_id: The 9-char alphanumeric ID. If None, generates one.
+
+        Returns:
+            ToolCall with native dict arguments.
+        """
+        return ToolCall(
+            id=tool_call_id or generate_tool_call_id(),
+            type="function",
+            function=ToolCallFunction(
+                name=self.function_name,
+                arguments=self.parsed_arguments,
+            ),
+        )
+
     class Config:
         extra = "forbid"
 
@@ -298,6 +352,57 @@ class FunctionCall(BaseModel):
 
     name: str = Field(description="The name of the function to call")
     arguments: dict[str, Any] = Field(description="Arguments to pass to the function")
+
+
+class ToolCallFunction(ExcludeNoneBaseModel):
+    """Function details within a tool call (DeepFabric Format)."""
+
+    name: str = Field(min_length=1, description="The name of the function to call")
+    arguments: dict[str, Any] = Field(description="Arguments as native object (not stringified)")
+
+    @field_validator("arguments")
+    @classmethod
+    def strip_none_arguments(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Strip None values from arguments to keep dataset clean."""
+        return {k: val for k, val in v.items() if val is not None}
+
+    class Config:
+        extra = "forbid"
+
+
+class ToolCall(ExcludeNoneBaseModel):
+    """A tool call in DeepFabric Format.
+
+    Implements the DeepFabric Format specification:
+    - ID: Exactly 9 alphanumeric characters (A-Z, a-z, 0-9)
+    - Type: Always "function"
+    - Arguments: Native dict object (not stringified JSON)
+    """
+
+    id: str = Field(
+        min_length=9,
+        max_length=9,
+        description="Unique tool call ID - exactly 9 alphanumeric characters",
+    )
+    type: Literal["function"] = Field(default="function", description="Tool call type")
+    function: ToolCallFunction = Field(description="Function call details")
+
+    @field_validator("id")
+    @classmethod
+    def validate_tool_call_id(cls, v: str) -> str:
+        """Validate that ID is exactly 9 alphanumeric characters."""
+        if not TOOL_CALL_ID_PATTERN.match(v):
+            raise ValueError(
+                f"Tool call ID must be exactly 9 alphanumeric characters (A-Z, a-z, 0-9), got: '{v}'"
+            )
+        return v
+
+    class Config:
+        extra = "forbid"
+
+
+# Resolve forward reference for ChatMessage.tool_calls
+ChatMessage.model_rebuild()
 
 
 class ToolMessage(BaseModel):
@@ -444,7 +549,7 @@ class AgentContext(BaseModel):
         extra = "forbid"
 
 
-class Conversation(BaseModel):
+class Conversation(ExcludeNoneBaseModel):
     """
     Unified conversation schema with optional capability fields.
 
