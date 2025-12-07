@@ -6,7 +6,7 @@ import traceback
 
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from datasets import Dataset as HFDataset
 from rich.layout import Layout
@@ -433,7 +433,7 @@ def _upload_to_kaggle(dataset_path: str, kaggle_config: dict, tui) -> None:
     )
 
 
-def _strip_nulls(obj):
+def _strip_nulls(obj: Any) -> Any:
     """Recursively strip null values from nested dicts and lists.
 
     HuggingFace Dataset's Arrow schema injects null for missing fields across rows.

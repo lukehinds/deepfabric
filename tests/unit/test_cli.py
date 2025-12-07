@@ -188,7 +188,7 @@ def test_generate_command_basic(
 @patch("deepfabric.topic_manager.create_topic_generator")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_with_sys_msg_override(
-    mock_data_engine, mock_create_topic_generator, mock_save_dataset, cli_runner, sample_config_file
+    mock_data_engine, mock_create_topic_generator, mock_save_dataset, cli_runner, sample_config_file  # noqa: ARG001
 ):
     """Test start command with include_system_message override."""
     # Setup mocks
@@ -233,7 +233,11 @@ def test_generate_command_with_sys_msg_override(
 @patch("deepfabric.topic_manager.create_topic_generator")
 @patch("deepfabric.cli.DataSetGenerator")
 def test_generate_command_default_sys_msg(
-    mock_data_engine, mock_create_topic_generator, mock_save_dataset, cli_runner, sample_config_file_no_sys_msg
+    mock_data_engine,
+    mock_create_topic_generator,
+    mock_save_dataset,  # noqa: ARG001
+    cli_runner,
+    sample_config_file_no_sys_msg,
 ):
     """Test start command with default include_system_message behavior."""
     # Setup mocks
@@ -346,7 +350,7 @@ def test_generate_command_with_jsonl(
     mock_data_engine,
     mock_topic_tree,
     mock_read_topic_tree_from_jsonl,
-    mock_save_dataset,
+    mock_save_dataset,  # noqa: ARG001
     cli_runner,
     sample_config_file,
 ):

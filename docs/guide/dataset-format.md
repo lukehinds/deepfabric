@@ -2,9 +2,9 @@
 
 ## 1\. Introduction
 
-DeepFabrci has a standard JSON schema that is used for curating datasets involving Agentic Tool Use (Function Calling).
+DeepFabric has a standard JSON schema that is used for curating datasets involving Agentic Tool Use (Function Calling).
 
-It is designed to solve the "Interoperability Crisis" that exists in  dataset formats, where a lot of the industry has taken their own route without all conforming to a set standard. HuggingFace have done lots to address this with chat template tools, but its still a fragmented landscape. 
+It is designed to solve the "Interoperability Crisis" that exists in dataset formats, where a lot of the industry has taken their own route without all conforming to a set standard. HuggingFace have done lots to address this with chat template tools, but its still a fragmented landscape. 
 
 We elected to settle on a format capable of training a wide variety of model architectures (from Llama, Qwen to Mistral) and compatible with major fine-tuning platforms (OpenAI, Azure) with minimum structural changes.
 
@@ -97,48 +97,40 @@ Below is a valid DeepFabric entry demonstrating a **Parallel Heterogeneous Tool 
 
 ```json
 {
-  "messages": [
-    {
-      "role": "user",
-      "content": "Check the server status and email the logs to admin."
-    },
-    {
-      "role": "assistant",
-      "tool_calls": [
+    "messages": [
         {
-          "id": "callA1b2C",
-          "type": "function",
-          "function": {
-            "name": "check_status",
-            "arguments": {"target": "server_01"}
-          }
+            "content": "You are an AI assistant with access to various tools and functions.\nWhen given a task:\n1. Analyze what tools are needed\n2. Execute tools with proper parameters\n3. Interpret results and provide a clear answer\n",
+            "role": "system"
         },
         {
-          "id": "callX9y8Z",
-          "type": "function",
-          "function": {
-            "name": "send_email",
-            "arguments": {"recipient": "admin@deepfabric.io"}
-          }
+            "content": "I need to find all instances of 'if-else' statements in the main Python file and then update the comments within those blocks to mention the specific condition being checked.",
+            "role": "user"
+        },
+        {
+            "content": "",
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "function": {
+                        "arguments": {
+                            "file_path": "main.py"
+                        },
+                        "name": "read_file"
+                    },
+                    "id": "fPubFet0k",
+                    "type": "function"
+                }
+            ]
+        },
+        {
+            "content": "print(\"Hello, World!\")\n\ndef greet(name):\n    return f\"Hello, {name}!\"\n\nif __name__ == \"__main__\":\n    print(greet(\"Alice\"))\n",
+            "role": "tool",
+            "tool_call_id": "fPubFet0k"
+        },
+        {
+            "content": "I can help with that. However, the provided file content does not contain any 'if-else' statements. If you'd like me to proceed with searching for 'if-else' statements in a different file or if you can provide the correct file content, please let me know.",
+            "role": "assistant"
         }
-      ]
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "callA1b2C",
-      "name": "check_status",
-      "content": "{\"status\": \"online\", \"uptime\": \"99.9%\"}"
-    },
-    {
-      "role": "tool",
-      "tool_call_id": "callX9y8Z",
-      "name": "send_email",
-      "content": "{\"sent\": true, \"timestamp\": \"12:00:01\"}"
-    },
-    {
-      "role": "assistant",
-      "content": "The server is online (99.9% uptime), and I have emailed the logs to the admin."
-    }
-  ]
+    ]
 }
 ```
