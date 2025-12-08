@@ -280,13 +280,14 @@ class Evaluator:
         """
         from ..schemas import Conversation  # noqa: PLC0415
 
-        # Convert to Conversation to access tool_context
+        # Convert to Conversation to access tools field
         conversation = Conversation.model_validate(sample)
 
-        if conversation.tool_context is None or not conversation.tool_context.available_tools:
+        if not conversation.tools:
             return []
 
-        return conversation.tool_context.available_tools
+        # Convert from OpenAI format back to ToolDefinition
+        return [ToolDefinition.from_openai(tool) for tool in conversation.tools]
 
     def evaluate_sample(
         self,

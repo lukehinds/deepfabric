@@ -184,6 +184,25 @@ class ProgressReporter:
             if hasattr(observer, "on_retry"):
                 observer.on_retry(sample_idx, attempt, max_attempts, error_summary, metadata)
 
+    def emit_tool_execution(
+        self,
+        tool_name: str,
+        success: bool,
+        **metadata,
+    ) -> None:
+        """Emit a tool execution event to all observers.
+
+        Used to track Spin tool executions in the TUI events panel.
+
+        Args:
+            tool_name: Name of the tool being executed
+            success: Whether the execution succeeded
+            **metadata: Additional context (e.g., error_type, result preview)
+        """
+        for observer in self._observers:
+            if hasattr(observer, "on_tool_execution"):
+                observer.on_tool_execution(tool_name, success, metadata)
+
 
 # Convenience context manager for tracking steps
 class ProgressStep:

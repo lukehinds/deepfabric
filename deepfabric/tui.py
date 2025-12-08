@@ -1,4 +1,5 @@
 import contextlib
+import json
 import os
 import re
 
@@ -165,7 +166,12 @@ class DeepFabricTUI:
             text = Text("Waiting...", style="dim")
         else:
             # Keep events short; show newest at bottom
-            # Colorize based on prefix: X = red (error), checkmark = green (success)
+            # Colorize based on prefix:
+            #   X = red (error)
+            #   checkmark = green (success)
+            #   T+ = green (tool success)
+            #   T- = red (tool failure)
+            #   T = cyan (tool execution, fallback)
             text = Text()
             for i, event in enumerate(events[-EVENT_LOG_MAX_LINES:]):
                 if i > 0:
@@ -173,12 +179,24 @@ class DeepFabricTUI:
                 if event.startswith("X "):
                     text.append("X ", style="bold red")
                     text.append(event[2:])
+                elif event.startswith("T+ "):
+                    # Tool execution success - green
+                    text.append("TOOL: ", style="bold green")
+                    text.append(event[3:])
+                elif event.startswith("T- "):
+                    # Tool execution failure - red
+                    text.append("TOOL ", style="bold red")
+                    text.append(event[3:])
                 elif event.startswith("✓ ") or event.startswith("✔ "):
                     text.append(event[0] + " ", style="bold green")
                     text.append(event[2:])
+                elif event.startswith("T "):
+                    # Fallback for generic tool events - cyan
+                    text.append("T ", style="bold cyan")
+                    text.append(event[2:])
                 else:
                     text.append(event)
-        return Panel(text, title=title, border_style="dim", padding=(0, 1))
+        return Panel(text, title=title, border_style="dim", padding=(0, 1), expand=True)
 
     def create_footer(self, layout: Layout, title: str = "Run Status") -> Progress:
         """Attach a footer progress panel to the provided root layout.
@@ -414,6 +432,25 @@ class TreeBuildingTUI(TopicBuildingMixin, StreamObserver):
                 container = self.live_layout["main"]["right"]
             container.update(self.tui.build_stream_panel(visible))
 
+    def on_retry(
+        self,
+        sample_idx: int,
+        attempt: int,
+        max_attempts: int,
+        error_summary: str,
+        metadata: dict[str, Any],
+    ) -> None:
+        """Handle retry events from the progress reporter by logging a concise message."""
+        _ = metadata  # Unused for now
+        try:
+            self.events_log.append(
+                f"↻ Retry sample {sample_idx} attempt {attempt}/{max_attempts}: {error_summary}"
+            )
+            self._refresh_left()
+        except Exception:
+            # Swallow errors to avoid breaking progress reporting
+            return
+
     def _context_panel(self) -> Panel:
         return self.tui.build_context_panel(
             root_topic=self.root_topic,
@@ -585,6 +622,29 @@ class GraphBuildingTUI(TopicBuildingMixin, StreamObserver):
         self.failed_attempts += 1
         self.events_log.append("✗ Node expansion failed")
         self._refresh_left()
+
+    def on_retry(
+        self,
+        sample_idx: int,
+        attempt: int,
+        max_attempts: int,
+        error_summary: str,
+        metadata: dict[str, Any],
+    ) -> None:
+        """Handle retry events from the progress reporter.
+
+        Provides a minimal implementation so GraphBuildingTUI is not abstract;
+        logs a concise retry message to the events panel.
+        """
+        _ = metadata  # Unused for now
+        try:
+            self.events_log.append(
+                f"↻ Retry sample {sample_idx} attempt {attempt}/{max_attempts}: {error_summary}"
+            )
+            self._refresh_left()
+        except Exception:
+            # Best-effort, swallow errors to avoid breaking progress reporting
+            return
 
     def on_stream_chunk(self, _source: str, chunk: str, _metadata: dict[str, Any]) -> None:
         """Handle streaming text from graph generation."""
@@ -798,6 +858,46 @@ class DatasetGenerationTUI(StreamObserver):
         """
         # Could add completion markers or timing info here if desired
         pass
+
+    def on_tool_execution(self, tool_name: str, success: bool, metadata: dict[str, Any]) -> None:
+        """Handle tool execution events from Spin.
+
+        Args:
+            tool_name: Name of the tool executed
+            success: Whether execution succeeded
+            metadata: Additional context (arguments, error_type, etc.)
+        """
+        # Format arguments preview
+        args = metadata.get("arguments", {})
+        args_preview = self._format_args_preview(args, max_len=20)
+
+        # Use prefix patterns that build_events_panel recognizes for coloring
+        # T+ = green (success), T- = red (failure)
+        if success:
+            self.log_event(f"T+ {tool_name}({args_preview})")
+        else:
+            error_type = metadata.get("error_type", "error")
+            self.log_event(f"T- {tool_name}({args_preview}) -> {error_type}")
+
+    def _format_args_preview(self, args: dict[str, Any], max_len: int = 20) -> str:
+        """Format tool arguments as truncated JSON preview.
+
+        Args:
+            args: Tool arguments dictionary
+            max_len: Maximum length before truncation
+
+        Returns:
+            Truncated JSON string with ellipsis if needed
+        """
+        if not args:
+            return ""
+        try:
+            json_str = json.dumps(args, separators=(",", ":"))
+            if len(json_str) <= max_len:
+                return json_str
+            return json_str[:max_len] + "..."
+        except Exception:  # noqa: BLE001
+            return "..."
 
     def get_stream_display(self) -> str:
         """Build the streaming text display from buffer.

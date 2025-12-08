@@ -28,6 +28,8 @@ dependencies = [
     "protobuf>=3.20.0",
     "sentencepiece>=0.1.99",
     "ollama>=0.1.0",
+    "componentize-py>=0.19.3",
+    "spin-sdk>=3.4.1",
 ]
 
 [project.optional-dependencies]

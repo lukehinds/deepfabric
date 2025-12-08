@@ -1,6 +1,9 @@
+import json
+import logging
 import random
+import uuid
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, Field
 
@@ -10,8 +13,10 @@ from .exceptions import DataSetGeneratorError
 from .progress import ProgressReporter
 from .schemas import (
     AgentContext,
+    AgentStep,
     ChatMessage,
     Conversation,
+    PendingToolCall,
     ReasoningStep,
     ReasoningTrace,
     ToolCall,
@@ -20,12 +25,15 @@ from .schemas import (
     ToolExecution,
     generate_tool_call_id,
 )
+from .spin import SpinClient, SpinSession
 from .utils import is_validation_error
 
 if TYPE_CHECKING:
     from .generator import DataSetGeneratorConfig
     from .llm import LLMClient
     from .schemas import ToolRegistry
+
+logger = logging.getLogger(__name__)
 
 
 class UserQuestion(BaseModel):
@@ -69,18 +77,58 @@ class ConclusionDecision(BaseModel):
     )
 
 
+class StepWithResults(BaseModel):
+    """A ReAct step paired with its execution results.
+
+    Preserves the step-by-step structure for proper conversation formatting.
+    """
+
+    step: AgentStep = Field(description="The original step with thought and pending tool calls")
+    results: list[ToolExecution] = Field(
+        default_factory=list, description="Tool execution results for this step"
+    )
+
+
 class AgentTurnData(BaseModel):
     """Typed data for a single turn in an agent conversation.
 
     This model ensures type safety when building multi-turn conversations.
+    Stores steps with their results to preserve ReAct structure.
     """
 
     user_message: ChatMessage = Field(description="User's message for this turn")
-    reasoning_steps: list[ReasoningStep] = Field(
-        description="Agent's reasoning steps for this turn"
+    steps_with_results: list[StepWithResults] = Field(
+        description="ReAct steps with their execution results, preserving step-by-step order"
     )
-    tool_calls: list[ToolExecution] = Field(description="Tool executions for this turn")
     agent_response: ChatMessage = Field(description="Agent's final response for this turn")
+
+    @property
+    def reasoning_steps(self) -> list[ReasoningStep]:
+        """Convert steps to ReasoningSteps for backward compatibility."""
+        result = []
+        for i, swr in enumerate(self.steps_with_results, 1):
+            action = None
+            if swr.step.tool_calls:
+                actions = [f"{tc.function_name}({tc.arguments})" for tc in swr.step.tool_calls]
+                action = "; ".join(actions)
+            elif swr.step.is_final:
+                action = "Ready to respond"
+            result.append(
+                ReasoningStep(
+                    step_number=i,
+                    thought=swr.step.thought,
+                    action=action,
+                )
+            )
+        return result
+
+    @property
+    def tool_calls(self) -> list[ToolExecution]:
+        """Get all tool executions for backward compatibility."""
+        result = []
+        for swr in self.steps_with_results:
+            result.extend(swr.results)
+        return result
 
 
 class SingleTurnAgentBuilder(ConversationBuilder):
@@ -89,7 +137,7 @@ class SingleTurnAgentBuilder(ConversationBuilder):
     Generates conversations using a multi-step process:
     1. Generate user question
     2. Generate agent reasoning + tool calls
-    3. Simulate tool execution results
+    3. Execute tools via Spin (or simulate if no Spin endpoint)
     4. Generate agent's final response
 
     This produces realistic tool-calling training data.
@@ -114,8 +162,33 @@ class SingleTurnAgentBuilder(ConversationBuilder):
         # Store as non-optional for type checker
         self.tool_registry: ToolRegistry = tool_registry
 
+        # Spin integration for real tool execution
+        self._spin_client: SpinClient | None = None
+        self._spin_session: SpinSession | None = None
+
+        # Initialize Spin client if endpoint is configured
+        spin_endpoint = getattr(config, "spin_endpoint", None)
+        tool_execute_path = getattr(config, "tool_execute_path", None)
+        if spin_endpoint:
+            self._spin_client = SpinClient(
+                endpoint=spin_endpoint,
+                tool_execute_path=tool_execute_path,
+            )
+            if tool_execute_path:
+                logger.info(
+                    "Spin execution enabled: %s (execute path: %s)",
+                    spin_endpoint,
+                    tool_execute_path,
+                )
+            else:
+                logger.info("Spin execution enabled: %s", spin_endpoint)
+
     async def generate(self, topic_prompt: str, error_feedback: str | None = None) -> Conversation:
-        """Generate single-turn agent conversation with tools.
+        """Generate single-turn agent conversation with tools using ReAct loop.
+
+        Uses a think-act-observe loop where each step's tool calls are based on
+        observations from previous steps. This prevents the agent from making
+        decisions (like writes) before observing results (like reads).
 
         Args:
             topic_prompt: Topic or scenario to generate conversation about
@@ -127,24 +200,86 @@ class SingleTurnAgentBuilder(ConversationBuilder):
         Raises:
             ValueError: If generation fails at any step
         """
-        # Step 1: Generate user question
-        user_message = await self._generate_user_question(topic_prompt)
+        try:
+            # Initialize Spin session if configured
+            await self._ensure_spin_session()
 
-        # Step 2: Generate agent reasoning + tool calls (pass error feedback for retries)
-        reasoning, tool_calls = await self._generate_agent_thinking(user_message, error_feedback)
+            # Step 1: Generate user question
+            user_message = await self._generate_user_question(topic_prompt)
 
-        # Step 3: Simulate tool executions
-        tool_results = await self._simulate_tool_results(tool_calls)
+            # Step 2: ReAct loop - think, act, observe
+            all_steps: list[AgentStep] = []
+            all_tool_results: list[ToolExecution] = []
+            max_steps = getattr(self.config, "max_agent_steps", 5)
 
-        # Step 4: Generate agent's final response
-        agent_response = await self._generate_agent_conclusion(
-            user_message, reasoning, tool_results
-        )
+            for step_num in range(max_steps):
+                if self.progress_reporter:
+                    self.progress_reporter.emit_step_start(f"ReAct step {step_num + 1}/{max_steps}")
 
-        # Assemble into Conversation
-        return self._build_conversation(
-            user_message, reasoning, tool_calls, tool_results, agent_response, topic_prompt
-        )
+                # Generate next step based on observations so far
+                step = await self._generate_next_step(
+                    user_message,
+                    all_steps,
+                    all_tool_results,
+                    error_feedback if step_num == 0 else None,
+                )
+                all_steps.append(step)
+
+                # Check if agent is done
+                if step.is_final or not step.tool_calls:
+                    if self.progress_reporter:
+                        self.progress_reporter.emit_step_complete(
+                            f"Agent decided to conclude after {step_num + 1} steps"
+                        )
+                    break
+
+                # Execute THIS step's tools
+                step_results = await self._execute_step_tools(step.tool_calls)
+                all_tool_results.extend(step_results)
+
+                if self.progress_reporter:
+                    self.progress_reporter.emit_step_complete(
+                        f"Executed {len(step.tool_calls)} tool(s) in step {step_num + 1}"
+                    )
+
+            # Step 3: Generate agent's final response based on all observations
+            agent_response = await self._generate_agent_conclusion(
+                user_message, all_steps, all_tool_results
+            )
+
+            # Assemble into Conversation
+            return self._build_conversation(
+                user_message, all_steps, all_tool_results, agent_response, topic_prompt
+            )
+        finally:
+            # Always cleanup Spin session
+            await self._cleanup_spin_session()
+
+    async def _ensure_spin_session(self) -> None:
+        """Initialize Spin session if configured."""
+        if self._spin_client is None:
+            return
+
+        # Create new session
+        session_id = str(uuid.uuid4())
+        self._spin_session = SpinSession(self._spin_client, session_id)
+
+        # Seed initial state if configured
+        scenario_seed = getattr(self.config, "scenario_seed", None)
+        if scenario_seed and isinstance(scenario_seed, dict):
+            files = scenario_seed.get("files", {})
+            if files:
+                success = await self._spin_session.seed_files(files)
+                if success:
+                    logger.debug("Seeded %d files for session %s", len(files), session_id)
+                else:
+                    logger.warning("Failed to seed some files for session %s", session_id)
+
+    async def _cleanup_spin_session(self) -> None:
+        """Clean up Spin session after generation."""
+        if self._spin_session is not None:
+            await self._spin_session.cleanup()
+            self._spin_session = None
 
     async def _generate_user_question(self, topic_prompt: str) -> ChatMessage:
         """Generate the user's question for this scenario.
@@ -194,17 +329,26 @@ Generate only the user's question:"""
 
         return ChatMessage(role="user", content=response.content)
 
-    async def _generate_agent_thinking(
-        self, user_message: ChatMessage, error_feedback: str | None = None
-    ) -> tuple[list[ReasoningStep], list[ToolExecution]]:
-        """Generate agent's reasoning and tool calls with retry logic.
+    async def _generate_next_step(
+        self,
+        user_message: ChatMessage,
+        previous_steps: list[AgentStep],
+        previous_results: list[ToolExecution],
+        error_feedback: str | None = None,
+    ) -> AgentStep:
+        """Generate the next ReAct step based on observations so far.
+
+        This is the core of the ReAct loop - the agent decides its next action
+        based on what it has already observed from previous tool executions.
 
         Args:
-            user_message: The user's question
-            error_feedback: Optional error message from a previous failed attempt
+            user_message: The original user question
+            previous_steps: Steps taken so far (thoughts + tool calls)
+            previous_results: Results from executed tools
+            error_feedback: Optional error from previous generation attempt
 
         Returns:
-            Tuple of (reasoning_steps, tool_calls)
+            AgentStep with thought, optional tool calls, and is_final flag
         """
         max_retries = getattr(self.config, "sample_retries", DEFAULT_SAMPLE_RETRIES)
         last_error: Exception | None = None
@@ -212,212 +356,214 @@ Generate only the user's question:"""
 
         for attempt in range(max_retries + 1):
             try:
-                return await self._generate_agent_thinking_impl(user_message, current_feedback)
+                return await self._generate_next_step_impl(
+                    user_message, previous_steps, previous_results, current_feedback
+                )
             except Exception as e:
                 last_error = e
                 if is_validation_error(e) and attempt < max_retries:
                     current_feedback = str(e)
                     if self.progress_reporter:
                         self.progress_reporter.emit_step_start(
-                            f"Retrying agent thinking (attempt {attempt + 2}/{max_retries + 1})"
+                            f"Retrying step generation (attempt {attempt + 2}/{max_retries + 1})"
                         )
                     continue
                 raise
 
         raise last_error  # type: ignore[misc]
 
-    async def _generate_agent_thinking_impl(
-        self, user_message: ChatMessage, error_feedback: str | None = None
-    ) -> tuple[list[ReasoningStep], list[ToolExecution]]:
-        """Implementation of agent thinking generation."""
-        # Build prompt with available tools
+    async def _generate_next_step_impl(
+        self,
+        user_message: ChatMessage,
+        previous_steps: list[AgentStep],
+        previous_results: list[ToolExecution],
+        error_feedback: str | None = None,
+    ) -> AgentStep:
+        """Implementation of next step generation."""
         tools_info = self._format_tools_for_prompt()
+        history = self._format_step_history(previous_steps, previous_results)
 
         prompt_parts = [
-            "## Current Request",
-            user_message.content,
+            "## User Request",
+            user_message.content or "",
+            "",
+            "## Available Tools",
+            tools_info,
+            "",
+            "## Previous Actions & Results",
+            history if history else "None yet - this is your first action.",
+            "",
+            "## Instructions",
+            "Based on what you've observed so far, decide your next action:",
+            "- If you need more information, specify tool_calls for THIS step only",
+            "- If you have enough information to answer, set is_final=true and leave tool_calls empty",
+            "- IMPORTANT: Do NOT call write/modify operations until you've confirmed current state via read operations",
+            "- Tool arguments must use concrete values (no placeholders like '<user_input>' or null)",
+            "",
+            "What is your next step?",
         ]
 
-        prompt_parts.extend(
-            [
-                "",
-                "## Available Tools",
-                tools_info,
-                "",
-                "## Rules",
-                "- Tool arguments: Use concrete values derived from the request",
-                "- No placeholders like 'example_id', '<user_input>', or null",
-            ]
-        )
-
         if error_feedback:
-            prompt_parts.extend(
-                [
-                    "",
-                    "## Previous Attempt Failed",
-                    f"Error: {error_feedback}",
-                    "",
-                    "Please fix this issue in your response.",
-                ]
+            prompt_parts.insert(
+                -1,
+                f"\n## Previous Attempt Failed\nError: {error_feedback}\nPlease fix this issue.\n",
             )
 
         prompt = "\n".join(prompt_parts)
 
-        class AgentThinking(BaseModel):
-            reasoning_steps: list[ReasoningStep] = Field(min_length=1)
-            tool_calls: list[ToolExecution] = Field(min_length=1)
-
-        response: AgentThinking
+        response: AgentStep
         if self.progress_reporter:
             temp_response = None
             async for chunk, result in self.llm.generate_async_stream(
                 prompt=prompt,
-                schema=AgentThinking,
+                schema=AgentStep,
                 max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             ):
                 if chunk:
-                    self.progress_reporter.emit_chunk("agent_reasoning", chunk)
+                    self.progress_reporter.emit_chunk("agent_step", chunk)
                 if result:
                     temp_response = result
             if temp_response is None:
-                msg = "Failed to generate agent thinking"
+                msg = "Failed to generate agent step"
                 raise DataSetGeneratorError(msg)
-            response = cast(AgentThinking, temp_response)
+            response = cast(AgentStep, temp_response)
         else:
             response = await self.llm.generate_async(
                 prompt=prompt,
-                schema=AgentThinking,
+                schema=AgentStep,
                 max_tokens=self.config.max_tokens,
                 temperature=self.config.temperature,
             )
 
-        return response.reasoning_steps, response.tool_calls
+        return response
 
-    async def _simulate_tool_results(self, tool_calls: list[ToolExecution]) -> list[ToolExecution]:
-        """Simulate tool execution results with retry logic.
-
-        The LLM generates realistic output strings for each tool call.
+    def _format_step_history(self, steps: list[AgentStep], results: list[ToolExecution]) -> str:
+        """Format previous steps and results for the prompt.
 
         Args:
-            tool_calls: List of tool executions (without results yet)
+            steps: Previous AgentSteps taken
+            results: Tool execution results (with actual outputs)
 
         Returns:
-            Same list but with 'result' field populated
+            Formatted string showing the progression of actions and observations
+        """
+        if not steps:
+            return ""
+
+        history_parts = []
+        result_idx = 0
+
+        for step_num, step in enumerate(steps, 1):
+            history_parts.append(f"### Step {step_num}")
+            history_parts.append(f"Thought: {step.thought}")
+
+            if step.tool_calls:
+                history_parts.append("Tool calls:")
+                for tool_call in step.tool_calls:
+                    history_parts.append(f"  - {tool_call.function_name}({tool_call.arguments})")
+                    # Match with result if available
+                    if result_idx < len(results):
+                        result = results[result_idx]
+                        history_parts.append(f"    Result: {result.result}")
+                        result_idx += 1
+
+            history_parts.append("")
+
+        return "\n".join(history_parts)
+
+    async def _execute_step_tools(self, tool_calls: list[PendingToolCall]) -> list[ToolExecution]:
+        """Execute tool calls for a single ReAct step.
+
+        Args:
+            tool_calls: Pending tool calls from the current step (without results)
+
+        Returns:
+            List of ToolExecutions with results populated from Spin
         """
         completed_executions = []
-        max_retries = getattr(self.config, "sample_retries", DEFAULT_SAMPLE_RETRIES)
 
-        for tool_call in tool_calls:
+        for pending_call in tool_calls:
             # Get tool definition from registry
-            tool_def = self.tool_registry.get_tool(tool_call.function_name)
+            tool_def = self.tool_registry.get_tool(pending_call.function_name)
             if not tool_def:
-                msg = f"Tool '{tool_call.function_name}' not found in registry"
-                raise ValueError(msg)
-
-            # Try generating tool output with retries
-            last_error: Exception | None = None
-            error_feedback: str | None = None
-
-            for attempt in range(max_retries + 1):
-                try:
-                    result = await self._generate_tool_output(tool_def, tool_call, error_feedback)
-                    # Create new execution with result
-                    completed_executions.append(
-                        ToolExecution(
-                            function_name=tool_call.function_name,
-                            arguments=tool_call.arguments,
-                            reasoning=tool_call.reasoning,
-                            result=result.result,
-                        )
+                # Return error as result instead of raising
+                completed_executions.append(
+                    pending_call.to_tool_execution(
+                        f"Error: Tool '{pending_call.function_name}' not found in registry"
                     )
-                    break
-                except Exception as e:
-                    last_error = e
-                    if is_validation_error(e) and attempt < max_retries:
-                        error_feedback = str(e)
-                        if self.progress_reporter:
-                            self.progress_reporter.emit_step_start(
-                                f"Retrying tool output (attempt {attempt + 2}/{max_retries + 1})"
-                            )
-                        continue
-                    raise
-            else:
-                # All retries exhausted
-                raise last_error  # type: ignore[misc]
+                )
+                continue
+
+            # Execute tool via Spin
+            result = await self._generate_tool_output(tool_def, pending_call)
+            completed_executions.append(pending_call.to_tool_execution(result.result))
 
         return completed_executions
 
     async def _generate_tool_output(
-        self, tool_def: ToolDefinition, tool_call: ToolExecution, error_feedback: str | None = None
+        self,
+        tool_def: ToolDefinition,
+        pending_call: PendingToolCall,
+        error_feedback: str | None = None,  # noqa: ARG002 - kept for interface compatibility
     ) -> ToolOutput:
-        """Generate realistic output for a single tool call."""
+        """Execute tool via Spin and return real output.
 
-        prompt_parts = [
-            "You are simulating the output of a tool execution.",
-            "",
-            "## Tool Specification",
-            f"Name: {tool_def.name}",
-            f"Description: {tool_def.description}",
-            f"Return type: {tool_def.returns}",
-            "",
-            "## Invocation",
-            f"Arguments: {tool_call.arguments}",
-        ]
+        Args:
+            tool_def: Tool definition from registry
+            pending_call: Pending tool call with arguments (no result yet)
+            error_feedback: Unused - kept for interface compatibility with retry logic
 
-        if error_feedback:
-            prompt_parts.extend(
-                [
-                    "",
-                    "## Previous Attempt Failed",
-                    f"Error: {error_feedback}",
-                    "",
-                    "Please fix this issue in your response.",
-                ]
+        Returns:
+            ToolOutput with real execution result
+
+        Raises:
+            DataSetGeneratorError: If Spin is not configured or execution fails
+        """
+        # Require Spin for tool execution
+        if self._spin_session is None:
+            raise DataSetGeneratorError(
+                "Spin endpoint not configured. Tool execution requires a Spin service. "
+                "Set 'spin_endpoint' in your tools configuration."
             )
 
-        prompt_parts.extend(
-            [
-                "",
-                "## Instructions",
-                "Generate ONLY the tool's return value - no explanation, no markdown, no wrapper.",
-                f"The output must match this return type: {tool_def.returns}",
-            ]
+        # Parse arguments from JSON string
+        try:
+            args: dict[str, Any] = json.loads(pending_call.arguments)
+        except json.JSONDecodeError as e:
+            return ToolOutput(result=f"Error: Invalid JSON arguments: {e}")
+
+        # Execute via Spin
+        result = await self._spin_session.execute_tool(
+            tool_name=tool_def.name,
+            arguments=args,
+            component=tool_def.component,
         )
 
-        prompt = "\n".join(prompt_parts)
+        if result.success:
+            if self.progress_reporter:
+                self.progress_reporter.emit_tool_execution(
+                    tool_def.name, success=True, arguments=args
+                )
+            return ToolOutput(result=result.result)
 
-        result: ToolOutput
+        # Return error as tool output (this is valid training data for error handling)
+        error_msg = result.result
+        if result.error_type:
+            error_msg = f"Error ({result.error_type}): {result.result}"
         if self.progress_reporter:
-            temp_result = None
-            async for chunk, res in self.llm.generate_async_stream(
-                prompt=prompt,
-                schema=ToolOutput,
-                max_tokens=self.config.max_tokens,
-                temperature=0.7,
-            ):
-                if chunk:
-                    self.progress_reporter.emit_chunk(f"tool_sim_{tool_call.function_name}", chunk)
-                if res:
-                    temp_result = res
-            if temp_result is None:
-                msg = f"Failed to generate tool output for {tool_call.function_name}"
-                raise DataSetGeneratorError(msg)
-            result = cast(ToolOutput, temp_result)
-        else:
-            result = await self.llm.generate_async(
-                prompt=prompt,
-                schema=ToolOutput,
-                max_tokens=self.config.max_tokens,
-                temperature=0.7,
+            self.progress_reporter.emit_tool_execution(
+                tool_def.name,
+                success=False,
+                arguments=args,
+                error_type=result.error_type or "error",
             )
-
-        return result
+        return ToolOutput(result=error_msg)
 
     async def _generate_agent_conclusion(
         self,
         user_message: ChatMessage,
-        _reasoning: list[ReasoningStep],
+        steps: list[AgentStep],  # noqa: ARG002 - kept for potential future use
         tool_results: list[ToolExecution],
         context: str = "",
     ) -> ChatMessage:
@@ -425,16 +571,18 @@ Generate only the user's question:"""
 
         Args:
             user_message: Original user question
-            _reasoning: Agent's reasoning steps (unused, kept for interface consistency)
-            tool_results: Tool execution results
+            steps: All ReAct steps taken (with thoughts)
+            tool_results: All tool execution results
             context: Previous conversation context (for multi-turn)
 
         Returns:
             Agent's final response message
         """
-        # Format tool results for prompt
-        results_text = "\n".join(
-            [f"Tool: {r.function_name}\nResult: {r.result}" for r in tool_results]
+        # Format tool results summary
+        results_text = (
+            "\n".join([f"Tool: {r.function_name}\nResult: {r.result}" for r in tool_results])
+            if tool_results
+            else "No tools were executed."
         )
 
         # Format available tools for context
@@ -488,71 +636,109 @@ Remember: You have access to the tools listed above and have used them in this c
     def _build_conversation(
         self,
         user_message: ChatMessage,
-        reasoning: list[ReasoningStep],
-        _tool_calls: list[ToolExecution],
+        steps: list[AgentStep],
         tool_results: list[ToolExecution],
         agent_response: ChatMessage,
         _topic_prompt: str = "",
     ) -> Conversation:
         """Assemble all components into a Conversation.
 
+        Preserves ReAct step-by-step structure: each step's tool calls become
+        a separate assistant message followed by tool responses. This ensures
+        training data shows the agent making decisions AFTER observing results.
+
         Args:
             user_message: User's question
-            reasoning: Agent's reasoning steps
-            _tool_calls: Tool calls made (unused, kept for interface consistency)
-            tool_results: Tool execution results (contains completed tool calls with results)
+            steps: All ReAct steps (thoughts + tool calls)
+            tool_results: All tool execution results
             agent_response: Agent's final response
-            topic_prompt: Topic used to generate this conversation (for metadata)
+            _topic_prompt: Topic used to generate this conversation (unused, for interface)
 
         Returns:
             Complete Conversation object
         """
         messages = []
 
-        # Don't add system message for agent mode - it interferes with tool calling
-        # The system prompt teaches models to explain tool usage instead of executing tools
-        # For tool calling, the tool definitions themselves serve as instructions
-
         # Add user message
         messages.append(user_message)
 
-        # Build tool_calls and tool_responses in a single pass
-        tool_calls_list: list[ToolCall] = []
-        tool_responses: list[ChatMessage] = []
-        for result in tool_results:
-            tool_call_id = generate_tool_call_id()
-            tool_calls_list.append(result.to_tool_call(tool_call_id))
-            tool_responses.append(
-                ChatMessage(role="tool", content=result.result, tool_call_id=tool_call_id)
-            )
+        # Process each ReAct step separately to preserve step-by-step structure
+        # This is critical: agent should see results from step N before deciding step N+1
+        result_idx = 0
 
-        # Add first assistant message with tool_calls
-        # The ChatML formatter will add <think> tags and <tool_call> tags based on
-        # reasoning and tool_context.executions
-        messages.append(
-            ChatMessage(
-                role="assistant",
-                content="",
-                tool_calls=tool_calls_list if tool_calls_list else None,
-            )
-        )
+        for step in steps:
+            # Skip steps with no tool calls (e.g., final "is_final=true" step)
+            if not step.tool_calls:
+                continue
 
-        # Add tool response messages
-        messages.extend(tool_responses)
+            # Build tool_calls for THIS step only
+            step_tool_calls: list[ToolCall] = []
+            step_tool_call_ids: list[str] = []
+
+            for _pending_call in step.tool_calls:
+                tool_call_id = generate_tool_call_id()
+                step_tool_call_ids.append(tool_call_id)
+                # Get the matching result
+                if result_idx < len(tool_results):
+                    result = tool_results[result_idx]
+                    step_tool_calls.append(result.to_tool_call(tool_call_id))
+                    result_idx += 1
+
+            # Assistant message with tool_calls for this step
+            if step_tool_calls:
+                messages.append(
+                    ChatMessage(
+                        role="assistant",
+                        content="",
+                        tool_calls=step_tool_calls,
+                    )
+                )
+
+                # Tool response messages for this step
+                # We need to re-iterate to get matching results
+                result_base_idx = result_idx - len(step_tool_calls)
+                for idx, _tc in enumerate(step_tool_calls):
+                    res_idx = result_base_idx + idx
+                    if res_idx < len(tool_results):
+                        messages.append(
+                            ChatMessage(
+                                role="tool",
+                                content=tool_results[res_idx].result,
+                                tool_call_id=step_tool_call_ids[idx],
+                            )
+                        )
 
         # Add final assistant response with the answer
         messages.append(agent_response)
 
-        # Build tool context
+        # Build tool context (executions only - tools are in top-level 'tools' field)
         tool_context = ToolContext(
-            available_tools=self.tool_registry.tools,
             executions=tool_results,
         )
 
-        # Build reasoning trace
+        # Build reasoning trace from AgentSteps
+        # Convert AgentStep thoughts to ReasoningSteps for the trace
+        reasoning_steps = []
+        for i, step in enumerate(steps, 1):
+            # Create action string from tool calls
+            action = None
+            if step.tool_calls:
+                actions = [f"{tc.function_name}({tc.arguments})" for tc in step.tool_calls]
+                action = "; ".join(actions)
+            elif step.is_final:
+                action = "Ready to respond to user"
+
+            reasoning_steps.append(
+                ReasoningStep(
+                    step_number=i,
+                    thought=step.thought,
+                    action=action,
+                )
+            )
+
         reasoning_trace = ReasoningTrace(
             style=self.config.reasoning_style or "agent",  # type: ignore
-            content=reasoning,  # type: ignore
+            content=reasoning_steps,
         )
 
         # Build agent context
@@ -560,7 +746,8 @@ Remember: You have access to the tools listed above and have used them in this c
 
         # Build metadata
         metadata = {
-            "conversation_type": "chain_of_thought" if reasoning_trace else "basic",
+            "conversation_type": "chain_of_thought",
+            "react_steps": len(steps),
         }
 
         # Insert system message if configured
@@ -575,23 +762,46 @@ Remember: You have access to the tools listed above and have used them in this c
             tool_context=tool_context,
             tools=tools_openai,
             agent_context=agent_context,
-            question=user_message.content or "",  # Set question field for formatters
-            final_answer=agent_response.content or "",  # Set final_answer field for formatters
+            question=user_message.content or "",
+            final_answer=agent_response.content or "",
             metadata=metadata,
         )
 
     def _format_tools_for_prompt(self) -> str:
         """Format available tools for inclusion in prompts.
 
+        Provides detailed tool information including parameter descriptions
+        and whether parameters are required, helping the LLM generate
+        correct tool calls.
+
         Returns:
             Formatted string describing available tools
         """
         tool_descriptions = []
         for tool in self.tool_registry.tools:
-            params = ", ".join([f"{p.name}: {p.type}" for p in tool.parameters])
-            tool_descriptions.append(f"- {tool.name}({params}): {tool.description}")
+            # Build parameter details
+            if tool.parameters:
+                param_lines = []
+                for p in tool.parameters:
+                    req_marker = "(required)" if p.required else "(optional)"
+                    param_lines.append(f"    - {p.name}: {p.type} {req_marker} - {p.description}")
+                params_section = "\n".join(param_lines)
+                tool_descriptions.append(
+                    f"### {tool.name}\n"
+                    f"{tool.description}\n"
+                    f"Parameters:\n{params_section}\n"
+                    f"Returns: {tool.returns}"
+                )
+            else:
+                # No parameters - make this explicit
+                tool_descriptions.append(
+                    f"### {tool.name}\n"
+                    f"{tool.description}\n"
+                    f"Parameters: None (use empty object {{}})\n"
+                    f"Returns: {tool.returns}"
+                )
 
-        return "\n".join(tool_descriptions)
+        return "\n\n".join(tool_descriptions)
 
     def _insert_system_message_if_configured(self, messages: list[ChatMessage]) -> None:
         """Insert system message at the beginning of messages if configured.
@@ -619,7 +829,7 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
         topic_prompt: str,
         error_feedback: str | None = None,  # noqa: ARG002
     ) -> Conversation:
-        """Generate multi-turn agent conversation.
+        """Generate multi-turn agent conversation using ReAct loop.
 
         Args:
             topic_prompt: Topic or scenario to generate conversation about
@@ -631,40 +841,47 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
         Raises:
             ValueError: If generation fails or config is invalid
         """
-        # Determine number of turns (from config range)
-        num_turns = random.randint(self.config.min_turns, self.config.max_turns)  # noqa: S311 # nosec
+        try:
+            # Initialize Spin session if configured
+            await self._ensure_spin_session()
 
-        # Track conversation context
-        turns: list[AgentTurnData] = []
-        all_messages: list[ChatMessage] = []
+            # Determine number of turns (from config range)
+            num_turns = random.randint(self.config.min_turns, self.config.max_turns)  # noqa: S311 # nosec
 
-        # Generate scenario overview
-        scenario = await self._generate_scenario(topic_prompt, num_turns)
+            # Track conversation context
+            turns: list[AgentTurnData] = []
+            all_messages: list[ChatMessage] = []
 
-        for turn_idx in range(num_turns):
-            # Generate this turn
-            turn_data = await self._generate_turn(turn_idx, scenario, all_messages)
-            turns.append(turn_data)
+            # Generate scenario overview
+            scenario = await self._generate_scenario(topic_prompt, num_turns)
 
-            # Accumulate messages for context
-            all_messages.extend(
-                [
-                    turn_data.user_message,
-                    turn_data.agent_response,
-                ]
-            )
+            for turn_idx in range(num_turns):
+                # Generate this turn using ReAct loop
+                turn_data = await self._generate_turn(turn_idx, scenario, all_messages)
+                turns.append(turn_data)
 
-            # Count total tool calls so far
-            total_tool_calls = sum(len(t.tool_calls) for t in turns)
+                # Accumulate messages for context
+                all_messages.extend(
+                    [
+                        turn_data.user_message,
+                        turn_data.agent_response,
+                    ]
+                )
 
-            # Check if we should conclude early
-            if turn_idx >= self.config.min_turns - 1 and await self._should_conclude_early(
-                all_messages, scenario, turn_idx + 1, total_tool_calls
-            ):
-                break
+                # Count total tool calls so far
+                total_tool_calls = sum(len(t.tool_calls) for t in turns)
 
-        # Assemble into complete conversation
-        return self._build_multi_turn_conversation(turns, scenario, topic_prompt)
+                # Check if we should conclude early
+                if turn_idx >= self.config.min_turns - 1 and await self._should_conclude_early(
+                    all_messages, scenario, turn_idx + 1, total_tool_calls
+                ):
+                    break
+
+            # Assemble into complete conversation
+            return self._build_multi_turn_conversation(turns, scenario, topic_prompt)
+        finally:
+            # Always cleanup Spin session
+            await self._cleanup_spin_session()
 
     async def _generate_scenario(self, topic_prompt: str, num_turns: int) -> str:
         """Generate a multi-turn scenario description.
@@ -728,7 +945,7 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
         scenario: str,
         previous_messages: list[ChatMessage],
     ) -> AgentTurnData:
-        """Generate a single turn of the conversation.
+        """Generate a single turn of the conversation using ReAct loop.
 
         Args:
             turn_idx: Index of this turn (0-based)
@@ -736,7 +953,7 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
             previous_messages: Messages from previous turns
 
         Returns:
-            Complete turn data
+            Complete turn data with step-by-step structure preserved
         """
         # Build context from previous messages
         context_text = self._format_message_context(previous_messages)
@@ -744,25 +961,125 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
         # Generate user message for this turn
         user_message = await self._generate_turn_user_message(turn_idx, scenario, context_text)
 
-        # Generate agent thinking (reasoning + tool calls)
-        reasoning, tool_calls = await self._generate_agent_thinking_with_context(
-            user_message, context_text
-        )
+        # ReAct loop for this turn - preserve step structure
+        steps_with_results: list[StepWithResults] = []
+        all_steps: list[AgentStep] = []  # For passing to next step generation
+        all_tool_results: list[ToolExecution] = []  # For passing to next step generation
+        max_steps = getattr(self.config, "max_agent_steps", 5)
 
-        # Simulate tools
-        tool_results = await self._simulate_tool_results(tool_calls)
+        for step_num in range(max_steps):
+            if self.progress_reporter:
+                self.progress_reporter.emit_step_start(
+                    f"Turn {turn_idx + 1}, ReAct step {step_num + 1}/{max_steps}"
+                )
 
-        # Generate agent response with conversation context
+            # Generate next step based on observations so far
+            step = await self._generate_next_step_with_context(
+                user_message,
+                all_steps,
+                all_tool_results,
+                context_text,
+            )
+            all_steps.append(step)
+
+            # Check if agent is done
+            if step.is_final or not step.tool_calls:
+                # Add final step with no results
+                steps_with_results.append(StepWithResults(step=step, results=[]))
+                if self.progress_reporter:
+                    self.progress_reporter.emit_step_complete(
+                        f"Turn {turn_idx + 1}: Agent concluded after {step_num + 1} steps"
+                    )
+                break
+
+            # Execute THIS step's tools via Spin
+            step_results = await self._execute_step_tools(step.tool_calls)
+
+            # Store step with its results
+            steps_with_results.append(StepWithResults(step=step, results=step_results))
+            all_tool_results.extend(step_results)
+
+            if self.progress_reporter:
+                self.progress_reporter.emit_step_complete(
+                    f"Turn {turn_idx + 1}: Executed {len(step.tool_calls)} tool(s)"
+                )
+
+        # Generate agent response based on all observations
         agent_response = await self._generate_agent_conclusion(
-            user_message, reasoning, tool_results, context=context_text
+            user_message, all_steps, all_tool_results, context=context_text
         )
 
         return AgentTurnData(
             user_message=user_message,
-            reasoning_steps=reasoning,
-            tool_calls=tool_results,
+            steps_with_results=steps_with_results,
             agent_response=agent_response,
         )
+
+    async def _generate_next_step_with_context(
+        self,
+        user_message: ChatMessage,
+        previous_steps: list[AgentStep],
+        previous_results: list[ToolExecution],
+        conversation_context: str,
+    ) -> AgentStep:
+        """Generate the next ReAct step with conversation context.
+
+        Similar to _generate_next_step but includes multi-turn conversation context.
+        """
+        tools_info = self._format_tools_for_prompt()
+        history = self._format_step_history(previous_steps, previous_results)
+
+        prompt_parts = [
+            "## Conversation Context",
+            conversation_context if conversation_context else "(No previous conversation)",
+            "",
+            "## Current User Request",
+            user_message.content or "",
+            "",
+            "## Available Tools",
+            tools_info,
+            "",
+            "## Previous Actions & Results (this turn)",
+            history if history else "None yet - this is your first action for this turn.",
+            "",
+            "## Instructions",
+            "Based on the conversation context and what you've observed so far, decide your next action:",
+            "- If you need more information, specify tool_calls for THIS step only",
+            "- If you have enough information to answer, set is_final=true and leave tool_calls empty",
+            "- IMPORTANT: Do NOT call write/modify operations until you've confirmed current state via read operations",
+            "- Tool arguments must use concrete values (no placeholders like '<user_input>' or null)",
+            "",
+            "What is your next step?",
+        ]
+
+        prompt = "\n".join(prompt_parts)
+
+        response: AgentStep
+        if self.progress_reporter:
+            temp_response = None
+            async for chunk, result in self.llm.generate_async_stream(
+                prompt=prompt,
+                schema=AgentStep,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature,
+            ):
+                if chunk:
+                    self.progress_reporter.emit_chunk("agent_step_mt", chunk)
+                if result:
+                    temp_response = result
+            if temp_response is None:
+                msg = "Failed to generate agent step for multi-turn"
+                raise DataSetGeneratorError(msg)
+            response = cast(AgentStep, temp_response)
+        else:
+            response = await self.llm.generate_async(
+                prompt=prompt,
+                schema=AgentStep,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature,
+            )
+
+        return response
 
     async def _generate_turn_user_message(
         self,
@@ -829,64 +1146,6 @@ Keep it concise and natural."""
 
         return ChatMessage(role="user", content=response.content)
 
-    async def _generate_agent_thinking_with_context(
-        self, user_message: ChatMessage, context: str
-    ) -> tuple[list[ReasoningStep], list[ToolExecution]]:
-        """Generate agent thinking with conversation context.
-
-        Args:
-            user_message: Current user message
-            context: Previous conversation context
-
-        Returns:
-            Tuple of (reasoning_steps, tool_calls)
-        """
-        tools_info = self._format_tools_for_prompt()
-
-        prompt = f"""{self.config.dataset_system_prompt}
-
-Previous conversation context:
-{context if context else "(No previous context)"}
-
-Current user request: {user_message.content}
-
-Available tools:
-{tools_info}
-
-Generate your reasoning and tool calls for THIS specific request only.
-Provide step-by-step reasoning (1-3 steps) and identify which tools are needed."""
-
-        class AgentThinking(BaseModel):
-            reasoning_steps: list[ReasoningStep] = Field(min_length=1)
-            tool_calls: list[ToolExecution] = Field(min_length=1)
-
-        response: AgentThinking
-        if self.progress_reporter:
-            temp_response = None
-            async for chunk, result in self.llm.generate_async_stream(
-                prompt=prompt,
-                schema=AgentThinking,
-                max_tokens=self.config.max_tokens,
-                temperature=self.config.temperature,
-            ):
-                if chunk:
-                    self.progress_reporter.emit_chunk("agent_thinking_mt", chunk)
-                if result:
-                    temp_response = result
-            if temp_response is None:
-                msg = "Failed to generate agent thinking for multi-turn"
-                raise DataSetGeneratorError(msg)
-            response = cast(AgentThinking, temp_response)
-        else:
-            response = await self.llm.generate_async(
-                prompt=prompt,
-                schema=AgentThinking,
-                max_tokens=self.config.max_tokens,
-                temperature=self.config.temperature,
-            )
-
-        return response.reasoning_steps, response.tool_calls
-
     async def _should_conclude_early(
         self, messages: list[ChatMessage], scenario: str, current_turn: int, total_tool_calls: int
     ) -> bool:
@@ -949,6 +1208,10 @@ Is the user's original task/goal from the scenario fully completed?
     ) -> Conversation:
         """Assemble multi-turn conversation from turn data.
 
+        Preserves ReAct step-by-step structure: each step's tool calls become
+        a separate assistant message followed by tool responses. This ensures
+        training data shows the agent making decisions AFTER observing results.
+
         Args:
             turns: List of turn data
             scenario: Scenario description
@@ -968,47 +1231,59 @@ Is the user's original task/goal from the scenario fully completed?
         all_executions: list[ToolExecution] = []
 
         # Add messages from each turn in correct order:
-        # user -> assistant (thinking/tool_calls) -> tool (responses) -> assistant (final answer)
+        # For each turn: user -> [step: assistant(tool_calls) -> tool(responses)]* -> assistant(final)
         for turn in turns:
             # User message
             messages.append(turn.user_message)
 
-            # Build tool_calls for this turn
-            turn_tool_calls: list[ToolCall] = []
-            turn_tool_call_ids: list[str] = []
-            for tool_exec in turn.tool_calls:
-                tool_call_id = generate_tool_call_id()
-                turn_tool_call_ids.append(tool_call_id)
-                turn_tool_calls.append(tool_exec.to_tool_call(tool_call_id))
+            # Process each ReAct step separately to preserve step-by-step structure
+            # This is critical: agent should see results from step N before deciding step N+1
+            for step_with_results in turn.steps_with_results:
+                step = step_with_results.step
+                step_results = step_with_results.results
 
-            # First assistant message with tool_calls
-            # This represents the assistant's "thinking" phase where it plans tool usage
-            messages.append(
-                ChatMessage(
-                    role="assistant",
-                    content="",
-                    tool_calls=turn_tool_calls if turn_tool_calls else None,
-                )
-            )
+                # Skip steps with no tool calls (e.g., final "is_final=true" step)
+                if not step.tool_calls:
+                    continue
 
-            # Tool response messages with tool_call_id
-            for idx, tool_exec in enumerate(turn.tool_calls):
+                # Build tool_calls for THIS step only
+                step_tool_calls: list[ToolCall] = []
+                step_tool_call_ids: list[str] = []
+                for result in step_results:
+                    tool_call_id = generate_tool_call_id()
+                    step_tool_call_ids.append(tool_call_id)
+                    step_tool_calls.append(result.to_tool_call(tool_call_id))
+
+                # Assistant message with tool_calls for this step
                 messages.append(
                     ChatMessage(
-                        role="tool", content=tool_exec.result, tool_call_id=turn_tool_call_ids[idx]
+                        role="assistant",
+                        content="",
+                        tool_calls=step_tool_calls,
                     )
                 )
 
-            # Final assistant response with the answer
+                # Tool response messages for this step
+                for idx, result in enumerate(step_results):
+                    messages.append(
+                        ChatMessage(
+                            role="tool",
+                            content=result.result,
+                            tool_call_id=step_tool_call_ids[idx],
+                        )
+                    )
+
+                # Accumulate executions for this step
+                all_executions.extend(step_results)
+
+            # Final assistant response with the answer for this turn
             messages.append(turn.agent_response)
 
-            # Accumulate reasoning and executions across all turns
+            # Accumulate reasoning across all turns
             all_reasoning.extend(turn.reasoning_steps)
-            all_executions.extend(turn.tool_calls)
 
-        # Build tool context with all tools used across all turns
+        # Build tool context (executions only - tools are in top-level 'tools' field)
         tool_context = ToolContext(
-            available_tools=self.tool_registry.tools,
             executions=all_executions,
         )
 

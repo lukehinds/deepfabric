@@ -132,3 +132,4 @@ venv/
 formats/*
 # coverage files
 .coverage.*
+tools-sdk/.spin/*

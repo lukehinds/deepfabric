@@ -1,0 +1,197 @@
+#####################################################################
+# GitHub Mock Tools Dataset Configuration
+#####################################################################
+# This configuration generates synthetic training data for GitHub
+# tool-calling using mock data.
+#
+# Prerequisites:
+#   1. Build and run the Spin service: cd tools-sdk && spin build && spin up
+#   2. Load GitHub tools: (load from MCP or use pre-loaded schema)
+#   3. Load mock data: see tools-sdk/examples/github-mock-data.json
+#   4. Run: deepfabric generate examples/github-mock-tools.yaml
+#####################################################################
+
+# Topic generation - creates topics aligned with available mock data
+topics:
+  prompt: |
+    GitHub repository management and code review tasks for:
+    - acme-corp/web-platform: A React/TypeScript web application with authentication,
+      real-time features, and REST API. Has issues about auth bugs, dark mode, and performance.
+    - opensource-tools/rust-cli-utils: Rust CLI tools including fastgrep and jsonq.
+      Has issues about gitignore support and error handling.
+    - data-science-hub/ml-pipeline: Python ML pipeline framework with scikit-learn and XGBoost.
+      Has issues about PyTorch support and memory leaks.
+
+  mode: graph
+  system_prompt: |
+    Generate specific, actionable topics for GitHub repository tasks.
+    Focus on realistic developer workflows like:
+    - Reading and understanding code files
+    - Reviewing pull requests and their changes
+    - Investigating issues and their comments
+    - Searching for code patterns or implementations
+    - Checking commit history and changes
+
+    Each topic should be specific enough to lead to concrete tool usage.
+
+  depth: 4
+  degree: 5
+  save_as: "github-topics.jsonl"
+
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash-lite"
+    temperature: 0.7
+
+# Data generation with mock tool execution
+generation:
+  system_prompt: |
+    Generate realistic GitHub workflow scenarios where a developer needs assistance
+    with repository tasks. The assistant has access to GitHub API tools.
+
+    IMPORTANT - Available Mock Repositories:
+
+    1. acme-corp/web-platform (React/TypeScript/Next.js)
+       - Files: README.md, package.json, src/components/Button.tsx, src/services/api.ts
+       - Issues: #342 (auth bug), #341 (dark mode), #340 (performance), #338 (rate limiting)
+       - PRs: #345 (fix auth), #344 (dark mode WIP), #343 (dashboard optimization)
+       - Branches: main, develop, fix/auth-silent-failure, feature/dark-mode
+
+    2. opensource-tools/rust-cli-utils (Rust)
+       - Files: README.md, Cargo.toml, src/bin/fastgrep.rs
+       - Issues: #89 (gitignore support), #88 (jsonq panic), #87 (shell completions)
+       - PRs: #92 (fix jsonq), #91 (MSRV policy)
+
+    3. data-science-hub/ml-pipeline (Python)
+       - Files: README.md, pyproject.toml
+       - Issues: #234 (PyTorch support), #233 (memory leak)
+
+    Generate user requests that reference these specific repositories, issues,
+    files, and PRs. The tools will return mock data for these items.
+
+  instructions: |
+    Create diverse scenarios including:
+    - Code review: "Review PR #345 in acme-corp/web-platform"
+    - Bug investigation: "Help me understand issue #342"
+    - Code exploration: "Show me the Button component implementation"
+    - Search tasks: "Find where authentication is handled"
+    - Commit analysis: "What changed in the latest commits?"
+
+  conversation:
+    type: chain_of_thought
+    reasoning_style: agent
+    agent_mode: multi_turn
+    min_turns: 4
+    max_turns: 4
+    min_tool_calls: 2
+
+  tools:
+    spin_endpoint: "http://localhost:3000"
+
+    # Filter to commonly used GitHub tools
+    available:
+      - get_file_contents
+      - list_issues
+      - issue_read
+      - list_pull_requests
+      - pull_request_read
+      - search_code
+      - search_repositories
+      - list_commits
+      - get_commit
+      - list_branches
+      - read_file
+      - write_file
+      - list_files
+
+    scenario_seed:
+      files:
+        "Dockerfile": |
+          FROM python:3.13
+          WORKDIR /usr/local/app
+
+          # Install the application dependencies
+          COPY requirements.txt ./
+          RUN pip install --no-cache-dir -r requirements.txt
+
+          # Copy in the source code
+          COPY src ./src
+          EXPOSE 8080
+
+          # Setup an app user so the container doesn't run as the root user
+          RUN useradd app
+          USER app
+
+          CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+        "config.json": |
+          {
+            "version": "1.0.0",
+            "debug": true,
+            "max_retries": 3
+          }
+        "README.md": |
+          # Sample Project
+
+          This is a sample project to demonstrate GitHub tool usage.
+
+          ## Features
+
+          - Feature 1
+          - Feature 2
+          - Feature 3
+
+          ## Setup
+
+          Instructions to set up the project.
+        "requirements.txt": |
+          fastapi
+          uvicorn
+          requests
+        "src/app/main.py": |
+          from fastapi import FastAPI
+
+          app = FastAPI()
+
+          @app.get("/")
+          def read_root():
+              return {"Hello": "World"}
+        "src/app/utils.py": |
+          def add(a, b):
+              return a + b
+
+          def subtract(a, b):
+              return a - b
+        "src/app/database.py": |
+          import sqlite3
+
+          def get_connection(db_name):
+              conn = sqlite3.connect(db_name)
+              return conn
+
+    max_per_query: 4
+    strict: false
+    max_agent_steps: 6
+
+  max_retries: 3
+
+  llm:
+    provider: "gemini"
+    model: "gemini-2.5-flash-lite"
+    temperature: 0.7
+
+# Output configuration
+output:
+  system_prompt: |
+    You are an AI assistant with access to GitHub API tools. You help developers
+    with repository management, code review, and issue tracking tasks.
+
+    When given a task:
+    1. Identify which repository and resources are relevant
+    2. Use the appropriate GitHub tools to gather information
+    3. Analyze the results and provide actionable insights
+    4. Reference specific files, issues, or PRs in your response
+
+  include_system_message: false
+  num_samples: 4
+  batch_size: 2
+  save_as: "github-tools-dataset-test.jsonl"

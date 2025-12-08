@@ -64,12 +64,15 @@ generation:
     # min_tool_calls: 2
 
   # Tool configuration (required for agent modes)
+  # Start Spin service: cd tools-sdk && spin build && spin up
   tools:
-    registry_path: "custom-tools.yaml"  # Path to tool definitions
-    # available: []             # Specific tools to use (empty = all)
-    # custom: []                # Inline tool definitions
+    spin_endpoint: "http://localhost:3000"  # Spin service URL
+    available:                  # Filter to specific tools (empty = all VFS tools)
+      - read_file
+      - write_file
+      - list_files
     max_per_query: 3            # Maximum tools per query
-    strict: true                # Discard samples exceeding max (vs truncate)
+    max_agent_steps: 5          # Max ReAct reasoning iterations
 
   max_retries: 3                # Retries for failed generations
   sample_retries: 2             # Retries for validation failures

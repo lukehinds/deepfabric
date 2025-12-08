@@ -39,11 +39,16 @@ generation:
     # Single-turn: one-shot tool use in a single assistant response
     agent_mode: single_turn
 
-  # Tool configuration
+  # Tool configuration - requires Spin service running
+  # Start with: cd tools-sdk && spin build && spin up
   tools:
-    registry_path: "custom-tools.yaml"
-    max_per_query: 3  # Maximum tools per example
-    strict: false     # Keep samples with extra tools, just truncate to limit
+    spin_endpoint: "http://localhost:3000"  # Spin service URL
+    available:  # Use built-in VFS tools
+      - read_file
+      - write_file
+      - list_files
+    max_per_query: 3       # Maximum tools per example
+    max_agent_steps: 5     # Max ReAct iterations
 
   max_retries: 3  # Retry on API failures
 

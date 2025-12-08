@@ -1,0 +1,157 @@
+# Configuration Reference
+
+DeepFabric uses YAML configuration with four main sections: `llm`, `topics`, `generation`, and `output`.
+
+## Complete Example
+
+```yaml
+# Shared LLM defaults (optional)
+llm:
+  provider: "openai"
+  model: "gpt-4o"
+  temperature: 0.7
+
+# Topic generation
+topics:
+  prompt: "Python programming fundamentals"
+  mode: tree              # tree | graph
+  depth: 3
+  degree: 3
+  save_as: "topics.jsonl"
+  llm:                    # Override shared LLM
+    model: "gpt-4o-mini"
+
+# Sample generation
+generation:
+  system_prompt: |
+    Generate clear, educational examples.
+  instructions: "Create diverse, practical scenarios."
+
+  conversation:
+    type: chain_of_thought
+    reasoning_style: agent
+    agent_mode: single_turn
+
+  tools:
+    spin_endpoint: "http://localhost:3000"
+    available:
+      - read_file
+      - write_file
+
+  max_retries: 3
+  llm:
+    temperature: 0.5
+
+# Output configuration
+output:
+  system_prompt: |
+    You are a helpful assistant with tool access.
+  include_system_message: true
+  num_samples: 50
+  batch_size: 5
+  save_as: "dataset.jsonl"
+
+# Optional: Upload to HuggingFace
+huggingface:
+  repository: "username/dataset-name"
+  tags: ["python", "agents"]
+```
+
+## Section Reference
+
+### llm (Optional)
+
+Shared LLM defaults inherited by `topics` and `generation`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | string | LLM provider: openai, anthropic, gemini, ollama |
+| `model` | string | Model name |
+| `temperature` | float | Sampling temperature (0.0-2.0) |
+| `base_url` | string | Custom API endpoint |
+
+### topics
+
+Controls topic tree/graph generation.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `prompt` | string | required | Root topic for generation |
+| `mode` | string | "tree" | Generation mode: tree or graph |
+| `depth` | int | 2 | Hierarchy depth (1-10) |
+| `degree` | int | 3 | Subtopics per node (1-50) |
+| `system_prompt` | string | "" | Custom instructions for topic LLM |
+| `save_as` | string | - | Path to save topics JSONL |
+| `llm` | object | - | Override shared LLM settings |
+
+### generation
+
+Controls sample generation.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `system_prompt` | string | - | Instructions for generation LLM |
+| `instructions` | string | - | Additional guidance |
+| `conversation` | object | - | Conversation type settings |
+| `tools` | object | - | Tool configuration |
+| `max_retries` | int | 3 | Retries on API failures |
+| `sample_retries` | int | 2 | Retries on validation failures |
+| `max_tokens` | int | 2000 | Max tokens per generation |
+| `llm` | object | - | Override shared LLM settings |
+
+#### generation.conversation
+
+| Field | Type | Options | Description |
+|-------|------|---------|-------------|
+| `type` | string | basic, chain_of_thought | Conversation format |
+| `reasoning_style` | string | freetext, agent | For chain_of_thought only |
+| `agent_mode` | string | single_turn, multi_turn | For agent style only |
+| `min_turns` | int | 1 | Minimum turns (multi_turn) |
+| `max_turns` | int | 5 | Maximum turns (multi_turn) |
+| `min_tool_calls` | int | 1 | Minimum tool calls (multi_turn) |
+
+#### generation.tools
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `spin_endpoint` | string | Spin service URL |
+| `tools_endpoint` | string | MCP tools endpoint |
+| `available` | list | Tool names to use (empty = all) |
+| `custom` | list | Inline tool definitions |
+| `max_per_query` | int | Max tools per sample |
+| `max_agent_steps` | int | Max ReAct iterations |
+| `scenario_seed` | object | Initial file state |
+
+### output
+
+Controls final dataset.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `system_prompt` | string | - | System message in training data |
+| `include_system_message` | bool | true | Include system message |
+| `num_samples` | int | required | Total samples to generate |
+| `batch_size` | int | 1 | Parallel generation batch size |
+| `save_as` | string | required | Output file path |
+
+### huggingface (Optional)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `repository` | string | HuggingFace repo (user/name) |
+| `tags` | list | Dataset tags |
+
+## CLI Overrides
+
+Most config options can be overridden via CLI:
+
+```bash
+deepfabric generate config.yaml \
+  --provider anthropic \
+  --model claude-3-5-sonnet-20241022 \
+  --num-samples 100 \
+  --batch-size 10 \
+  --temperature 0.5
+```
+
+Run `deepfabric generate --help` for all options.
