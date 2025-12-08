@@ -15,6 +15,7 @@ import anthropic
 import openai
 
 from google import genai
+from google.api_core import exceptions as google_exceptions
 
 from .client import PROVIDER_API_KEY_MAP
 
@@ -48,24 +49,6 @@ class VerificationResult:
 
     def __str__(self) -> str:
         return f"{self.provider}: {self.status.value} - {self.message}"
-
-
-def _get_api_key(provider: str) -> tuple[str | None, str | None]:
-    """Get the API key and env var name for a provider.
-
-    Returns:
-        Tuple of (api_key, env_var_name) or (None, None) if not found
-    """
-    env_vars = PROVIDER_API_KEY_MAP.get(provider, [])
-
-    for env_var in env_vars:
-        api_key = os.getenv(env_var)
-        if api_key:
-            return api_key, env_var
-
-    if env_vars:
-        return None, env_vars[0]  # Return first env var name for error message
-    return None, None
 
 
 def verify_openai_api_key(api_key: str | None = None) -> VerificationResult:
@@ -260,40 +243,34 @@ def verify_gemini_api_key(api_key: str | None = None) -> VerificationResult:
             details={"models_available": model_count},
         )
 
+    except google_exceptions.PermissionDenied as e:
+        return VerificationResult(
+            provider="gemini",
+            status=VerificationStatus.INVALID,
+            message="Invalid API key",
+            api_key_env_var=env_var_used or "GOOGLE_API_KEY",
+            details={"error": str(e)},
+        )
+
+    except google_exceptions.ResourceExhausted as e:
+        return VerificationResult(
+            provider="gemini",
+            status=VerificationStatus.RATE_LIMITED,
+            message="Rate limit exceeded (key may be valid but quota exhausted)",
+            api_key_env_var=env_var_used or "GOOGLE_API_KEY",
+            details={"error": str(e)},
+        )
+
+    except google_exceptions.GoogleAPICallError as e:
+        return VerificationResult(
+            provider="gemini",
+            status=VerificationStatus.CONNECTION_ERROR,
+            message="Failed to connect to Gemini API",
+            api_key_env_var=env_var_used or "GOOGLE_API_KEY",
+            details={"error": str(e)},
+        )
+
     except Exception as e:
-        error_str = str(e).lower()
-
-        # Parse error for specific conditions
-        if any(
-            keyword in error_str
-            for keyword in ["invalid", "api_key", "authentication", "unauthorized", "permission"]
-        ):
-            return VerificationResult(
-                provider="gemini",
-                status=VerificationStatus.INVALID,
-                message="Invalid API key",
-                api_key_env_var=env_var_used or "GOOGLE_API_KEY",
-                details={"error": str(e)},
-            )
-
-        if any(keyword in error_str for keyword in ["quota", "rate limit", "too many requests"]):
-            return VerificationResult(
-                provider="gemini",
-                status=VerificationStatus.RATE_LIMITED,
-                message="Rate limit exceeded (key may be valid but quota exhausted)",
-                api_key_env_var=env_var_used or "GOOGLE_API_KEY",
-                details={"error": str(e)},
-            )
-
-        if any(keyword in error_str for keyword in ["network", "connection", "timeout"]):
-            return VerificationResult(
-                provider="gemini",
-                status=VerificationStatus.CONNECTION_ERROR,
-                message="Failed to connect to Gemini API",
-                api_key_env_var=env_var_used or "GOOGLE_API_KEY",
-                details={"error": str(e)},
-            )
-
         return VerificationResult(
             provider="gemini",
             status=VerificationStatus.UNKNOWN_ERROR,
@@ -474,6 +451,34 @@ def verify_provider_api_key(
     )
 
 
+def _get_providers_to_check(include_optional: bool = False) -> list[str]:
+    """Get list of providers to check based on configured API keys.
+
+    Args:
+        include_optional: If True, include providers without keys set.
+
+    Returns:
+        List of provider names to verify.
+    """
+    providers_to_check = []
+    for provider, env_vars in PROVIDER_API_KEY_MAP.items():
+        if provider in ("test", "override"):
+            continue
+
+        if not env_vars:
+            # Ollama - always include if checking optional
+            if include_optional:
+                providers_to_check.append(provider)
+            continue
+
+        # Check if any env var is set
+        has_key = any(os.getenv(env_var) for env_var in env_vars)
+        if has_key or include_optional:
+            providers_to_check.append(provider)
+
+    return providers_to_check
+
+
 def verify_all_api_keys(
     providers: list[str] | None = None,
     include_optional: bool = False,
@@ -490,24 +495,7 @@ def verify_all_api_keys(
         Dictionary mapping provider names to VerificationResult
     """
     if providers is None:
-        # Auto-detect providers with API keys set
-        providers_to_check = []
-        for provider, env_vars in PROVIDER_API_KEY_MAP.items():
-            if provider in ("test", "override"):
-                continue
-
-            if not env_vars:
-                # Ollama - always include if checking optional
-                if include_optional:
-                    providers_to_check.append(provider)
-                continue
-
-            # Check if any env var is set
-            has_key = any(os.getenv(env_var) for env_var in env_vars)
-            if has_key or include_optional:
-                providers_to_check.append(provider)
-
-        providers = providers_to_check
+        providers = _get_providers_to_check(include_optional)
 
     results = {}
     for provider in providers:
@@ -537,22 +525,7 @@ async def verify_all_api_keys_async(
     Verifies all providers concurrently for faster results.
     """
     if providers is None:
-        # Auto-detect providers with API keys set
-        providers_to_check = []
-        for provider, env_vars in PROVIDER_API_KEY_MAP.items():
-            if provider in ("test", "override"):
-                continue
-
-            if not env_vars:
-                if include_optional:
-                    providers_to_check.append(provider)
-                continue
-
-            has_key = any(os.getenv(env_var) for env_var in env_vars)
-            if has_key or include_optional:
-                providers_to_check.append(provider)
-
-        providers = providers_to_check
+        providers = _get_providers_to_check(include_optional)
 
     # Run all verifications concurrently
     tasks = [verify_provider_api_key_async(provider) for provider in providers]

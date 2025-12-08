@@ -18,6 +18,7 @@ dependencies = [
     "mermaid-py>=0.8.0",
     "rich>=13.0.0",
     "google-genai>=1.36.0",
+    "google-api-core>=2.0.0",
     "posthog>=3.0.0",
     "packaging>=25.0",
     "transformers>=4.57.1",

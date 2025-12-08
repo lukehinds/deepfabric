@@ -157,34 +157,20 @@ def _validate_api_keys(
     for provider in providers:
         result = verify_provider_api_key(provider)
 
+        # Determine the primary env var to show in error messages
+        env_var = result.api_key_env_var or f"{provider.upper()}_API_KEY"
+        primary_var = env_var.split(" or ")[0] if " or " in env_var else env_var
+
         if result.status == VerificationStatus.MISSING:
-            env_var = result.api_key_env_var or f"{provider.upper()}_API_KEY"
-            # Handle multiple env var options (e.g., "GOOGLE_API_KEY or GEMINI_API_KEY")
-            if " or " in env_var:
-                primary_var = env_var.split(" or ")[0]
-                errors.append(
-                    f"  {provider}: API key not found.\n"
-                    f"    Export it with: export {primary_var}=your-api-key"
-                )
-            else:
-                errors.append(
-                    f"  {provider}: API key not found.\n"
-                    f"    Export it with: export {env_var}=your-api-key"
-                )
+            errors.append(
+                f"  {provider}: API key not found.\n"
+                f"    Export it with: export {primary_var}=your-api-key"
+            )
         elif result.status == VerificationStatus.INVALID:
-            env_var = result.api_key_env_var or f"{provider.upper()}_API_KEY"
-            # Handle multiple env var options
-            if " or " in env_var:
-                primary_var = env_var.split(" or ")[0]
-                errors.append(
-                    f"  {provider}: API key is invalid.\n"
-                    f"    Check your key and re-export: export {primary_var}=your-api-key"
-                )
-            else:
-                errors.append(
-                    f"  {provider}: API key is invalid.\n"
-                    f"    Check your key and re-export: export {env_var}=your-api-key"
-                )
+            errors.append(
+                f"  {provider}: API key is invalid.\n"
+                f"    Check your key and re-export: export {primary_var}=your-api-key"
+            )
         elif result.status == VerificationStatus.CONNECTION_ERROR:
             if provider == "ollama":
                 errors.append(
