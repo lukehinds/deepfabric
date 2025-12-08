@@ -331,7 +331,7 @@ output:
         result = runner.invoke(cli, ["generate", str(config_file)])
 
         assert result.exit_code == 1
-        assert "API key validation failed" in result.output
+        assert "API key verification failed" in result.output
         assert "OPENAI_API_KEY" in result.output
 
     @patch.dict(os.environ, {}, clear=True)
@@ -348,7 +348,7 @@ output:
         result = runner.invoke(cli, ["generate", str(config_file)])
 
         assert result.exit_code == 1
-        assert "API key validation failed" in result.output
+        assert "API key verification failed" in result.output
         assert "GOOGLE_API_KEY" in result.output or "GEMINI_API_KEY" in result.output
 
     @patch.dict(os.environ, {}, clear=True)
@@ -370,6 +370,6 @@ output:
         )
 
         assert result.exit_code == 1
-        assert "API key validation failed" in result.output
+        assert "API key verification failed" in result.output
         # Should check anthropic key, not openai
         assert "ANTHROPIC_API_KEY" in result.output

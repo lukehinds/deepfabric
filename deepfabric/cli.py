@@ -16,7 +16,7 @@ from .dataset_manager import create_dataset, save_dataset
 from .exceptions import ConfigurationError
 from .generator import DataSetGenerator
 from .graph import Graph
-from .llm import validate_provider_api_key
+from .llm import VerificationStatus, verify_provider_api_key
 from .metrics import set_trace_debug, trace
 from .topic_manager import load_or_build_topic_model, save_topic_model
 from .topic_model import TopicModel
@@ -136,14 +136,14 @@ def _validate_api_keys(
     config: DeepFabricConfig,
     provider_override: str | None = None,
 ) -> None:
-    """Validate that required API keys are present for configured providers.
+    """Validate that required API keys are present and working for configured providers.
 
     Args:
         config: The loaded configuration
         provider_override: Optional CLI provider override that takes precedence
 
     Raises:
-        ConfigurationError: If any required API key is missing
+        ConfigurationError: If any required API key is missing or invalid
     """
     # Get providers from config
     providers = config.get_configured_providers()
@@ -152,19 +152,45 @@ def _validate_api_keys(
     if provider_override:
         providers = {provider_override}
 
-    # Validate each provider
+    # Verify each provider's API key
     errors = []
     for provider in providers:
-        is_valid, error_msg = validate_provider_api_key(provider)
-        if not is_valid and error_msg:
-            errors.append(f"  - Provider '{provider}': {error_msg}")
+        result = verify_provider_api_key(provider)
+
+        # Determine the primary env var to show in error messages
+        env_var = result.api_key_env_var or f"{provider.upper()}_API_KEY"
+        primary_var = env_var.split(" or ")[0] if " or " in env_var else env_var
+
+        if result.status == VerificationStatus.MISSING:
+            errors.append(
+                f"  {provider}: API key not found.\n"
+                f"    Export it with: export {primary_var}=your-api-key"
+            )
+        elif result.status == VerificationStatus.INVALID:
+            errors.append(
+                f"  {provider}: API key is invalid.\n"
+                f"    Check your key and re-export: export {primary_var}=your-api-key"
+            )
+        elif result.status == VerificationStatus.CONNECTION_ERROR:
+            if provider == "ollama":
+                errors.append(
+                    f"  {provider}: Cannot connect to Ollama server.\n"
+                    f"    Make sure Ollama is running: ollama serve"
+                )
+            else:
+                errors.append(
+                    f"  {provider}: Connection failed.\n"
+                    f"    Check your internet connection and try again."
+                )
+        elif result.status == VerificationStatus.RATE_LIMITED:
+            errors.append(
+                f"  {provider}: Rate limit exceeded.\n"
+                f"    Wait a moment and try again, or check your API quota."
+            )
 
     if errors:
         error_list = "\n".join(errors)
-        raise ConfigurationError(
-            f"API key validation failed:\n{error_list}\n\n"
-            "Please set the required environment variable(s) before running."
-        )
+        raise ConfigurationError(f"API key verification failed:\n\n{error_list}")
 
 
 def _load_and_prepare_generation_context(options: GenerateOptions) -> GenerationPreparation:
