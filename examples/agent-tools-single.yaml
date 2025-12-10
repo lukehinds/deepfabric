@@ -68,7 +68,7 @@ output:
     2. Execute tools with proper parameters
     3. Interpret results and provide a clear answer
 
-  include_system_message: true
+  include_system_message: false
   num_samples: 1
   batch_size: 1
   save_as: "agent-tools-single-dataset.jsonl"
