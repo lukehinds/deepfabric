@@ -99,11 +99,10 @@ class GroundTruthParser:
             expected_tool = first_execution.function_name
             expected_parameters = first_execution.parsed_arguments
 
-            # Get tool schema from available_tools
-            tool_schema = self._get_tool_schema(
-                conversation.tool_context.available_tools,
-                expected_tool,
-            )
+            # Get tool schema from tools field (OpenAI format)
+            if conversation.tools:
+                available_tools = [ToolDefinition.from_openai(tool) for tool in conversation.tools]
+                tool_schema = self._get_tool_schema(available_tools, expected_tool)
 
         # Extract expected answer
         expected_answer = self._extract_expected_answer(conversation)

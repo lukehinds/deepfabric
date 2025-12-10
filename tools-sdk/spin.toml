@@ -1,0 +1,76 @@
+spin_manifest_version = 2
+
+[application]
+name = "deepfabric-tools"
+version = "0.1.0"
+description = "Tool execution service for DeepFabric dataset generation"
+authors = ["DeepFabric Team"]
+
+# =============================================================================
+# Application Variables
+# Override with environment variables: SPIN_VARIABLE_<NAME>
+# =============================================================================
+
+[variables]
+github_token = { default = "" }
+allowed_repos = { default = "" }
+allow_writes = { default = "false" }
+
+# =============================================================================
+# VFS Component - Virtual Filesystem tools
+# =============================================================================
+
+[[trigger.http]]
+route = "/vfs/..."
+component = "vfs"
+
+[component.vfs]
+source = "components/vfs/target/wasm32-wasip1/release/vfs.wasm"
+key_value_stores = ["default"]
+allowed_outbound_hosts = []
+
+[component.vfs.build]
+command = "cargo build --target wasm32-wasip1 --release"
+workdir = "components/vfs"
+watch = ["components/vfs/src/**/*.rs"]
+
+# =============================================================================
+# GitHub Component - GitHub API tools
+# =============================================================================
+
+# [[trigger.http]]
+#route = "/github/..."
+#component = "github"
+
+#[component.github]
+#source = "components/github/github.wasm"
+#allowed_outbound_hosts = ["https://api.github.com"]
+
+#[component.github.variables]
+#github_token = "{{ github_token }}"
+#allowed_repos = "{{ allowed_repos }}"
+#allow_writes = "{{ allow_writes }}"
+
+#[component.github.build]
+#command = "uv run componentize-py -w spin-http componentize app -o github.wasm"
+#workdir = "components/github"
+#watch = ["components/github/**/*.py"]
+
+# =============================================================================
+# Mock Component - Generic mock tool execution with runtime schema loading
+# =============================================================================
+
+[[trigger.http]]
+route = "/mock/..."
+component = "mock"
+
+[component.mock]
+source = "components/mock/target/wasm32-wasip1/release/mock.wasm"
+key_value_stores = ["default"]
+# Allow outbound HTTP to any host for MCP server connections
+allowed_outbound_hosts = ["http://*:*", "https://*:*"]
+
+[component.mock.build]
+command = "cargo build --target wasm32-wasip1 --release"
+workdir = "components/mock"
+watch = ["components/mock/src/**/*.rs"]

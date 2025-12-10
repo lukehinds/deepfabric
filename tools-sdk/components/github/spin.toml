@@ -1,0 +1,6 @@
+spin_manifest_version = 2
+
+[component.github]
+source = "app.py"
+[component.github.variables]
+github_token = "{{ github_token }}"

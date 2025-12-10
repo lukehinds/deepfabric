@@ -3,8 +3,7 @@ import tempfile
 
 from pathlib import Path
 
-from datasets import load_dataset
-from huggingface_hub import DatasetCard, login
+from huggingface_hub import DatasetCard, HfApi, login
 from huggingface_hub.errors import HfHubHTTPError, RepositoryNotFoundError
 
 from .constants import DEFAULT_HF_TAGS
@@ -97,7 +96,13 @@ class HFUploader:
         tags (list[str], optional): List of tags to add to the dataset card.
         """
         try:
-            card = DatasetCard.load(repo_id)
+            # Try to load existing card, or create a new one if it doesn't exist
+            try:
+                card = DatasetCard.load(repo_id)
+            except Exception:
+                # No existing card - create a new one with basic content
+                card_content = f"---\ntags: []\n---\n# {repo_id.split('/')[-1]}\n\nDataset generated with DeepFabric.\n"
+                card = DatasetCard(card_content)
 
             # Initialize tags if not present - use getattr for safe access
             current_tags = getattr(card.data, "tags", None)
@@ -119,7 +124,7 @@ class HFUploader:
             # Use getattr to safely access push_to_hub method
             push_method = getattr(card, "push_to_hub", None)
             if push_method:
-                push_method(repo_id)
+                push_method(repo_id, token=self.hf_token)
             return True  # noqa: TRY300
         except Exception as e:
             print(f"Warning: Failed to update dataset card: {str(e)}")  # nosec
@@ -145,15 +150,27 @@ class HFUploader:
             # Clean empty question/final_answer fields to avoid empty columns in dataset viewers
             cleaned_file = self._clean_dataset_for_upload(jsonl_file_path)
 
-            # Bandit locally produced and sourced
-            dataset = load_dataset("json", data_files={"train": cleaned_file})  # nosec
+            # Upload JSONL file directly using HfApi to avoid schema inference issues
+            # The datasets library tries to unify schemas across rows which fails when
+            # tool arguments have different fields (e.g., different tools have different params)
+            api = HfApi()
 
-            # Use getattr to safely access push_to_hub method
-            push_method = getattr(dataset, "push_to_hub", None)
-            if push_method:
-                push_method(hf_dataset_repo, token=self.hf_token)
-            else:
-                raise AttributeError("Dataset object does not support push_to_hub")  # noqa: TRY003, TRY301
+            # Create the repo if it doesn't exist (type="dataset" for dataset repos)
+            api.create_repo(
+                repo_id=hf_dataset_repo,
+                repo_type="dataset",
+                exist_ok=True,
+                token=self.hf_token,
+            )
+
+            # Upload the JSONL file to the data/ directory (standard HF dataset structure)
+            api.upload_file(
+                path_or_fileobj=cleaned_file,
+                path_in_repo="data/train.jsonl",
+                repo_id=hf_dataset_repo,
+                repo_type="dataset",
+                token=self.hf_token,
+            )
 
             # Update dataset card with tags
             self.update_dataset_card(hf_dataset_repo, tags)
@@ -181,9 +198,13 @@ class HFUploader:
             }
 
         except Exception as e:
+            # Include the full exception chain for better debugging
+            error_msg = str(e)
+            if hasattr(e, "__cause__") and e.__cause__:
+                error_msg = f"{error_msg} (caused by: {e.__cause__})"
             return {
                 "status": "error",
-                "message": f"An unexpected error occurred: {str(e)}",
+                "message": f"An unexpected error occurred: {error_msg}",
             }
 
         else:

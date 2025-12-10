@@ -95,9 +95,6 @@ class GenerateOptions(BaseModel):
     max_turns: int | None = None
     min_tool_calls: int | None = None
 
-    # Tool configuration
-    tools_registry_file: str | None = None
-
     @model_validator(mode="after")
     def validate_mode_constraints(self) -> "GenerateOptions":
         if self.topic_only and self.topics_load:
@@ -216,7 +213,6 @@ def _load_and_prepare_generation_context(options: GenerateOptions) -> Generation
         conversation_type=options.conversation_type,
         reasoning_style=options.reasoning_style,
         agent_mode=options.agent_mode,
-        tools_registry_file=options.tools_registry_file,
     )
 
     # Validate API keys early before any LLM operations
@@ -421,11 +417,6 @@ def _run_generation(
     type=int,
     help="Minimum tool calls before allowing conversation conclusion",
 )
-@click.option(
-    "--tools-registry-file",
-    type=click.Path(exists=True),
-    help="Path to custom tool definitions file (JSON or YAML format)",
-)
 def generate(  # noqa: PLR0913
     config_file: str | None,
     output_system_prompt: str | None = None,
@@ -453,7 +444,6 @@ def generate(  # noqa: PLR0913
     min_turns: int | None = None,
     max_turns: int | None = None,
     min_tool_calls: int | None = None,
-    tools_registry_file: str | None = None,
     tui: Literal["rich", "simple"] = "rich",
 ) -> None:
     """Generate training data from a YAML configuration file or CLI parameters."""
@@ -491,7 +481,6 @@ def generate(  # noqa: PLR0913
             min_turns=min_turns,
             max_turns=max_turns,
             min_tool_calls=min_tool_calls,
-            tools_registry_file=tools_registry_file,
             tui=tui,
         )
     except PydanticValidationError as error:
