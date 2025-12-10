@@ -43,7 +43,7 @@ What sets DeepFabric apart from other dataset generation tools is its ability to
 
 <img src="/assets/df-demo.gif" width="100%" height="100%"/>
 
-Constrained decoding and response validation, along with real tool executions within isolated webassembly environments, ensure that generated samples strictly adhere to structured schema, variable constraints, and execution correctness, ensuring datasets have exact syntax and structure for use in model training pipelines.
+Constrained decoding and response validation, along with real tool executions within isolated webassembly environments, ensure that generated samples strictly adhere to structured schema, variable constraints, and execution correctness, ensuring datasets have exact syntax and structure for use in model training pipelines. Tool definations can be either directly imported from MCP (Model Context Protocol) server schemas and automatically mocked, real life interfaces along with a standard set of common tools (`list_files()`, 'read_file()` etc)
 
 Once your dataset is generated, it can be automatically uploaded to Hugging Face and directly imported into popular training frameworks like TRL, Unsloth, and Axolotl. 
 
@@ -151,42 +151,6 @@ output:
 huggingface:
   repository: "your-username/api-dataset-training-name"
   tags: ["python", "programming"]
-```
-
-Within `dev-tools.yaml`, define tools the model can use during generation, for example:
-
-```yaml
-- name: get_commit
-  description: "Get details for a commit from a GitHub repository"
-  parameters:
-    - name: owner
-      type: str
-      description: "Repository owner"
-      required: true
-    - name: repo
-      type: str
-      description: "Repository name"
-      required: true
-    - name: sha
-      type: str
-      description: "Commit SHA, branch name, or tag name"
-      required: true
-    - name: include_diff
-      type: bool
-      description: "Whether to include file diffs and stats"
-      required: false
-  returns: "Commit details including author, message, and changed files"
-
-- name: "search_file"
-  description: "Search for a keyword in a text file"
-  parameters:
-    - name: file_path
-      type: str
-      description: "Path to the text file"
-      required: true
-    - name: keyword
-      type: str
-      description: "Keyword to search for"
 ```
 
 Run with:
