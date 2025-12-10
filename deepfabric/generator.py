@@ -37,11 +37,11 @@ from .prompts import (
     STRUCTURED_COT_PROMPT,
     AgentPromptBuilder,
 )
-from .schemas import Conversation, ToolRegistry, get_conversation_schema
+from .schemas import Conversation, get_conversation_schema
 from .tools.loader import (
     get_available_tools,
     load_tools_from_dict,
-    load_tools_from_file,
+    load_tools_from_endpoint,
 )
 from .topic_model import TopicModel
 from .utils import ensure_not_running_loop, is_validation_error
@@ -166,8 +166,31 @@ class DataSetGeneratorConfig(BaseModel):
         default=True,
         description="If True, discard samples exceeding max_tools_per_query. If False, keep sample but truncate executions to limit.",
     )
-    tool_registry_path: str | None = Field(
-        default=None, description="Path to custom tool definitions file (JSON/YAML)"
+
+    # Spin integration for real tool execution
+    spin_endpoint: str | None = Field(
+        default=None,
+        description="Spin service URL for real tool execution (e.g., 'http://localhost:3000')",
+    )
+    scenario_seed: dict | None = Field(
+        default=None,
+        description="Initial state to seed into Spin VFS before generation (e.g., {'files': {'main.py': '...'}})",
+    )
+    max_agent_steps: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        description="Maximum ReAct reasoning steps per sample before forcing conclusion",
+    )
+
+    # MCP/Mock tool integration - load tools from HTTP endpoint instead of code
+    tools_endpoint: str | None = Field(
+        default=None,
+        description="HTTP endpoint to load tool definitions from (e.g., 'http://localhost:3000/mock/list-tools'). Tools are loaded in MCP format.",
+    )
+    tool_execute_path: str | None = Field(
+        default=None,
+        description="Path for tool execution when using tools_endpoint (e.g., '/mock/execute'). Combined with spin_endpoint.",
     )
 
     # Multi-turn configuration (used when agent_mode="multi_turn")
@@ -238,7 +261,8 @@ class DataSetGenerator:
             self.config.agent_mode is not None
             or self.config.available_tools
             or self.config.custom_tools
-            or self.config.tool_registry_path
+            or self.config.tools_endpoint
+            or self.config.spin_endpoint
         ):
             self._initialize_tool_registry()
 
@@ -246,26 +270,33 @@ class DataSetGenerator:
         self.progress_reporter: ProgressReporter | None = None
 
     def _initialize_tool_registry(self):
-        """Initialize tool registry from configuration."""
+        """Initialize tool registry from configuration.
+
+        Tools are loaded from (in priority order):
+        1. tools_endpoint - HTTP endpoint returning MCP-format tools (e.g., /mock/list-tools)
+        2. custom_tools - Tools defined inline in config as dicts
+        3. DEFAULT_TOOL_REGISTRY - Built-in VFS tools (fallback)
+
+        The available_tools filter restricts which tools are exposed.
+        """
         try:
             custom_registry = None
 
-            # Load tools from file if specified
-            if self.config.tool_registry_path:
-                custom_registry = load_tools_from_file(self.config.tool_registry_path)
+            # Option 1: Load tools from HTTP endpoint (MCP format)
+            if self.config.tools_endpoint:
+                custom_registry = load_tools_from_endpoint(self.config.tools_endpoint)
+                logger.info(
+                    "Loaded %d tools from endpoint: %s",
+                    len(custom_registry.tools),
+                    self.config.tools_endpoint,
+                )
 
-            # Load custom tools from dict and merge with file-based tools if both exist
-            if self.config.custom_tools:
-                dict_registry = load_tools_from_dict(self.config.custom_tools)
-                if custom_registry:
-                    # Merge both registries - tools from dict take precedence
-                    # Create a new registry with combined tools
-                    combined_tools = custom_registry.tools + dict_registry.tools
-                    custom_registry = ToolRegistry(tools=combined_tools)
-                else:
-                    custom_registry = dict_registry
+            # Option 2: Load custom tools from dict if provided
+            elif self.config.custom_tools:
+                custom_registry = load_tools_from_dict(self.config.custom_tools)
 
             # Get available tools based on configuration
+            # Falls back to DEFAULT_TOOL_REGISTRY (VFS tools) if no custom registry
             self.tool_registry = get_available_tools(
                 available_tool_names=self.config.available_tools or None,
                 custom_registry=custom_registry,
@@ -415,18 +446,23 @@ class DataSetGenerator:
             # Create a copy of config with sys_msg overridden
             config = self.config.model_copy(update={"sys_msg": include_sys_msg})
 
-        # Create appropriate builder for this configuration
-        builder = ConversationBuilderFactory.create(
-            config=config,
-            llm=self.llm_client,
-            tool_registry=self.tool_registry,
-            progress_reporter=self.progress_reporter,
-        )
-
         async def _generate_with_retry(
             prompt: str, sample_idx: int, path_info: list[str] | None
         ) -> tuple[bool, Exception | Conversation]:
-            """Generate a single sample with per-sample retry for validation errors."""
+            """Generate a single sample with per-sample retry for validation errors.
+
+            Each parallel task gets its own builder instance to avoid Spin session
+            conflicts when running samples concurrently (batch_size > 1).
+            """
+            # Create a fresh builder for this sample to avoid session conflicts
+            # when running in parallel batches
+            builder = ConversationBuilderFactory.create(
+                config=config,
+                llm=self.llm_client,
+                tool_registry=self.tool_registry,
+                progress_reporter=self.progress_reporter,
+            )
+
             last_error: Exception | None = None
             error_feedback: str | None = None
             max_attempts = self.config.sample_retries + 1

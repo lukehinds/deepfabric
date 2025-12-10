@@ -6,9 +6,9 @@ import secrets
 import string
 
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, BeforeValidator, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +129,51 @@ class ToolParameter(BaseModel):
     )
 
 
+# MCP (Model Context Protocol) tool schema models
+class MCPInputSchemaProperty(BaseModel):
+    """A single property in an MCP input schema."""
+
+    model_config = {"extra": "allow"}
+
+    type: str = Field(default="string", description="JSON Schema type")
+    description: str = Field(default="", description="Property description")
+    default: Any | None = Field(default=None, description="Default value")
+
+
+class MCPInputSchema(BaseModel):
+    """MCP tool input schema (JSON Schema format)."""
+
+    model_config = {"extra": "allow"}
+
+    type: str = Field(default="object", description="Schema type")
+    properties: dict[str, MCPInputSchemaProperty] = Field(
+        default_factory=dict, description="Parameter properties"
+    )
+    required: list[str] = Field(default_factory=list, description="Required parameter names")
+
+
+class MCPToolDefinition(BaseModel):
+    """MCP (Model Context Protocol) tool definition.
+
+    See: https://modelcontextprotocol.io/specification/2025-06-18/schema#tool
+    """
+
+    model_config = {"extra": "allow"}
+
+    name: str = Field(description="Tool name")
+    description: str = Field(default="", description="Tool description")
+    input_schema: MCPInputSchema | None = Field(
+        default=None,
+        alias="inputSchema",
+        description="JSON Schema for tool parameters (optional, some tools have no params)",
+    )
+
+    @property
+    def input_schema_safe(self) -> MCPInputSchema:
+        """Get input_schema, returning empty schema if None."""
+        return self.input_schema or MCPInputSchema()
+
+
 class ToolDefinition(BaseModel):
     """Complete definition of a tool/function."""
 
@@ -137,6 +182,10 @@ class ToolDefinition(BaseModel):
     parameters: list[ToolParameter] = Field(description="List of parameters this tool accepts")
     returns: str = Field(description="Description of what this tool returns")
     category: str = Field(default="general", description="Tool category for grouping")
+    component: str | None = Field(
+        default=None,
+        description="Spin component name that implements this tool (e.g., 'vfs', 'github-mock')",
+    )
 
     def to_signature(self) -> str:
         """Generate a function signature string."""
@@ -230,6 +279,111 @@ class ToolDefinition(BaseModel):
             },
         }
 
+    @classmethod
+    def from_openai(cls, openai_tool: dict[str, Any]) -> "ToolDefinition":
+        """Create a ToolDefinition from OpenAI function calling schema format.
+
+        Args:
+            openai_tool: Dictionary in OpenAI format with type="function" and function object
+
+        Returns:
+            ToolDefinition instance
+        """
+        # Reverse type mapping
+        type_mapping = {
+            "string": "str",
+            "integer": "int",
+            "number": "float",
+            "boolean": "bool",
+            "array": "list",
+            "object": "dict",
+        }
+
+        func = openai_tool.get("function", {})
+        name = func.get("name", "")
+        description = func.get("description", "")
+        params_schema = func.get("parameters", {})
+
+        properties = params_schema.get("properties", {})
+        required_params = set(params_schema.get("required", []))
+
+        parameters = []
+        for param_name, param_props in properties.items():
+            json_type = param_props.get("type", "string")
+            df_type = type_mapping.get(json_type, "str")
+
+            default = param_props.get("default")
+            default_str = str(default) if default is not None else ""
+
+            parameters.append(
+                ToolParameter(
+                    name=param_name,
+                    type=df_type,
+                    description=param_props.get("description", ""),
+                    required=param_name in required_params,
+                    default=default_str,
+                )
+            )
+
+        return cls(
+            name=name,
+            description=description,
+            parameters=parameters,
+            returns="",  # OpenAI format doesn't include return description
+            category="general",
+        )
+
+    @classmethod
+    def from_mcp(cls, mcp_tool: MCPToolDefinition | dict[str, Any]) -> "ToolDefinition":
+        """Create a ToolDefinition from MCP (Model Context Protocol) tool schema.
+
+        Args:
+            mcp_tool: Either an MCPToolDefinition instance or a dict in MCP format
+
+        Returns:
+            ToolDefinition instance
+        """
+        # Type mapping from JSON Schema to DeepFabric types
+        type_mapping = {
+            "string": "str",
+            "integer": "int",
+            "number": "float",
+            "boolean": "bool",
+            "array": "list",
+            "object": "dict",
+        }
+
+        # Parse dict to MCPToolDefinition if needed
+        if isinstance(mcp_tool, dict):
+            mcp_tool = MCPToolDefinition.model_validate(mcp_tool)
+
+        # Use safe property to handle None input_schema
+        input_schema = mcp_tool.input_schema_safe
+        parameters = []
+        required_params = set(input_schema.required)
+
+        for param_name, param_props in input_schema.properties.items():
+            df_type = type_mapping.get(param_props.type, "str")
+            default_str = str(param_props.default) if param_props.default is not None else ""
+
+            parameters.append(
+                ToolParameter(
+                    name=param_name,
+                    type=df_type,
+                    description=param_props.description,
+                    required=param_name in required_params,
+                    default=default_str,
+                )
+            )
+
+        return cls(
+            name=mcp_tool.name,
+            description=mcp_tool.description,
+            parameters=parameters,
+            returns="",  # MCP format doesn't include return description
+            category="general",
+        )
+
 
 class ToolRegistry(BaseModel):
     """Registry of available tools."""
@@ -248,9 +402,9 @@ class ToolRegistry(BaseModel):
         """Get list of all tool names."""
         return [t.name for t in self.tools]
 
-    def to_trl_format(self) -> list[dict[str, Any]]:
+    def to_openai_format(self) -> list[dict[str, Any]]:
         """
-        Convert all tools to TRL/OpenAI function calling schema format.
+        Convert all tools to OpenAI function calling schema format.
 
         This method is specifically designed for use with HuggingFace TRL's
         SFTTrainer and other training frameworks that require tools to be
@@ -263,7 +417,7 @@ class ToolRegistry(BaseModel):
 
         Example:
             >>> registry = ToolRegistry(tools=[...])
-            >>> trl_tools = registry.to_trl_format()
+            >>> trl_tools = registry.to_openai_format()
             >>> # Use in dataset: {"messages": [...], "tools": trl_tools}
         """
         return [tool.to_openai() for tool in self.tools]
@@ -292,17 +446,16 @@ class ToolExecution(BaseModel):
 
     @field_validator("arguments")
     @classmethod
-    def validate_arguments_not_empty(cls, v: str) -> str:
-        """Validate that arguments contain actual values, not empty/null placeholders."""
+    def validate_arguments_json(cls, v: str) -> str:
+        """Validate that arguments are valid JSON with no null/empty placeholders.
+
+        Empty objects {} are allowed for parameterless tools like list_files().
+        """
         stripped = v.strip()
 
-        # Reject empty argument objects
-        if stripped == "{}":
-            raise ValueError("Arguments cannot be empty - must provide actual parameter values")
-
-        # Parse JSON to check for null and empty values
+        # Parse and validate JSON
         try:
-            parsed = json.loads(v)
+            parsed = json.loads(stripped)
             if isinstance(parsed, dict):
                 for key, value in parsed.items():
                     if value is None:
@@ -311,8 +464,8 @@ class ToolExecution(BaseModel):
                         raise ValueError(
                             f"Argument '{key}' is empty string - must provide actual value"
                         )
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Arguments must be valid JSON: {e}") from e
 
         return v
 
@@ -331,16 +484,109 @@ class ToolExecution(BaseModel):
             tool_call_id: The 9-char alphanumeric ID. If None, generates one.
 
         Returns:
-            ToolCall with native dict arguments.
+            ToolCall with JSON string arguments (HuggingFace compatible).
         """
         return ToolCall(
             id=tool_call_id or generate_tool_call_id(),
             type="function",
             function=ToolCallFunction(
                 name=self.function_name,
-                arguments=self.parsed_arguments,
+                arguments=self.arguments,  # Pass string directly
             ),
         )
+
+    class Config:
+        extra = "forbid"
+
+
+class PendingToolCall(BaseModel):
+    """A tool call request before execution (no result yet).
+
+    Used in AgentStep for the ReAct loop - the LLM generates these,
+    then Spin executes them and populates the result separately.
+    """
+
+    function_name: str = Field(min_length=1, description="Name of the function/tool to call")
+    arguments: str = Field(
+        min_length=2, description="JSON string of arguments to pass to the function"
+    )
+    reasoning: str = Field(min_length=1, description="Brief explanation of why calling this tool")
+
+    @field_validator("arguments")
+    @classmethod
+    def validate_arguments_json(cls, v: str) -> str:
+        """Validate that arguments are valid JSON with no null/empty placeholders.
+
+        Empty objects {} are allowed for parameterless tools like list_files().
+        """
+        stripped = v.strip()
+
+        # Parse and validate JSON
+        try:
+            parsed = json.loads(stripped)
+            if isinstance(parsed, dict):
+                for key, value in parsed.items():
+                    if value is None:
+                        raise ValueError(f"Argument '{key}' is null - must provide actual value")
+                    if isinstance(value, str) and value == "":
+                        raise ValueError(
+                            f"Argument '{key}' is empty string - must provide actual value"
+                        )
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Arguments must be valid JSON: {e}") from e
+
+        return v
+
+    @property
+    def parsed_arguments(self) -> dict[str, Any]:
+        """Parse arguments JSON string to dict."""
+        return json.loads(self.arguments)
+
+    def to_tool_execution(self, result: str) -> "ToolExecution":
+        """Convert to ToolExecution after getting result from Spin.
+
+        Args:
+            result: The result from tool execution
+
+        Returns:
+            ToolExecution with the result populated
+        """
+        return ToolExecution(
+            function_name=self.function_name,
+            arguments=self.arguments,
+            reasoning=self.reasoning,
+            result=result,
+        )
+
+    class Config:
+        extra = "forbid"
+
+
+class AgentStep(BaseModel):
+    """A single step in ReAct-style agent reasoning.
+
+    Each step represents one iteration of the think-act-observe loop:
+    1. Agent thinks about what to do next (thought)
+    2. Agent decides on tool calls for THIS step only
+    3. Tools are executed and results observed
+    4. Process repeats until is_final=True
+
+    This ensures tool calls are made based on observed results,
+    not hallucinated assumptions about what tools will return.
+    """
+
+    thought: str = Field(
+        min_length=1,
+        description="Agent's reasoning about what to do next based on observations so far",
+    )
+    tool_calls: list["PendingToolCall"] = Field(
+        default_factory=list,
+        description="Tool calls for THIS step only. Empty if agent is done.",
+    )
+    is_final: bool = Field(
+        default=False,
+        description="True if agent has enough information and is ready to respond to user",
+    )
 
     class Config:
         extra = "forbid"
@@ -354,17 +600,43 @@ class FunctionCall(BaseModel):
     arguments: dict[str, Any] = Field(description="Arguments to pass to the function")
 
 
+def _serialize_arguments(v: dict[str, Any] | str) -> str:
+    """Serialize arguments to JSON string, stripping None values.
+
+    This ensures consistent schema for HuggingFace datasets (Arrow/Parquet compatibility).
+    Accepts both dict and str inputs for backward compatibility.
+    """
+    match v:
+        case dict():
+            cleaned = {k: val for k, val in v.items() if val is not None}
+            return json.dumps(cleaned, separators=(",", ":"))
+        case str():
+            # Validate JSON, strip nulls, re-serialize for consistency
+            parsed = json.loads(v)
+            cleaned = (
+                {k: val for k, val in parsed.items() if val is not None}
+                if isinstance(parsed, dict)
+                else parsed
+            )
+            return json.dumps(cleaned, separators=(",", ":"))
+        case _:
+            raise ValueError(f"arguments must be dict or str, got {type(v)}")
+
+
+# Type alias for JSON-serialized arguments (HuggingFace compatible)
+ArgumentsStr = Annotated[str, BeforeValidator(_serialize_arguments)]
+
+
 class ToolCallFunction(ExcludeNoneBaseModel):
     """Function details within a tool call (DeepFabric Format)."""
 
     name: str = Field(min_length=1, description="The name of the function to call")
-    arguments: dict[str, Any] = Field(description="Arguments as native object (not stringified)")
+    arguments: ArgumentsStr = Field(description="Arguments as JSON string (HuggingFace compatible)")
 
-    @field_validator("arguments")
-    @classmethod
-    def strip_none_arguments(cls, v: dict[str, Any]) -> dict[str, Any]:
-        """Strip None values from arguments to keep dataset clean."""
-        return {k: val for k, val in v.items() if val is not None}
+    @property
+    def parsed_arguments(self) -> dict[str, Any]:
+        """Parse arguments JSON string to dict when needed at runtime."""
+        return json.loads(self.arguments)
 
     class Config:
         extra = "forbid"
@@ -376,7 +648,7 @@ class ToolCall(ExcludeNoneBaseModel):
     Implements the DeepFabric Format specification:
     - ID: Exactly 9 alphanumeric characters (A-Z, a-z, 0-9)
     - Type: Always "function"
-    - Arguments: Native dict object (not stringified JSON)
+    - Arguments: JSON string (for HuggingFace Arrow/Parquet compatibility)
     """
 
     id: str = Field(
@@ -519,13 +791,16 @@ class ReasoningTrace(BaseModel):
 
 
 class ToolContext(BaseModel):
-    """Tool capability - present when tools are enabled."""
+    """Tool execution history - present when tools are used.
 
-    available_tools: list[ToolDefinition] = Field(
-        description="Tools available for use in this conversation"
-    )
+    Note: available_tools has been removed as it was redundant with the
+    top-level 'tools' field in Conversation. Use 'tools' for the OpenAI-format
+    tool definitions needed by chat templates.
+    """
+
     executions: list[ToolExecution] = Field(
-        description="Tool executions performed during the conversation", min_length=1
+        default_factory=list,
+        description="Tool executions performed during the conversation (may be empty if agent answered without tools)",
     )
 
     class Config:

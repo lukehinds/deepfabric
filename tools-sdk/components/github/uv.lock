@@ -1,0 +1,40 @@
+version = 1
+revision = 3
+requires-python = ">=3.11"
+
+[[package]]
+name = "componentize-py"
+version = "0.17.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/eb/45/ba5b7abdbd966e465f02c25b3b07c5dcf776bfd837ea00b5f7db73a81b21/componentize_py-0.17.2.tar.gz", hash = "sha256:f3149d93388b8c4cd6807a0a5c8ecce83d647ee21a92b35043111df6746e76e8", size = 161880, upload-time = "2025-06-23T19:10:46.827Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ab/ea/7f26864d889d4050562ba77315f4ee7e4905775143b033c23c3b5d4d8430/componentize_py-0.17.2-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:098841d6729ce9773733131f359fd996a8fa5b98bd70c279d7e303cf33ed9c0c", size = 19405390, upload-time = "2025-06-23T19:10:22.167Z" },
+    { url = "https://files.pythonhosted.org/packages/ae/5e/523dcca0e2dfd70f22b3c2b0076fa3f6296fa027f1ea452224a258b57595/componentize_py-0.17.2-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:c2280294f552440969cc0aca701f1b9f69f702dab74b7bc58a0c9b08f18ed52f", size = 18951546, upload-time = "2025-06-23T19:10:28.035Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/46/5a6a6e2296d2a5ee7f5624b4998d158ff1e2956ef75beb2412536f6b3981/componentize_py-0.17.2-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:4b4a3e0c14fe9532feaf54c208e3be94619a8ffae102725542b8da979e598629", size = 19708707, upload-time = "2025-06-23T19:10:33.629Z" },
+    { url = "https://files.pythonhosted.org/packages/53/ba/f9b8e9aa55538ae6d5fe115edc1e5182ac727d35030008f003514af57a04/componentize_py-0.17.2-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:0105d497661a1a5bc985ae817cc251f5234556a83ac5712ab36b5f45a0a344be", size = 20281943, upload-time = "2025-06-23T19:10:39.767Z" },
+    { url = "https://files.pythonhosted.org/packages/84/48/5eb6802251e6998aec26988aa6b3ed6301526f8e289f9ade65932f424aef/componentize_py-0.17.2-cp39-abi3-win_amd64.whl", hash = "sha256:fc274995921254f039b65c23891ab161f92da5e0528e47586ced57ea07e97959", size = 18262968, upload-time = "2025-06-23T19:10:45.125Z" },
+]
+
+[[package]]
+name = "github-spin-component"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "componentize-py" },
+    { name = "spin-sdk" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "componentize-py", specifier = "==0.17.2" },
+    { name = "spin-sdk", specifier = "==3.4.1" },
+]
+
+[[package]]
+name = "spin-sdk"
+version = "3.4.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c8/4a/94c479600a268174a211128ecbe977b344b82417ea910d01e2274aaa5eb5/spin_sdk-3.4.1.tar.gz", hash = "sha256:2e26213a0e3dcb6f2c36036f9fc0a3f18b59775809658e2f064f89e631ca4134", size = 81216, upload-time = "2025-08-25T17:14:25.548Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f9/4e/799eeca10e482a0af069c3a5416c0f4bf70f20ffe84faefd14592990af0a/spin_sdk-3.4.1-py3-none-any.whl", hash = "sha256:8735017b7015649f6b8f31b0bbd303144efb69c505a77794a1309b9a93252026", size = 117255, upload-time = "2025-08-25T17:14:24.248Z" },
+]

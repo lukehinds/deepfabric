@@ -1,0 +1,11 @@
+[project]
+name = "github-spin-component"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "spin-sdk==3.4.1",
+    "componentize-py==0.17.2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

@@ -83,6 +83,8 @@ class TestUnifiedConversationSchema:
         assert schema == Conversation
 
         # Create instance with tool_context capability
+        # Note: available_tools has been removed from tool_context as it's
+        # redundant with the top-level 'tools' field
         sample_data = {
             "messages": [
                 {"role": "user", "content": "Test question"},
@@ -99,7 +101,6 @@ class TestUnifiedConversationSchema:
                 ],
             },
             "tool_context": {
-                "available_tools": [],
                 "executions": [
                     {
                         "function_name": "test_tool",
@@ -109,6 +110,21 @@ class TestUnifiedConversationSchema:
                     }
                 ],
             },
+            # Tools are now in OpenAI format at top level
+            "tools": [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": "test_tool",
+                        "description": "A test tool",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {"param": {"type": "string"}},
+                            "required": ["param"],
+                        },
+                    },
+                }
+            ],
         }
 
         instance = schema(**sample_data)
@@ -117,6 +133,8 @@ class TestUnifiedConversationSchema:
         assert instance.reasoning.style == "agent"
         assert instance.tool_context is not None
         assert len(instance.tool_context.executions) == 1
+        assert instance.tools is not None
+        assert len(instance.tools) == 1
 
 
 class TestBasicSchemaFunctionality:
@@ -209,7 +227,10 @@ class TestToolCallFormat:
         )
         assert tool_call.id == "callWeath"
         assert tool_call.function.name == "get_weather"
-        assert tool_call.function.arguments == {"city": "Paris"}
+        # Arguments are stored as JSON string for HuggingFace compatibility
+        assert tool_call.function.arguments == '{"city":"Paris"}'
+        # Use parsed_arguments for dict access
+        assert tool_call.function.parsed_arguments == {"city": "Paris"}
 
     def test_tool_call_invalid_id_too_short(self):
         """Test ToolCall rejects IDs that are too short."""
@@ -231,8 +252,8 @@ class TestToolCallFormat:
             )
         assert "alphanumeric" in str(exc_info.value)
 
-    def test_tool_call_arguments_native_dict(self):
-        """Test that arguments are native dict, not string."""
+    def test_tool_call_arguments_json_string(self):
+        """Test that arguments are stored as JSON string for HuggingFace compatibility."""
         tool_call = ToolCall(
             id="abc123XYZ",
             type="function",
@@ -241,8 +262,11 @@ class TestToolCallFormat:
                 arguments={"query": "test", "limit": 10, "active": True},
             ),
         )
-        assert tool_call.function.arguments["limit"] == 10  # noqa: PLR2004
-        assert tool_call.function.arguments["active"] is True
+        # Arguments stored as string
+        assert isinstance(tool_call.function.arguments, str)
+        # Use parsed_arguments for dict access
+        assert tool_call.function.parsed_arguments["limit"] == 10  # noqa: PLR2004
+        assert tool_call.function.parsed_arguments["active"] is True
 
     def test_tool_execution_to_tool_call(self):
         """Test ToolExecution conversion to ToolCall."""
@@ -256,7 +280,8 @@ class TestToolCallFormat:
         tool_call = execution.to_tool_call()
 
         assert TOOL_CALL_ID_PATTERN.match(tool_call.id)
-        assert tool_call.function.arguments == {"city": "Paris", "unit": "C"}
+        # Arguments remain as JSON string
+        assert tool_call.function.parsed_arguments == {"city": "Paris", "unit": "C"}
 
     def test_tool_execution_to_tool_call_with_id(self):
         """Test ToolExecution conversion with provided ID."""
@@ -288,7 +313,8 @@ class TestToolCallFormat:
 
         assert len(message.tool_calls) == 1
         assert message.tool_calls[0].id == "abc123def"
-        assert message.tool_calls[0].function.arguments == {"param": "value"}
+        # Arguments stored as JSON string, use parsed_arguments for dict access
+        assert message.tool_calls[0].function.parsed_arguments == {"param": "value"}
 
     def test_chat_message_tool_call_id_valid(self):
         """Test valid tool_call_id in ChatMessage."""
@@ -322,7 +348,8 @@ class TestToolCallFormat:
         assert data["id"] == "callWeath"
         assert data["type"] == "function"
         assert data["function"]["name"] == "get_weather"
-        assert data["function"]["arguments"] == {"city": "Tokyo", "unit": "C"}
+        # Arguments serialized as JSON string for HuggingFace compatibility
+        assert data["function"]["arguments"] == '{"city":"Tokyo","unit":"C"}'
 
     def test_tool_call_function_strips_none_arguments(self):
         """Test that ToolCallFunction strips None values from arguments."""
@@ -337,8 +364,8 @@ class TestToolCallFormat:
             },
         )
 
-        # None values should be stripped
-        assert func.arguments == {"file_path": "script.py", "keyword": ".format("}
+        # None values should be stripped - arguments stored as JSON string
+        assert func.parsed_arguments == {"file_path": "script.py", "keyword": ".format("}
         assert "base_branch" not in func.arguments
         assert "body" not in func.arguments
 

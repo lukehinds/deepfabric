@@ -37,15 +37,17 @@
   </p>
 </div>
 
-**DeepFabric** generates synthetic training data for language models. By combining reasoning traces with tool-calling patterns, it creates high-quality, domain-specific datasets that teach models to think, plan, and act effectively, call tools correctly, and conform to strict schema structures.
+**DeepFabric** generates synthetic training data for language models and agent evaluations. By combining reasoning traces with tool-calling patterns, it creates high-quality, domain-specific datasets that teach models to think, plan, and act effectively, call tools correctly, and conform to strict schema structures.
 
 What sets DeepFabric apart from other dataset generation tools is its ability to ensure high diversity yet domain-anchored relevance through unique topic graph generation algorithms. This guides sample creation to cover all necessary subtopics while avoiding redundancy, which is where other tools often fall short, resulting in model overfit.
 
 <img src="/assets/df-demo.gif" width="100%" height="100%"/>
 
-Constrained decoding and response validation ensure that generated samples strictly adhere to desired formats, ensuring datasets have exact syntax and structure for use in model training pipelines.
+Constrained decoding and response validation, along with real tool executions within isolated webassembly environments, ensure that generated samples strictly adhere to structured schema, variable constraints, and execution correctness, ensuring datasets have exact syntax and structure for use in model training pipelines.
 
-Once your dataset is generated, it can be automatically uploaded to Hugging Face for easy sharing and versioning, and directly imported into popular training frameworks like TRL, Unsloth, and Axolotl. Post-training, DeepFabric's built-in evaluation engine assesses model performance, whereby models prove their capabilities on unseen tasks derived from training splits—covering evaluation-only questions, answers, and tool traces.
+Once your dataset is generated, it can be automatically uploaded to Hugging Face and directly imported into popular training frameworks like TRL, Unsloth, and Axolotl. 
+
+Post-training, DeepFabric's built-in evaluation engine assesses model performance, whereby models prove their capabilities on unseen tasks derived from training splits—covering evaluation-only questions, answers, and tool traces.
 
 ## Quickstart
 
@@ -61,7 +63,7 @@ export OPENAI_API_KEY="your-api-key"
 deepfabric generate \
   --topic-prompt "Python programming fundamentals" \
   --generation-system-prompt "You are a Python expert" \
-  --mode tree \
+  --mode graph \
   --depth 3 \
   --degree 3 \
   --num-samples 9 \
@@ -71,7 +73,7 @@ deepfabric generate \
   --output-save-as dataset.jsonl
 ```
 
-This generates a topic tree and creates 27 unique leaf topics, then generates 27 training samples saved to `dataset.jsonl`, giving you 100% topic coverage.
+This generates a topic graph and creates 27 unique nodes, then generates 27 training samples saved to `dataset.jsonl`, giving you 100% topic coverage.
 
 ## Configuration
 
@@ -115,11 +117,13 @@ generation:
   
   # Tool configuration (required for agent modes)
   tools:
-    registry_path: "dev-tools.yaml"  # Path to tool definitions
-    # available: []             # Specific tools to use (empty = all)
-    # custom: []                # Inline tool definitions
+    spin_endpoint: "http://localhost:3000"  # Spin service for tool execution
+    available:                  # Filter to specific tools (empty = all VFS tools)
+      - read_file
+      - write_file
+      - list_files
     max_per_query: 3            # Maximum tools per query
-    strict: true                # Discard samples exceeding max (vs truncate)
+    max_agent_steps: 5          # Max ReAct reasoning iterations
 
     max_retries: 3                # Retries for failed generations
     sample_retries: 2             # Retries for validation failures
@@ -276,10 +280,108 @@ print(f"Overall Score: {results.metrics.overall_score:.2%}")
 | Ollama | Local | Privacy, unlimited generation |
 | OpenRouter | Cloud | Flexible model choice |
 
+## Tool Tracing with Spin
+
+DeepFabric supports **real tool execution** during dataset generation using the [Spin Framework](https://www.fermyon.com/spin). Instead of simulating tool outputs, tools actually execute in isolated WebAssembly sandboxes, producing authentic training data.
+
+### Why Real Execution Matters
+
+Traditional synthetic data generators simulate tool outputs, which creates unrealistic training data:
+
+```
+# Simulated (problematic)
+Agent: read_file("config.json")
+Result: {"setting": "value"}  # LLM hallucinated this content
+```
+
+With Spin integration, tools execute against real state:
+
+```
+# Real execution (accurate)
+Agent: read_file("config.json")
+Result: FileNotFound  # Actual filesystem state
+Agent: write_file("config.json", "{...}")
+Result: Written 42 bytes  # Real operation
+```
+
+### ReAct-Style Execution
+
+DeepFabric uses a ReAct (Reason-Act-Observe) loop for tool calling. The agent observes real results before deciding the next action:
+
+```
+Step 1: Agent thinks "I should check if config exists"
+        -> Calls read_file("config.json")
+        -> Observes: FileNotFound
+
+Step 2: Agent thinks "Config doesn't exist, I'll create it"
+        -> Calls write_file("config.json", content)
+        -> Observes: Success
+```
+
+This produces training data where decisions are based on actual observations, not hallucinated assumptions.
+
+### Configuration
+
+Enable tool tracing in your YAML config:
+
+```yaml
+generation:
+  conversation:
+    type: chain_of_thought
+    reasoning_style: agent
+    agent_mode: single_turn
+
+  tools:
+    spin_endpoint: "http://localhost:3000"  # Spin service URL
+    available:                              # Filter to specific tools
+      - read_file
+      - write_file
+      - list_files
+    max_agent_steps: 5                      # Max ReAct iterations
+
+    # Optional: Seed initial state for scenarios
+    scenario_seed:
+      files:
+        "config.json": '{"debug": true}'
+```
+
+### Built-in VFS Tools
+
+DeepFabric includes a virtual filesystem (VFS) component with these tools:
+
+| Tool | Description |
+|------|-------------|
+| `read_file` | Read content from a file |
+| `write_file` | Write content to a file |
+| `list_files` | List all files in the session |
+| `delete_file` | Delete a file |
+
+Each session gets an isolated filesystem - changes don't persist between samples.
+
+### Running Spin Locally
+
+```bash
+cd tools-sdk
+spin build
+spin up
+```
+
+The Spin service runs at `http://localhost:3000` by default.
+
+### Adding Custom Tools
+
+You can extend DeepFabric with custom tools written in Python, JavaScript, Go, or Rust. See [tool-traces.md](./tool-traces.md) for detailed documentation on:
+
+- Creating custom Spin components
+- Tool definition schemas
+- Multi-language examples
+- Containerization and deployment
+
 ## Resources
 
 - [Documentation](https://always-further.github.io/deepfabric/)
 - [Examples](./examples/README.md)
+- [Tool Tracing Guide](./tool-traces.md)
 - [Discord](https://discord.gg/pPcjYzGvbS)
 - [Issues](https://github.com/always-further/deepfabric/issues)
 

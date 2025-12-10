@@ -48,7 +48,7 @@ generator = DataSetGenerator(
 
 **sys_msg** (bool, optional): Whether to include system messages in the dataset. Default: True.
 
-**rate_limit** (dict, optional): Rate limiting configuration. See [Rate Limiting Guide](../operation/rate-limiting.md) for details.
+**rate_limit** (dict, optional): Rate limiting configuration. See [Rate Limiting Guide](../dataset-generation/rate-limiting.md) for details.
 
 ## DataSetGenerator Class
 
@@ -275,7 +275,7 @@ generator = DataSetGenerator(
 )
 ```
 
-See the [Rate Limiting Guide](../operation/rate-limiting.md) for detailed configuration options.
+See the [Rate Limiting Guide](../dataset-generation/rate-limiting.md) for detailed configuration options.
 
 #### Monitoring Failed Samples
 

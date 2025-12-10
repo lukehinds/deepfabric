@@ -1,54 +1,35 @@
 site_name: DeepFabric Documentation
 site_description: Synthetic Dataset Generation for Language Models
 site_url: https://deepfabric.readthedocs.io
-repo_url: https://github.com/lukehinds/deepfabric
-repo_name: lukehinds/deepfabric
+repo_url: https://github.com/always-further/deepfabric
+repo_name: always-further/deepfabric
 
 nav:
   - Home: index.md
-  - Getting Started:
-    - Overview: getting-started/index.md
-    - Installation: getting-started/installation.md
-    - First Dataset: getting-started/first-dataset.md
-  - Configuration Guide:
-    - Overview: guide/index.md
-    - Configuration: guide/configuration.md
-    - Topic Trees: guide/topic-trees.md
-    - Topic Graphs: guide/topic-graphs.md
-    - Dataset Generation: guide/dataset-generation.md
-    - System Prompts: guide/system-prompts.md
-    - Provider Integration: guide/provider-integration.md
-    - Instruction Formats:
-      - Chain of Thought:
-        - Overview: guide/instruction-formats/chain-of-thought/index.md
-        - Formats:
-          - Free-text CoT: guide/instruction-formats/chain-of-thought/formats/free-text.md
-          - Structured CoT: guide/instruction-formats/chain-of-thought/formats/structured.md
-          - Hybrid CoT: guide/instruction-formats/chain-of-thought/formats/hybrid.md
-        - Configuration:
-          - YAML Config: guide/instruction-formats/chain-of-thought/configuration/yaml-config.md
-          - Python API: guide/instruction-formats/chain-of-thought/configuration/python-api.md
-        - Tutorials:
-          - Math Reasoning: guide/instruction-formats/chain-of-thought/tutorials/math-reasoning.md
-        - Advanced:
-          - Reasoning Styles: guide/instruction-formats/chain-of-thought/advanced/reasoning-styles.md
-        - Reference:
-          - Schemas: guide/instruction-formats/chain-of-thought/reference/schemas.md
-          - Troubleshooting: guide/instruction-formats/chain-of-thought/reference/troubleshooting.md
-      - Agent Tool-Calling:
-        - Overview: guide/instruction-formats/agent-tool-calling/index.md
-        - Single-Turn: guide/instruction-formats/agent-tool-calling/single-turn.md
-        - Multi-Turn: guide/instruction-formats/agent-tool-calling/multi-turn.md
-        - Configuration:
-          - YAML Config: guide/instruction-formats/agent-tool-calling/configuration/yaml-config.md
-          - Python API: guide/instruction-formats/agent-tool-calling/configuration/python-api.md
-        - Tutorials:
-          - Getting Started: guide/instruction-formats/agent-tool-calling/tutorials/getting-started.md
-    - Tool Configuration: guide/yaml-tool-configuration.md
-    - Rate Limiting: operation/rate-limiting.md
-    - Error Codes: operation/error-codes.md
-  - SDK Guide:
-    - Generator Pattern: guide/generator-pattern.md
+  - Getting Started: getting-started/index.md
+  - Dataset Generation:
+    - Overview: dataset-generation/index.md
+    - Basic Datasets: dataset-generation/basic.md
+    - Reasoning Datasets: dataset-generation/reasoning.md
+    - Agent Datasets: dataset-generation/agent.md
+    - Configuration: dataset-generation/configuration.md
+    - Rate Limiting: dataset-generation/rate-limiting.md
+  - Tools:
+    - Overview: tools/index.md
+    - Spin Framework: tools/spin.md
+    - VFS Component: tools/vfs.md
+    - Mock Component: tools/mock.md
+    - MCP Integration: tools/mcp.md
+    - Custom Tools: tools/custom.md
+  - Training:
+    - Overview: training/index.md
+    - Loading Datasets: training/loading.md
+    - Chat Templates: training/chat-templates.md
+    - Training Frameworks: training/frameworks.md
+  - Evaluation:
+    - Overview: evaluation/index.md
+    - Running Evaluation: evaluation/running.md
+    - Metrics: evaluation/metrics.md
   - CLI Reference:
     - Overview: cli/index.md
     - generate: cli/generate.md
@@ -62,12 +43,6 @@ nav:
     - Graph: api/graph.md
     - DataSetGenerator: api/generator.md
     - Configuration: api/config.md
-  - Examples:
-    - Overview: examples/index.md
-    - Basic Usage: examples/basic-usage.md
-    - Advanced Workflows: examples/advanced-workflows.md
-    - Hugging Face Integration: examples/huggingface-integration.md
-    - Agent Tool-Calling: examples/agent-tool-calling.md
 
 theme:
   name: material
@@ -93,8 +68,6 @@ theme:
     - search.highlight
     - search.share
     - search.suggest
-    - search.highlight
-    - search.share
     - content.code.copy
     - content.code.annotate
     - content.tooltips

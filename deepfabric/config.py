@@ -177,12 +177,9 @@ class ConversationConfig(BaseModel):
 class ToolsConfig(BaseModel):
     """Configuration for tool/function calling in generation."""
 
-    registry_path: str | None = Field(
-        default=None, description="Path to custom tool definitions file (JSON/YAML)"
-    )
     available: list[str] = Field(
         default_factory=list,
-        description="List of tool names available (empty means all tools from registry)",
+        description="List of tool names to filter (empty means all available tools)",
     )
     custom: list[dict] = Field(
         default_factory=list, description="Custom tool definitions as dictionaries"
@@ -193,6 +190,28 @@ class ToolsConfig(BaseModel):
     strict: bool = Field(
         default=True,
         description="If True, discard samples exceeding max_per_query. If False, truncate.",
+    )
+    spin_endpoint: str | None = Field(
+        default=None,
+        description="Spin service URL for real tool execution (e.g., 'http://localhost:3000')",
+    )
+    tools_endpoint: str | None = Field(
+        default=None,
+        description="HTTP endpoint to load tool definitions from in MCP format (e.g., 'http://localhost:3000/mock/list-tools'). If not set, defaults to spin_endpoint + '/mock/list-tools' when spin_endpoint is provided.",
+    )
+    tool_execute_path: str | None = Field(
+        default=None,
+        description="Path for tool execution (e.g., '/mock/execute'). Combined with spin_endpoint. Defaults to '/mock/execute'.",
+    )
+    scenario_seed: dict | None = Field(
+        default=None,
+        description="Initial state to seed into Spin VFS before generation starts",
+    )
+    max_agent_steps: int = Field(
+        default=5,
+        ge=1,
+        le=10,
+        description="Maximum ReAct reasoning steps before forcing conclusion",
     )
 
 
@@ -236,15 +255,18 @@ class GenerationConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_agent_requires_tools(self):
-        """Validate that agent_mode requires tools."""
+        """Validate that agent_mode requires tools with Spin endpoint."""
         if self.conversation.agent_mode is not None:
-            has_tools = self.tools is not None and (
-                self.tools.available or self.tools.custom or self.tools.registry_path
-            )
-            if not has_tools:
+            if self.tools is None:
                 raise ValueError(
                     "agent_mode requires tools to be configured. "
-                    "Specify tools.registry_path, tools.available, or tools.custom"
+                    "Specify tools.spin_endpoint and optionally tools.available to filter tools."
+                )
+            if not self.tools.spin_endpoint:
+                raise ValueError(
+                    "agent_mode requires a Spin endpoint for tool execution. "
+                    "Set tools.spin_endpoint (e.g., 'http://localhost:3000'). "
+                    "See: cd tools-sdk && spin build && spin up"
                 )
         return self
 
@@ -426,11 +448,11 @@ data_engine                    ->   generation
   conversation_type            ->     conversation.type
   reasoning_style              ->     conversation.reasoning_style
   agent_mode                   ->     conversation.agent_mode
-  tool_registry_path           ->     tools.registry_path
   available_tools              ->     tools.available
   custom_tools                 ->     tools.custom
   max_tools_per_query          ->     tools.max_per_query
   max_tools_strict             ->     tools.strict
+  spin_endpoint                ->     tools.spin_endpoint
 dataset.creation.num_steps     ->   output.num_samples
 dataset.creation.batch_size    ->   output.batch_size
 dataset.creation.sys_msg       ->   output.include_system_message
@@ -567,11 +589,21 @@ See documentation for full examples.
 
         # Tool config
         if self.generation.tools:
-            params["tool_registry_path"] = self.generation.tools.registry_path
             params["available_tools"] = self.generation.tools.available
             params["custom_tools"] = self.generation.tools.custom
             params["max_tools_per_query"] = self.generation.tools.max_per_query
             params["max_tools_strict"] = self.generation.tools.strict
+            params["spin_endpoint"] = self.generation.tools.spin_endpoint
+            params["scenario_seed"] = self.generation.tools.scenario_seed
+            params["max_agent_steps"] = self.generation.tools.max_agent_steps
+            # MCP tool loading - auto-derive from spin_endpoint if not explicit
+            tools_endpoint = self.generation.tools.tools_endpoint
+            if not tools_endpoint and self.generation.tools.spin_endpoint:
+                tools_endpoint = (
+                    f"{self.generation.tools.spin_endpoint.rstrip('/')}/mock/list-tools"
+                )
+            params["tools_endpoint"] = tools_endpoint
+            params["tool_execute_path"] = self.generation.tools.tool_execute_path or "/mock/execute"
 
         # Handle overrides
         override_provider = overrides.pop("provider", None)
@@ -776,9 +808,6 @@ class DataEngineConfig(BaseModel):
         default=True,
         description="Strict mode for tool limits",
     )
-    tool_registry_path: str | None = Field(
-        default=None, description="Path to tool definitions file"
-    )
 
     @model_validator(mode="after")
     def validate_configuration(self):
@@ -795,7 +824,7 @@ class DataEngineConfig(BaseModel):
             )
 
         if self.agent_mode is not None:
-            has_tools = bool(self.available_tools or self.custom_tools or self.tool_registry_path)
+            has_tools = bool(self.available_tools or self.custom_tools)
             if not has_tools:
                 raise ValueError("agent_mode requires tools to be configured.")
 

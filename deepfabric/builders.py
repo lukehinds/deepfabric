@@ -99,13 +99,19 @@ def determine_builder_type(config: "DataSetGeneratorConfig") -> BuilderType:
     """
     # Agent mode with tools requires specialized builder
     if config.agent_mode:
-        # Check that tools are configured in some way
-        has_tools = config.tool_registry_path or config.available_tools or config.custom_tools
+        # Check that tools are configured in some way:
+        # - available_tools: explicit list of tool names to use
+        # - custom_tools: inline tool definitions
+        # - spin_endpoint: tools loaded dynamically from Spin (uses DEFAULT_TOOL_REGISTRY)
+        # - tools_endpoint: tools loaded dynamically from MCP endpoint
+        has_tools = (
+            config.available_tools
+            or config.custom_tools
+            or config.spin_endpoint
+            or config.tools_endpoint
+        )
         if not has_tools:
-            msg = (
-                "agent_mode requires tools to be configured via tool_registry_path, "
-                "available_tools, or custom_tools"
-            )
+            msg = "agent_mode requires tools to be configured via available_tools, custom_tools, spin_endpoint, or tools_endpoint"
             raise ValueError(msg)
 
         if config.agent_mode == "multi_turn":
