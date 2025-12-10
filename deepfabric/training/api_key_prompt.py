@@ -21,23 +21,25 @@ def _is_notebook() -> bool:
 
         shell = get_ipython()
         if shell is None:
-            return False
-
-        shell_name = shell.__class__.__name__
-        # ZMQInteractiveShell = Jupyter, Shell = Colab
-        return shell_name in ("ZMQInteractiveShell", "Shell", "Google Colab")
+            is_nb = False
+        else:
+            shell_name = shell.__class__.__name__
+            # ZMQInteractiveShell = Jupyter, Shell = Colab
+            is_nb = shell_name in ("ZMQInteractiveShell", "Shell", "Google Colab")
     except (NameError, AttributeError, ImportError):
         return False
+    else:
+        return is_nb
 
 
 def _is_colab() -> bool:
     """Check if running in Google Colab specifically."""
     try:
         import google.colab  # type: ignore # noqa: F401, PLC0415
-
-        return True
     except ImportError:
         return False
+    else:
+        return True
 
 
 def _is_interactive_terminal() -> bool:
@@ -190,11 +192,11 @@ def _show_colab_prompt() -> str | None:
         )
 
         key = getpass("DeepFabric API Key: ").strip()
-        return key if key else None
-
     except Exception as e:
         logger.debug(f"Colab prompt failed: {e}")
         return None
+    else:
+        return key if key else None
 
 
 def _show_terminal_prompt() -> str | None:
@@ -217,6 +219,12 @@ def _show_terminal_prompt() -> str | None:
 
     try:
         key = input("  API Key: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        print("  Logging disabled for this session.")
+        print()
+        return None
+    else:
         print()
         if key:
             print("  API key set. Training metrics will be logged.")
@@ -224,11 +232,6 @@ def _show_terminal_prompt() -> str | None:
             print("  Logging disabled for this session.")
         print()
         return key if key else None
-    except (EOFError, KeyboardInterrupt):
-        print()
-        print("  Logging disabled for this session.")
-        print()
-        return None
 
 
 def get_api_key(force_prompt: bool = False) -> str | None:
@@ -264,24 +267,27 @@ def get_api_key(force_prompt: bool = False) -> str | None:
     if _is_colab():
         try:
             _api_key_cache = _show_colab_prompt()
-            return _api_key_cache
         except Exception as e:
             logger.debug(f"Colab prompt failed: {e}")
+        else:
+            return _api_key_cache
 
     if _is_notebook():
         try:
             _api_key_cache = _show_notebook_prompt()
-            if _api_key_cache is not None:
-                return _api_key_cache
         except Exception as e:
             logger.debug(f"Notebook prompt failed: {e}")
+        else:
+            if _api_key_cache is not None:
+                return _api_key_cache
 
     if _is_interactive_terminal():
         try:
             _api_key_cache = _show_terminal_prompt()
-            return _api_key_cache
         except Exception as e:
             logger.debug(f"Terminal prompt failed: {e}")
+        else:
+            return _api_key_cache
 
     # Non-interactive environment - silently disable
     logger.debug("Non-interactive environment, auto-logging disabled")

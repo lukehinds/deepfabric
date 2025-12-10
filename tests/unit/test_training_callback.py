@@ -7,8 +7,6 @@ import time
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from deepfabric.training import api_key_prompt
 from deepfabric.training.api_key_prompt import (
     _is_interactive_terminal,

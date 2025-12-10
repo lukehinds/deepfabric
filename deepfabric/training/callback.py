@@ -9,6 +9,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from .api_key_prompt import get_api_key
+from .metrics_sender import MetricsSender
+
 if TYPE_CHECKING:
     from transformers import TrainerControl, TrainerState
     from transformers.training_args import TrainingArguments
@@ -59,9 +62,6 @@ class DeepFabricCallback:
             endpoint: API endpoint URL (falls back to DEEPFABRIC_API_URL env var)
             enabled: Whether logging is enabled (default: True)
         """
-        from .api_key_prompt import get_api_key
-        from .metrics_sender import MetricsSender
-
         # Get API key from arg, env, or prompt
         self.api_key = api_key or get_api_key()
         self.endpoint = endpoint or os.getenv("DEEPFABRIC_API_URL", "https://api.deepfabric.ai")
@@ -90,7 +90,7 @@ class DeepFabricCallback:
         self,
         args: TrainingArguments,
         state: TrainerState,
-        control: TrainerControl,
+        control: TrainerControl,  # noqa: ARG002
         **kwargs: Any,
     ) -> None:
         """Called at the beginning of training.
@@ -126,11 +126,11 @@ class DeepFabricCallback:
 
     def on_log(
         self,
-        args: TrainingArguments,
+        args: TrainingArguments,  # noqa: ARG002
         state: TrainerState,
-        control: TrainerControl,
+        control: TrainerControl,  # noqa: ARG002
         logs: dict[str, float] | None = None,
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ARG002
     ) -> None:
         """Called when metrics are logged.
 
@@ -144,7 +144,7 @@ class DeepFabricCallback:
         filtered_logs = {}
         for key, value in logs.items():
             if value is not None:
-                if isinstance(value, (int, float)):
+                if isinstance(value, int | float):
                     filtered_logs[key] = value
                 elif isinstance(value, str):
                     # Keep string values for metadata
@@ -166,11 +166,11 @@ class DeepFabricCallback:
 
     def on_evaluate(
         self,
-        args: TrainingArguments,
+        args: TrainingArguments,  # noqa: ARG002
         state: TrainerState,
-        control: TrainerControl,
+        control: TrainerControl,  # noqa: ARG002
         metrics: dict[str, float] | None = None,
-        **kwargs: Any,
+        **kwargs: Any,  # noqa: ARG002
     ) -> None:
         """Called after evaluation.
 
@@ -192,10 +192,10 @@ class DeepFabricCallback:
 
     def on_train_end(
         self,
-        args: TrainingArguments,
+        args: TrainingArguments,  # noqa: ARG002
         state: TrainerState,
-        control: TrainerControl,
-        **kwargs: Any,
+        control: TrainerControl,  # noqa: ARG002
+        **kwargs: Any,  # noqa: ARG002
     ) -> None:
         """Called at the end of training.
 
@@ -222,10 +222,10 @@ class DeepFabricCallback:
 
     def on_save(
         self,
-        args: TrainingArguments,
+        args: TrainingArguments,  # noqa: ARG002
         state: TrainerState,
-        control: TrainerControl,
-        **kwargs: Any,
+        control: TrainerControl,  # noqa: ARG002
+        **kwargs: Any,  # noqa: ARG002
     ) -> None:
         """Called when a checkpoint is saved.
 

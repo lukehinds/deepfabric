@@ -109,11 +109,12 @@ class MetricsSender:
 
         try:
             self._queue.put_nowait({"type": "metrics", "data": metrics})
-            return True
         except queue.Full:
             self._metrics_dropped += 1
             logger.debug("Metrics queue full, dropping metrics")
             return False
+        else:
+            return True
 
     def send_run_start(self, metadata: dict[str, Any]) -> bool:
         """Send run start event.
@@ -155,10 +156,11 @@ class MetricsSender:
 
         try:
             self._queue.put_nowait({"type": event_type, "data": data})
-            return True
         except queue.Full:
             logger.debug(f"Queue full, dropping {event_type} event")
             return False
+        else:
+            return True
 
     def _sender_loop(self) -> None:
         """Background thread that batches and sends metrics."""
@@ -253,8 +255,6 @@ class MetricsSender:
                 logger.debug(f"API request failed: {response.status_code} {response.text[:100]}")
                 return False
 
-            return True
-
         except requests.exceptions.Timeout:
             self._send_errors += 1
             logger.debug("API request timed out")
@@ -269,6 +269,9 @@ class MetricsSender:
             self._send_errors += 1
             logger.debug(f"API request error: {e}")
             return False
+
+        else:
+            return True
 
     def flush(self, timeout: float = 30.0) -> None:
         """Flush all pending metrics (blocking).

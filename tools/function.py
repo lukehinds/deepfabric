@@ -1,5 +1,7 @@
 import json
+
 from transformers.utils import get_json_schema
+
 
 def control_light(room: str, state: str) -> str:
     """
