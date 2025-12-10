@@ -196,8 +196,6 @@ def _validate_api_keys(
             validated_providers.append(provider)
 
     if errors:
-        # Display error prominently before raising
-        tui.error("API key verification failed:")
         error_list = "\n".join(errors)
         raise ConfigurationError(f"API key verification failed:\n\n{error_list}")
 
