@@ -132,14 +132,12 @@ def show_validation_success(
     total_samples = num_steps * batch_size
 
     tui = get_tui()
-    tui.success("📊 Path Validation Passed")
-    tui.info(f"  • Expected {mode} paths: ~{expected_paths} (depth={depth}, degree={degree})")
-    tui.info(
-        f"  • Requested samples: {total_samples} ({num_steps} steps × {batch_size} batch size)"
-    )
-    tui.info(f"  • Path utilization: ~{min(100, (total_samples / expected_paths) * 100):.1f}%")
+    tui.success("Path Validation Passed")
+    tui.info(f"  Expected {mode} paths: ~{expected_paths} (depth={depth}, degree={degree})")
+    tui.info(f"  Requested samples: {total_samples} ({num_steps} steps x {batch_size} batch size)")
+    tui.info(f"  Path utilization: ~{min(100, (total_samples / expected_paths) * 100):.1f}%")
 
     if mode == "graph":
-        tui.info("  • Note: Graph paths may vary due to cross-connections")
+        tui.info("  Note: Graph paths may vary due to cross-connections")
     print()  # Extra space before topic generation
-    time.sleep(1)  # One-second pause to allow user to read the information
+    time.sleep(0.5)  # Brief pause to allow user to see the information
