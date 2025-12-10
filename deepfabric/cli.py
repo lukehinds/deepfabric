@@ -142,6 +142,8 @@ def _validate_api_keys(
     Raises:
         ConfigurationError: If any required API key is missing or invalid
     """
+    tui = get_tui()
+
     # Get providers from config
     providers = config.get_configured_providers()
 
@@ -149,8 +151,13 @@ def _validate_api_keys(
     if provider_override:
         providers = {provider_override}
 
+    # Display what we're checking
+    provider_list = ", ".join(sorted(providers))
+    tui.info(f"Validating API keys for: {provider_list}")
+
     # Verify each provider's API key
     errors = []
+    validated_providers = []
     for provider in providers:
         result = verify_provider_api_key(provider)
 
@@ -184,15 +191,27 @@ def _validate_api_keys(
                 f"  {provider}: Rate limit exceeded.\n"
                 f"    Wait a moment and try again, or check your API quota."
             )
+        else:
+            # VALID or NOT_APPLICABLE (e.g., ollama)
+            validated_providers.append(provider)
 
     if errors:
         error_list = "\n".join(errors)
         raise ConfigurationError(f"API key verification failed:\n\n{error_list}")
 
+    # Show success message
+    tui.success(f"API keys validated for: {', '.join(sorted(validated_providers))}")
+    print()  # Visual separator before next section
 
-def _load_and_prepare_generation_context(options: GenerateOptions) -> GenerationPreparation:
+
+def _load_and_prepare_generation_context(
+    options: GenerateOptions,
+) -> GenerationPreparation:
     """Load configuration, compute overrides, and validate derived parameters."""
+    tui = get_tui()
 
+    # Step 1: Load configuration
+    tui.info("Loading configuration...")
     config = load_config(
         config_file=options.config_file,
         topic_prompt=options.topic_prompt,
@@ -215,7 +234,8 @@ def _load_and_prepare_generation_context(options: GenerateOptions) -> Generation
         agent_mode=options.agent_mode,
     )
 
-    # Validate API keys early before any LLM operations
+    # Step 2: Validate API keys EARLY - this is critical for user feedback
+    # This must happen before any LLM operations and should be clearly visible
     _validate_api_keys(config, options.provider)
 
     topics_overrides_raw, generation_overrides_raw = apply_cli_overrides(
@@ -450,7 +470,12 @@ def generate(  # noqa: PLR0913
     set_trace_debug(debug)
     trace(
         "cli_generate",
-        {"mode": mode, "has_config": config_file is not None, "provider": provider, "model": model},
+        {
+            "mode": mode,
+            "has_config": config_file is not None,
+            "provider": provider,
+            "model": model,
+        },
     )
 
     try:
@@ -490,6 +515,11 @@ def generate(  # noqa: PLR0913
     try:
         # Configure TUI before any output
         configure_tui(options.tui)
+        tui = get_tui()
+
+        # Show initialization header
+        tui.info("Initializing DeepFabric...")
+        print()
 
         preparation = _load_and_prepare_generation_context(options)
 
@@ -794,7 +824,8 @@ def info() -> None:
 
         tui = get_tui()
         header = tui.create_header(
-            f"DeepFabric v{version}", "Large Scale Topic based Synthetic Data Generation"
+            f"DeepFabric v{version}",
+            "Large Scale Topic based Synthetic Data Generation",
         )
         tui.console.print(header)
 
