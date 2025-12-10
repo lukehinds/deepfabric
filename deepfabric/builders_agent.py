@@ -36,6 +36,37 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _convert_steps_to_reasoning(
+    steps: list["AgentStep"],
+    final_action_text: str = "Ready to respond",
+) -> list[ReasoningStep]:
+    """Convert AgentStep objects to ReasoningStep objects.
+
+    Args:
+        steps: List of AgentStep objects to convert
+        final_action_text: Text to use for the action when step is final
+
+    Returns:
+        List of ReasoningStep objects
+    """
+    result = []
+    for i, step in enumerate(steps, 1):
+        action = None
+        if step.tool_calls:
+            actions = [f"{tc.function_name}({tc.arguments})" for tc in step.tool_calls]
+            action = "; ".join(actions)
+        elif step.is_final:
+            action = final_action_text
+        result.append(
+            ReasoningStep(
+                step_number=i,
+                thought=step.thought,
+                action=action,
+            )
+        )
+    return result
+
+
 class UserQuestion(BaseModel):
     """User's question or request."""
 
@@ -105,22 +136,8 @@ class AgentTurnData(BaseModel):
     @property
     def reasoning_steps(self) -> list[ReasoningStep]:
         """Convert steps to ReasoningSteps for backward compatibility."""
-        result = []
-        for i, swr in enumerate(self.steps_with_results, 1):
-            action = None
-            if swr.step.tool_calls:
-                actions = [f"{tc.function_name}({tc.arguments})" for tc in swr.step.tool_calls]
-                action = "; ".join(actions)
-            elif swr.step.is_final:
-                action = "Ready to respond"
-            result.append(
-                ReasoningStep(
-                    step_number=i,
-                    thought=swr.step.thought,
-                    action=action,
-                )
-            )
-        return result
+        steps = [swr.step for swr in self.steps_with_results]
+        return _convert_steps_to_reasoning(steps)
 
     @property
     def tool_calls(self) -> list[ToolExecution]:
@@ -717,24 +734,7 @@ Remember: You have access to the tools listed above and have used them in this c
         )
 
         # Build reasoning trace from AgentSteps
-        # Convert AgentStep thoughts to ReasoningSteps for the trace
-        reasoning_steps = []
-        for i, step in enumerate(steps, 1):
-            # Create action string from tool calls
-            action = None
-            if step.tool_calls:
-                actions = [f"{tc.function_name}({tc.arguments})" for tc in step.tool_calls]
-                action = "; ".join(actions)
-            elif step.is_final:
-                action = "Ready to respond to user"
-
-            reasoning_steps.append(
-                ReasoningStep(
-                    step_number=i,
-                    thought=step.thought,
-                    action=action,
-                )
-            )
+        reasoning_steps = _convert_steps_to_reasoning(steps, "Ready to respond to user")
 
         reasoning_trace = ReasoningTrace(
             style=self.config.reasoning_style or "agent",  # type: ignore

@@ -58,4 +58,3 @@ conversation:
 - [Reasoning Datasets](reasoning.md) - Chain-of-thought training data
 - [Agent Datasets](agent.md) - Tool-calling datasets
 - [Configuration Reference](configuration.md) - Full YAML options
-- [Output Formats](output-formats.md) - Schema documentation
