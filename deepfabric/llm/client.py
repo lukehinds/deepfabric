@@ -324,6 +324,51 @@ def _create_gemini_compatible_schema(schema: type[BaseModel]) -> type[BaseModel]
     return GeminiCompatModel
 
 
+def _strip_ref_sibling_keywords(schema_dict: dict) -> dict:
+    """
+    Remove sibling keywords from $ref properties.
+
+    OpenAI's strict mode doesn't allow $ref to have additional keywords like 'description'.
+    When Pydantic generates schemas, it adds 'description' alongside '$ref' for nested models
+    that have Field(description=...). This function strips those extra keywords.
+
+    Args:
+        schema_dict: JSON schema dictionary
+
+    Returns:
+        Modified schema dict with $ref siblings removed
+    """
+    if not isinstance(schema_dict, dict):
+        return schema_dict
+
+    # If this dict has $ref, remove all sibling keywords except $ref itself
+    if "$ref" in schema_dict:
+        return {"$ref": schema_dict["$ref"]}
+
+    # Process properties recursively
+    if "properties" in schema_dict:
+        for prop_name, prop_schema in schema_dict["properties"].items():
+            schema_dict["properties"][prop_name] = _strip_ref_sibling_keywords(prop_schema)
+
+    # Process $defs recursively
+    if "$defs" in schema_dict:
+        for def_name, def_schema in schema_dict["$defs"].items():
+            schema_dict["$defs"][def_name] = _strip_ref_sibling_keywords(def_schema)
+
+    # Process items (for arrays)
+    if "items" in schema_dict:
+        schema_dict["items"] = _strip_ref_sibling_keywords(schema_dict["items"])
+
+    # Process union types (anyOf, oneOf, allOf)
+    for union_key in _UNION_KEYS:
+        if union_key in schema_dict:
+            schema_dict[union_key] = [
+                _strip_ref_sibling_keywords(variant) for variant in schema_dict[union_key]
+            ]
+
+    return schema_dict
+
+
 def _ensure_openai_strict_mode_compliance(schema_dict: dict) -> dict:
     """
     Ensure schema complies with OpenAI's strict mode requirements.
@@ -332,6 +377,7 @@ def _ensure_openai_strict_mode_compliance(schema_dict: dict) -> dict:
     1. For objects, 'additionalProperties' must be explicitly set to false
     2. ALL properties must be in the 'required' array (no optional fields allowed)
     3. No fields with additionalProperties: true (incompatible with strict mode)
+    4. $ref cannot have sibling keywords like 'description'
 
     Fields like dict[str, Any] have additionalProperties: true and cannot be
     represented in strict mode, so they are excluded from the schema entirely.
@@ -344,6 +390,9 @@ def _ensure_openai_strict_mode_compliance(schema_dict: dict) -> dict:
     """
     if not isinstance(schema_dict, dict):
         return schema_dict
+
+    # First, strip sibling keywords from $ref properties
+    schema_dict = _strip_ref_sibling_keywords(schema_dict)
 
     # For OpenAI strict mode, identify and remove dict[str, Any] fields
     # These have additionalProperties: true which is incompatible with strict mode
