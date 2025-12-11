@@ -46,11 +46,18 @@ pip install deepfabric
 export OPENAI_API_KEY="your-key"
 
 deepfabric generate \
-  --topic-prompt "Python programming" \
+  --topic-prompt "DevOps and Platform Engineering" \
+  --generation-system-prompt "You are an expert in DevOps and Platform Engineering" \
+  --mode graph \
+  --depth 2 \
+  --degree 2 \
   --provider openai \
   --model gpt-4o \
-  --num-samples 50 \
-  --output-save-as dataset.jsonl
+  --num-samples 2 \
+  --batch-size 1 \
+  --conversation-type chain_of_thought \
+  --reasoning-style freetext \
+  --output-save-as dataset.jsonl \
 ```
 
 ## What DeepFabric Does
