@@ -309,6 +309,9 @@ class ToolDefinition(BaseModel):
 
         parameters = []
         for param_name, param_props in properties.items():
+            # Skip None/null property values (can occur in some tool schemas)
+            if param_props is None:
+                continue
             json_type = param_props.get("type", "string")
             df_type = type_mapping.get(json_type, "str")
 
