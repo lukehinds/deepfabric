@@ -72,6 +72,15 @@ class EvaluatorConfig(BaseModel):
         default=None,
         description="DeepFabric cloud API key (or use DEEPFABRIC_API_KEY env var)",
     )
+    multi_turn: bool = Field(
+        default=False,
+        description="Enable multi-turn evaluation (loops through conversation using ground truth tool responses)",
+    )
+    max_turns: int = Field(
+        default=10,
+        ge=1,
+        description="Maximum number of turns in multi-turn evaluation",
+    )
 
 
 class EvaluationResult(BaseModel):
@@ -293,6 +302,85 @@ class Evaluator:
         # Convert from OpenAI format back to ToolDefinition
         return [ToolDefinition.from_openai(tool) for tool in conversation.tools]
 
+    def build_tool_response_lookup(
+        self, sample: dict[str, Any]
+    ) -> dict[str, dict[str, str]]:
+        """Build lookup of tool responses by tool name and arguments.
+
+        For multi-turn evaluation, we need to look up tool responses when the
+        model makes tool calls. We index by (tool_name, arguments_json) to find
+        matching responses from ground truth.
+
+        Args:
+            sample: Dataset sample
+
+        Returns:
+            Dict mapping "tool_name:args_json" -> {"content": response, "tool_call_id": id}
+        """
+        lookup: dict[str, dict[str, str]] = {}
+        messages = sample.get("messages", [])
+
+        # Track pending tool calls from assistant messages
+        pending_tool_calls: dict[str, dict] = {}  # tool_call_id -> {name, arguments}
+
+        for msg in messages:
+            role = msg.get("role")
+
+            # Collect tool calls from assistant messages
+            if role == "assistant" and "tool_calls" in msg:
+                for tc in msg["tool_calls"]:
+                    tc_id = tc.get("id")
+                    func = tc.get("function", {})
+                    name = func.get("name", "")
+                    args = func.get("arguments", "{}")
+                    if tc_id:
+                        pending_tool_calls[tc_id] = {"name": name, "arguments": args}
+
+            # Match tool responses to their calls
+            if role == "tool":
+                tc_id = msg.get("tool_call_id")
+                content = msg.get("content", "")
+                if tc_id and tc_id in pending_tool_calls:
+                    call_info = pending_tool_calls[tc_id]
+                    # Create lookup key from tool name + normalized arguments
+                    key = f"{call_info['name']}:{call_info['arguments']}"
+                    lookup[key] = {"content": content, "tool_call_id": tc_id}
+
+        return lookup
+
+    def find_tool_response(
+        self,
+        tool_call: dict,
+        lookup: dict[str, dict[str, str]],
+    ) -> dict[str, str] | None:
+        """Find a matching tool response for a predicted tool call.
+
+        Args:
+            tool_call: Predicted tool call with 'name' and 'arguments'
+            lookup: Tool response lookup from build_tool_response_lookup
+
+        Returns:
+            Dict with 'content' and 'tool_call_id' if found, None otherwise
+        """
+        name = tool_call.get("name", "")
+        args = tool_call.get("arguments", {})
+
+        # Normalize arguments to JSON string for comparison
+        args_json = json.dumps(args, sort_keys=True) if isinstance(args, dict) else str(args)
+
+        # Try exact match first
+        key = f"{name}:{args_json}"
+        if key in lookup:
+            return lookup[key]
+
+        # Try matching just by tool name (less strict)
+        # This helps when parameter values differ slightly
+        for lookup_key, response in lookup.items():
+            if lookup_key.startswith(f"{name}:"):
+                return response
+
+        return None
+
     def evaluate_sample(
         self,
         sample: dict[str, Any],
@@ -307,6 +395,10 @@ class Evaluator:
         Returns:
             Evaluation result for this sample
         """
+        # Use multi-turn evaluation if enabled
+        if self.config.multi_turn:
+            return self.evaluate_sample_multi_turn(sample, sample_id)
+
         try:
             # Extract ground truth
             ground_truth = self.extract_ground_truth(sample)
@@ -372,6 +464,234 @@ class Evaluator:
                 response_score=0.0,
                 error=str(e),
             )
+
+    def evaluate_sample_multi_turn(
+        self,
+        sample: dict[str, Any],
+        sample_id: int,
+    ) -> SampleEvaluation:
+        """Evaluate a single sample using multi-turn conversation.
+
+        Loops through the conversation, feeding tool responses back to the model
+        until it generates a final answer (no tool calls) or max turns reached.
+
+        Args:
+            sample: Dataset sample
+            sample_id: Sample index
+
+        Returns:
+            Evaluation result for this sample
+        """
+        try:
+            # Extract ground truth (includes all expected tools)
+            ground_truth = self.extract_ground_truth(sample)
+
+            # Prepare initial inputs
+            messages = self.prepare_messages(sample)
+            tools = self.prepare_tools(sample)
+
+            # Build lookup for tool responses from ground truth
+            tool_response_lookup = self.build_tool_response_lookup(sample)
+
+            # Track all predicted tool calls across turns
+            all_predicted_tool_calls: list[dict] = []
+            final_content = ""
+
+            # Multi-turn loop
+            for turn in range(self.config.max_turns):
+                # Run inference
+                response: ModelResponse = self.backend.generate(messages, tools)
+                final_content = response.content
+
+                # Check if model made tool calls
+                if not response.tool_calls:
+                    # No tool calls - this is the final answer
+                    break
+
+                # Process each tool call
+                for tool_call in response.tool_calls:
+                    all_predicted_tool_calls.append(tool_call)
+
+                    # Find matching tool response from ground truth
+                    tool_response = self.find_tool_response(tool_call, tool_response_lookup)
+
+                    if tool_response is None:
+                        # Model called a tool we don't have a response for
+                        # Continue anyway with an error message
+                        tool_response = {
+                            "content": json.dumps({"error": "Tool not found in ground truth"}),
+                            "tool_call_id": f"generated_{turn}_{len(all_predicted_tool_calls)}",
+                        }
+
+                    # Add assistant message with tool call to conversation
+                    messages.append({
+                        "role": "assistant",
+                        "content": "",
+                        "tool_calls": [{
+                            "id": tool_response["tool_call_id"],
+                            "type": "function",
+                            "function": {
+                                "name": tool_call.get("name", ""),
+                                "arguments": json.dumps(tool_call.get("arguments", {})),
+                            },
+                        }],
+                    })
+
+                    # Add tool response to conversation
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_response["tool_call_id"],
+                        "content": tool_response["content"],
+                    })
+
+            # Now compute metrics comparing predicted vs expected tool calls
+            return self._compute_multi_turn_metrics(
+                sample_id=sample_id,
+                ground_truth=ground_truth,
+                predicted_tool_calls=all_predicted_tool_calls,
+                final_content=final_content,
+            )
+
+        except Exception as e:  # noqa: BLE001
+            # Return failed evaluation with safe defaults
+            query = ""
+            expected_tool = None
+            expected_params: dict[str, Any] = {}
+            expected_answer = None
+
+            try:
+                gt = self.extract_ground_truth(sample)
+                query = gt.query
+                expected_tool = gt.expected_tool
+                expected_params = gt.expected_parameters
+                expected_answer = gt.expected_answer
+            except Exception:  # noqa: BLE001, S110
+                pass  # nosec
+
+            return SampleEvaluation(
+                sample_id=sample_id,
+                query=query,
+                expected_tool=expected_tool,
+                predicted_tool=None,
+                expected_parameters=expected_params,
+                predicted_parameters={},
+                expected_answer=expected_answer,
+                predicted_answer=None,
+                tool_selection_correct=False,
+                parameters_correct=False,
+                execution_valid=False,
+                response_score=0.0,
+                error=str(e),
+            )
+
+    def _compute_multi_turn_metrics(
+        self,
+        sample_id: int,
+        ground_truth: GroundTruth,
+        predicted_tool_calls: list[dict],
+        final_content: str,
+    ) -> SampleEvaluation:
+        """Compute metrics for multi-turn evaluation.
+
+        Compares predicted tool calls against expected tools using set comparison.
+
+        Args:
+            sample_id: Sample index
+            ground_truth: Expected values including all expected tools
+            predicted_tool_calls: All tool calls made by model across turns
+            final_content: Final model response content
+
+        Returns:
+            SampleEvaluation with computed metrics
+        """
+        # Build sets of tool names for comparison
+        expected_tool_names = {tc.tool_name for tc in ground_truth.expected_tools}
+        predicted_tool_names = {tc.get("name", "") for tc in predicted_tool_calls}
+
+        # Tool set coverage: what fraction of expected tools were called?
+        if expected_tool_names:
+            matched_tools = expected_tool_names & predicted_tool_names
+            tool_coverage = len(matched_tools) / len(expected_tool_names)
+        else:
+            tool_coverage = 1.0 if not predicted_tool_names else 0.0
+
+        # Tool set precision: what fraction of predicted tools were expected?
+        # (Computed but stored in response_score for now, could be expanded later)
+        if predicted_tool_names:
+            matched_tools = expected_tool_names & predicted_tool_names
+            _tool_precision = len(matched_tools) / len(predicted_tool_names)  # noqa: F841
+        else:
+            _tool_precision = 1.0 if not expected_tool_names else 0.0  # noqa: F841
+
+        # Overall tool selection is correct if coverage is 100%
+        tool_selection_correct = tool_coverage == 1.0
+
+        # For backwards compatibility, use first predicted/expected tool
+        first_predicted_tool = predicted_tool_calls[0].get("name") if predicted_tool_calls else None
+        first_predicted_params = predicted_tool_calls[0].get("arguments", {}) if predicted_tool_calls else {}
+
+        # Parameter accuracy: for matched tools, check if params are structurally correct
+        params_correct = self._check_parameter_structure(
+            ground_truth.expected_tools,
+            predicted_tool_calls,
+        )
+
+        # Execution valid if we got through the conversation
+        execution_valid = len(predicted_tool_calls) > 0 or final_content != ""
+
+        return SampleEvaluation(
+            sample_id=sample_id,
+            query=ground_truth.query,
+            expected_tool=ground_truth.expected_tool,
+            predicted_tool=first_predicted_tool,
+            expected_parameters=ground_truth.expected_parameters,
+            predicted_parameters=first_predicted_params if isinstance(first_predicted_params, dict) else {},
+            expected_answer=ground_truth.expected_answer,
+            predicted_answer=final_content,
+            tool_selection_correct=tool_selection_correct,
+            parameters_correct=params_correct,
+            execution_valid=execution_valid,
+            response_score=tool_coverage,  # Use coverage as response score
+            error=None,
+        )
+
+    def _check_parameter_structure(
+        self,
+        expected_tools: list,
+        predicted_tool_calls: list[dict],
+    ) -> bool:
+        """Check if predicted tool calls have correct parameter structure.
+
+        For each matched tool, verifies that predicted params have the same keys.
+        Does not check parameter values, only structure.
+
+        Args:
+            expected_tools: List of ExpectedToolCall from ground truth
+            predicted_tool_calls: List of predicted tool call dicts
+
+        Returns:
+            True if all matched tools have correct parameter structure
+        """
+        # Build lookup of expected params by tool name
+        expected_params_by_tool: dict[str, set[str]] = {}
+        for tc in expected_tools:
+            if tc.tool_name not in expected_params_by_tool:
+                expected_params_by_tool[tc.tool_name] = set(tc.parameters.keys())
+
+        # Check each predicted tool call
+        for pred_call in predicted_tool_calls:
+            tool_name = pred_call.get("name", "")
+            pred_args = pred_call.get("arguments", {})
+
+            if tool_name in expected_params_by_tool:
+                expected_keys = expected_params_by_tool[tool_name]
+                pred_keys = set(pred_args.keys()) if isinstance(pred_args, dict) else set()
+
+                # Check if predicted has all expected keys (may have extra)
+                if not expected_keys.issubset(pred_keys):
+                    return False
+
+        return True
 
     def _aggregate_results(
         self,

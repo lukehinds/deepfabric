@@ -183,6 +183,9 @@ class SingleTurnAgentBuilder(ConversationBuilder):
         self._spin_client: SpinClient | None = None
         self._spin_session: SpinSession | None = None
 
+        # Track seen tool signatures to skip duplicates
+        self._seen_tool_signatures: set[str] = set()
+
         # Initialize Spin client if endpoint is configured
         spin_endpoint = getattr(config, "spin_endpoint", None)
         tool_execute_path = getattr(config, "tool_execute_path", None)
@@ -228,6 +231,9 @@ class SingleTurnAgentBuilder(ConversationBuilder):
             all_steps: list[AgentStep] = []
             all_tool_results: list[ToolExecution] = []
             max_steps = getattr(self.config, "max_agent_steps", 5)
+
+            # Reset duplicate tracking for this conversation
+            self._seen_tool_signatures.clear()
 
             for step_num in range(max_steps):
                 if self.progress_reporter:
@@ -489,8 +495,22 @@ Generate only the user's question:"""
 
         return "\n".join(history_parts)
 
+    def _get_tool_signature(self, pending_call: PendingToolCall) -> str:
+        """Generate a signature for deduplication.
+
+        Args:
+            pending_call: The pending tool call
+
+        Returns:
+            Signature string combining tool name and arguments
+        """
+        return f"{pending_call.function_name}:{pending_call.arguments}"
+
     async def _execute_step_tools(self, tool_calls: list[PendingToolCall]) -> list[ToolExecution]:
         """Execute tool calls for a single ReAct step.
+
+        Skips duplicate tool calls (same tool + same arguments) that were
+        already executed in a previous step of this conversation.
 
         Args:
             tool_calls: Pending tool calls from the current step (without results)
@@ -501,6 +521,17 @@ Generate only the user's question:"""
         completed_executions = []
 
         for pending_call in tool_calls:
+            # Check for duplicate
+            signature = self._get_tool_signature(pending_call)
+            if signature in self._seen_tool_signatures:
+                logger.debug(
+                    "Skipping duplicate tool call: %s", pending_call.function_name
+                )
+                continue
+
+            # Mark as seen
+            self._seen_tool_signatures.add(signature)
+
             # Get tool definition from registry
             tool_def = self.tool_registry.get_tool(pending_call.function_name)
             if not tool_def:
@@ -851,6 +882,9 @@ class MultiTurnAgentBuilder(SingleTurnAgentBuilder):
             # Track conversation context
             turns: list[AgentTurnData] = []
             all_messages: list[ChatMessage] = []
+
+            # Reset duplicate tracking for this conversation
+            self._seen_tool_signatures.clear()
 
             # Generate scenario overview
             scenario = await self._generate_scenario(topic_prompt, num_turns)
