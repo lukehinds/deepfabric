@@ -237,12 +237,14 @@ class TransformersBackend(InferenceBackend):
         generated_ids = outputs[0][inputs.input_ids.shape[1] :]
         generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
 
-        # Parse tool call if present
-        tool_call = self._parse_tool_call(generated_text) if tools else None
+        # Parse tool calls if present
+        tool_calls = self._parse_tool_calls(generated_text) if tools else []
+        tool_call = tool_calls[0] if tool_calls else None
 
         return ModelResponse(
             content=generated_text,
             tool_call=tool_call,
+            tool_calls=tool_calls if tool_calls else None,
             raw_output=generated_text,
             finish_reason="stop",
         )
@@ -294,13 +296,15 @@ class TransformersBackend(InferenceBackend):
             generated_ids = output_ids[inputs.input_ids[i].shape[0] :]
             generated_text = self.tokenizer.decode(generated_ids, skip_special_tokens=True)
 
-            # Parse tool call if present
-            tool_call = self._parse_tool_call(generated_text) if tools else None
+            # Parse tool calls if present
+            tool_calls = self._parse_tool_calls(generated_text) if tools else []
+            tool_call = tool_calls[0] if tool_calls else None
 
             responses.append(
                 ModelResponse(
                     content=generated_text,
                     tool_call=tool_call,
+                    tool_calls=tool_calls if tool_calls else None,
                     raw_output=generated_text,
                     finish_reason="stop",
                 )
@@ -416,3 +420,48 @@ class TransformersBackend(InferenceBackend):
                 pass  # Expected parsing or validation error
 
         return None
+
+    def _parse_tool_calls(self, text: str) -> list[dict]:
+        """Parse all tool calls from generated text.
+
+        Supports multiple tool calls in the same response:
+        - Multiple XML: <tool_call>...</tool_call><tool_call>...</tool_call>
+        - Multiple JSON objects
+
+        Args:
+            text: Generated text
+
+        Returns:
+            List of dicts with 'name' and 'arguments', empty if none found
+        """
+        tool_calls = []
+
+        # Find all XML format tool calls
+        xml_matches = re.findall(r"<tool_call>(.*?)</tool_call>", text, re.DOTALL)
+        for match in xml_matches:
+            try:
+                data = json.loads(match.strip())
+                tool_call = ToolCall.model_validate(data)
+                tool_calls.append(tool_call.model_dump())
+            except (json.JSONDecodeError, ValidationError):
+                pass  # Expected parsing or validation error
+
+        # If no XML matches, try JSON format
+        if not tool_calls:
+            # Find all JSON objects that look like tool calls
+            pos = 0
+            while pos < len(text):
+                json_str = _extract_json_object(text, pos)
+                if json_str is None:
+                    break
+                try:
+                    data = json.loads(json_str)
+                    if "name" in data and "arguments" in data:
+                        tool_call = ToolCall.model_validate(data)
+                        tool_calls.append(tool_call.model_dump())
+                except (json.JSONDecodeError, ValidationError):
+                    pass  # Expected parsing or validation error
+                # Move past this JSON object
+                pos = text.find(json_str, pos) + len(json_str)
+
+        return tool_calls

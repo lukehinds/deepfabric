@@ -3,11 +3,26 @@
 import json
 import re
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from ..schemas import Conversation, ToolDefinition
+
+
+class ExpectedToolCall(BaseModel):
+    """A single expected tool call with its parameters."""
+
+    tool_name: str = Field(description="Name of the tool")
+    parameters: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Parameter names and values",
+    )
+
+    def signature(self) -> str:
+        """Return a hashable signature for deduplication."""
+        params_str = json.dumps(self.parameters, sort_keys=True)
+        return f"{self.tool_name}:{params_str}"
 
 
 class GroundTruth(BaseModel):
@@ -16,11 +31,15 @@ class GroundTruth(BaseModel):
     query: str = Field(description="The user query")
     expected_tool: str | None = Field(
         default=None,
-        description="Expected tool name (None if no tool use)",
+        description="Expected tool name - first tool (None if no tool use). Kept for backwards compatibility.",
     )
     expected_parameters: dict[str, str | int | float | bool | list | dict] = Field(
         default_factory=dict,
-        description="Expected tool parameters",
+        description="Expected tool parameters - first tool. Kept for backwards compatibility.",
+    )
+    expected_tools: list[ExpectedToolCall] = Field(
+        default_factory=list,
+        description="All unique expected tool calls (deduplicated by tool_name + parameters)",
     )
     tool_schema: ToolDefinition | None = Field(
         default=None,
@@ -91,13 +110,31 @@ class GroundTruthParser:
         # Extract expected tool and parameters if tool_context present
         expected_tool: str | None = None
         expected_parameters: dict = {}
+        expected_tools: list[ExpectedToolCall] = []
         tool_schema: ToolDefinition | None = None
 
-        if conversation.tool_context is not None and conversation.tool_context.executions:
-            # Get first tool execution as ground truth
-            first_execution = conversation.tool_context.executions[0]
+        executions = (
+            conversation.tool_context.executions
+            if conversation.tool_context is not None and conversation.tool_context.executions
+            else []
+        )
+        if executions:
+            # Get first tool execution for backwards compatibility
+            first_execution = executions[0]
             expected_tool = first_execution.function_name
             expected_parameters = first_execution.parsed_arguments
+
+            # Extract ALL tool executions and deduplicate
+            seen_signatures: set[str] = set()
+            for execution in executions:
+                tool_call = ExpectedToolCall(
+                    tool_name=execution.function_name,
+                    parameters=execution.parsed_arguments,
+                )
+                sig = tool_call.signature()
+                if sig not in seen_signatures:
+                    seen_signatures.add(sig)
+                    expected_tools.append(tool_call)
 
             # Get tool schema from tools field (OpenAI format)
             if conversation.tools:
@@ -119,6 +156,7 @@ class GroundTruthParser:
             query=query,
             expected_tool=expected_tool,
             expected_parameters=expected_parameters,
+            expected_tools=expected_tools,
             tool_schema=tool_schema,
             expected_answer=expected_answer,
             conversation_type=self.conversation_type,

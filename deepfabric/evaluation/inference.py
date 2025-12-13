@@ -69,7 +69,11 @@ class ModelResponse(BaseModel):
     content: str = Field(description="Generated text content")
     tool_call: dict | None = Field(
         default=None,
-        description="Parsed tool call if present",
+        description="Parsed tool call if present (first tool call for backwards compatibility)",
+    )
+    tool_calls: list[dict] | None = Field(
+        default=None,
+        description="All parsed tool calls if present (for multi-tool responses)",
     )
     raw_output: str = Field(description="Raw model output before parsing")
     finish_reason: str | None = Field(
