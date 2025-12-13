@@ -9,6 +9,7 @@ from datasets import Dataset as HFDataset
 from pydantic import BaseModel, Field
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from tqdm.auto import tqdm
 
 from ..metrics import trace
 from ..schemas import ToolDefinition
@@ -766,25 +767,12 @@ class Evaluator:
         console.print("[bold blue]Running evaluation...[/bold blue]")
         evaluations = []
 
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task(
-                f"Evaluating {len(samples)} samples...",
-                total=len(samples),
-            )
+        for idx, sample in tqdm(enumerate(samples), total=len(samples), desc="Evaluating"):
+            eval_result = self.evaluate_sample(sample, idx)
+            evaluations.append(eval_result)
 
-            for idx, sample in enumerate(samples):
-                progress.update(task, description=f"Evaluating sample {idx + 1}/{len(samples)}...")
-                eval_result = self.evaluate_sample(sample, idx)
-                evaluations.append(eval_result)
-
-                # Stream sample to reporters (for cloud real-time tracking)
-                self.reporter.report_sample(eval_result)
-
-                progress.update(task, advance=1)
+            # Stream sample to reporters (for cloud real-time tracking)
+            self.reporter.report_sample(eval_result)
 
         console.print("[bold green]Evaluation complete![/bold green]")
 
